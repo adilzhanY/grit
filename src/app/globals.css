@@ -194,10 +194,20 @@ body {
   }
 }
 
-/* Focus visibility for keyboard nav */
+/* Focus visibility for keyboard nav (buttons, links, etc.) */
 :focus-visible {
   outline: 3px solid var(--primary);
   outline-offset: 2px;
+}
+
+/* Text fields: no focus ring — just the caret and the text being typed. */
+input:focus,
+input:focus-visible,
+textarea:focus,
+textarea:focus-visible,
+select:focus,
+select:focus-visible {
+  outline: none;
 }
 
 /* Hide scrollbars on the horizontal nav while keeping scroll */
