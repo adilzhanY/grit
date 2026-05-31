@@ -1,26 +1,209 @@
 @import "tailwindcss";
 
+/* ============================================================
+   EBOSH design tokens — Bento grid + Claymorphism, bright mode only
+   ============================================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Surfaces */
+  --page: #f1efe9;
+  --page-2: #e9e7df;
+  --surface: #faf9f5;
+  --ink: #1b211f;
+  --ink-soft: #4b5650;
+  --ink-faint: #76817b;
+
+  /* Brand */
+  --primary: #0d9488;
+  --primary-deep: #0b7a70;
+  --accent: #f97316;
+
+  /* Per-list clay tints: surface + accent (accent stays >=4.5:1 on white-ish) */
+  --must-surf: #fff0d6;
+  --must-acc: #c2700a;
+  --bad-surf: #ffe0dd;
+  --bad-acc: #cf3b3f;
+  --cool-surf: #d4f3ec;
+  --cool-acc: #0b7d72;
+  --imp-surf: #e9e2ff;
+  --imp-acc: #6d4fe0;
+  --gold: #e0a500;
+
+  /* Clay geometry */
+  --r-lg: 28px;
+  --r-md: 22px;
+  --r-sm: 16px;
+
+  /* Clay shadows: light top-left, dark bottom-right, plus inner highlight */
+  --clay: 7px 7px 18px rgba(20, 26, 24, 0.14),
+    -7px -7px 16px rgba(255, 255, 255, 0.92),
+    inset 3px 3px 6px rgba(255, 255, 255, 0.6),
+    inset -4px -4px 9px rgba(20, 26, 24, 0.06);
+  --clay-sm: 4px 4px 10px rgba(20, 26, 24, 0.12),
+    -4px -4px 9px rgba(255, 255, 255, 0.9),
+    inset 2px 2px 4px rgba(255, 255, 255, 0.55),
+    inset -3px -3px 6px rgba(20, 26, 24, 0.06);
+  --clay-pressed: inset 5px 5px 11px rgba(20, 26, 24, 0.16),
+    inset -3px -3px 8px rgba(255, 255, 255, 0.55);
+
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-page: var(--page);
+  --color-page-2: var(--page-2);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-faint: var(--ink-faint);
+  --color-primary: var(--primary);
+  --color-primary-deep: var(--primary-deep);
+  --color-accent: var(--accent);
+  --color-must: var(--must-acc);
+  --color-bad: var(--bad-acc);
+  --color-cool: var(--cool-acc);
+  --color-imp: var(--imp-acc);
+  --color-gold: var(--gold);
+  --font-sans: var(--font-onest), system-ui, sans-serif;
+  --radius-lg: var(--r-lg);
+  --radius-md: var(--r-md);
+  --radius-sm: var(--r-sm);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, #f7f5ef 0%, transparent 60%),
+    linear-gradient(180deg, var(--page) 0%, var(--page-2) 100%);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ---------- Clay surfaces ---------- */
+.clay {
+  background: var(--surface);
+  border-radius: var(--r-lg);
+  box-shadow: var(--clay);
+}
+.clay-sm {
+  background: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: var(--clay-sm);
+}
+
+/* Pressable squishy element (buttons, task toggles) */
+.clay-press {
+  border-radius: var(--r-sm);
+  box-shadow: var(--clay-sm);
+  transition:
+    transform 180ms var(--spring),
+    box-shadow 180ms var(--spring);
+}
+.clay-press:hover {
+  transform: translateY(-1px);
+}
+.clay-press:active {
+  transform: scale(0.94);
+  box-shadow: var(--clay-pressed);
+}
+
+/* Inset "well" — used for progress tracks and check sockets */
+.clay-inset {
+  box-shadow:
+    inset 4px 4px 9px rgba(20, 26, 24, 0.14),
+    inset -4px -4px 9px rgba(255, 255, 255, 0.85);
+}
+
+/* ---------- Motion ---------- */
+@keyframes pop-in {
+  0% {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.06);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.animate-pop {
+  animation: pop-in 320ms var(--spring) both;
+}
+
+@keyframes float-up {
+  0% {
+    transform: translateY(0) scale(0.9);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-80px) scale(1.15);
+    opacity: 0;
+  }
+}
+.animate-float-up {
+  animation: float-up 1000ms ease-out forwards;
+}
+
+@keyframes celebrate {
+  0% {
+    transform: scale(0.6) rotate(-8deg);
+    opacity: 0;
+  }
+  50% {
+    transform: scale(1.12) rotate(3deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+}
+.animate-celebrate {
+  animation: celebrate 600ms var(--spring) both;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+.animate-shake {
+  animation: shake 380ms ease-in-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus visibility for keyboard nav */
+:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 2px;
+}
+
+/* Hide scrollbars on the horizontal nav while keeping scroll */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
 }
