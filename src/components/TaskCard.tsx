@@ -70,7 +70,7 @@ export function TaskCard({
       {/* Title + meta */}
       <div className="min-w-0 flex-1">
         <p
-          className="truncate text-base font-semibold sm:text-lg"
+          className="text-base font-semibold break-words sm:text-lg"
           style={{
             color: "var(--ink)",
             textDecoration: done ? "line-through" : "none",
@@ -93,8 +93,11 @@ export function TaskCard({
         +{task.points}
       </span>
 
-      {/* Hover actions */}
-      <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+      {/* Hover actions — overlaid so they don't steal title width */}
+      <div
+        className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-full p-1 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+        style={{ background: tint.surf }}
+      >
         {showStar && (
           <button
             onClick={() => toggleStar(task)}

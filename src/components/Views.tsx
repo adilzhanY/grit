@@ -23,7 +23,7 @@ function ListHeader({
   const tint = LIST_TINT[listType];
   return (
     <div
-      className="flex items-center gap-4 p-5 clay sm:col-span-2 xl:col-span-3"
+      className="flex items-center gap-4 p-5 clay sm:col-span-2 2xl:col-span-3"
       style={{ background: tint.surf }}
     >
       <div
@@ -43,13 +43,13 @@ function ListHeader({
 
 function EmptyHint({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border-2 border-dashed border-black/10 p-6 text-center text-sm font-medium text-ink-faint sm:col-span-2 xl:col-span-3">
+    <div className="rounded-2xl border-2 border-dashed border-black/10 p-6 text-center text-sm font-medium text-ink-faint sm:col-span-2 2xl:col-span-3">
       {text}
     </div>
   );
 }
 
-const grid = "grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3";
+const grid = "grid grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3";
 
 function MyDay() {
   const { tasks, today, completedToday } = useStore();
@@ -58,12 +58,12 @@ function MyDay() {
 
   return (
     <div className={grid}>
-      <div className="sm:col-span-2 xl:col-span-3">
+      <div className="sm:col-span-2 2xl:col-span-3">
         <XpHero />
       </div>
 
       <div
-        className="flex items-center justify-between p-5 clay sm:col-span-2 xl:col-span-3"
+        className="flex items-center justify-between p-5 clay sm:col-span-2 2xl:col-span-3"
         style={{ background: "var(--surface)" }}
       >
         <div>
@@ -111,7 +111,7 @@ function PositiveList({ listType }: { listType: ListType }) {
             : `${achieved.length}/${all.length} achieved`
         }
       />
-      <div className="sm:col-span-2 xl:col-span-3">
+      <div className="sm:col-span-2 2xl:col-span-3">
         <AddTask listType={listType} />
       </div>
 
@@ -125,7 +125,7 @@ function PositiveList({ listType }: { listType: ListType }) {
 
       {achieved.length > 0 && (
         <>
-          <h2 className="mt-2 px-1 text-sm font-bold uppercase tracking-wider text-ink-faint sm:col-span-2 xl:col-span-3">
+          <h2 className="mt-2 px-1 text-sm font-bold uppercase tracking-wider text-ink-faint sm:col-span-2 2xl:col-span-3">
             Achieved
           </h2>
           {achieved.map((t) => (
@@ -143,7 +143,7 @@ function BadList() {
   return (
     <div className={grid}>
       <ListHeader listType="bad" count={`${bad.length} tracked`} />
-      <div className="sm:col-span-2 xl:col-span-3">
+      <div className="sm:col-span-2 2xl:col-span-3">
         <AddTask listType="bad" />
       </div>
       {bad.length === 0 && (
