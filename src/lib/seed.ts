@@ -3,7 +3,7 @@
 import { db } from "./db";
 import { addTask } from "./repository";
 
-/** Populate example tasks the first time EBOSH runs, so the loop is alive immediately. */
+/** Populate example tasks the first time grit runs, so the loop is alive immediately. */
 export async function seedIfEmpty(): Promise<void> {
   const count = await db().tasks.count();
   if (count > 0) return;

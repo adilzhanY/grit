@@ -5,20 +5,30 @@ import type { Task } from "@/lib/types";
 import { LIST_TINT } from "@/lib/tint";
 import { recurrenceLabel } from "@/lib/schedule";
 import { useStore } from "@/lib/store";
+import { useConfirm } from "./ConfirmDialog";
 import { Icon } from "./Icon";
 
-/** Card for a positive task (Must / Cool / Impossible). Self-contained: reads store. */
+/** Card for a positive task (Must / Cool / Impossible / custom). Reads store. */
 export function TaskCard({
   task,
-  showStar = false,
   className = "",
+  showMustBadge = false,
 }: {
   task: Task;
-  showStar?: boolean;
   className?: string;
+  /** Show a "Must" pill next to the title (used on My Day). */
+  showMustBadge?: boolean;
 }) {
-  const { completedToday, toggleMust, achieve, unachieve, toggleStar, removeTask } =
-    useStore();
+  const {
+    completedToday,
+    toggleMust,
+    achieve,
+    unachieve,
+    toggleMyDay,
+    toggleImportant,
+    removeTask,
+  } = useStore();
+  const confirm = useConfirm();
   const tint = LIST_TINT[task.listType];
   const [float, setFloat] = useState<number | null>(null);
 
@@ -78,6 +88,14 @@ export function TaskCard({
           }}
         >
           {task.title}
+          {showMustBadge && task.listType === "must" && (
+            <span
+              className="ml-2 inline-block translate-y-[-1px] rounded-full px-2 py-0.5 align-middle text-[10px] font-extrabold uppercase tracking-wider"
+              style={{ background: "var(--surface)", color: "var(--must-acc)" }}
+            >
+              Must
+            </span>
+          )}
         </p>
         <div className="mt-0.5 flex items-center gap-2 text-xs font-medium text-ink-soft">
           {task.listType === "must" && <span>{recurrenceLabel(task)}</span>}
@@ -98,22 +116,39 @@ export function TaskCard({
         className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-full p-1 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 focus-within:opacity-100"
         style={{ background: tint.surf }}
       >
-        {showStar && (
-          <button
-            onClick={() => toggleStar(task)}
-            aria-label={task.starredMyDay ? "Remove from My Day" : "Add to My Day"}
-            className="grid h-9 w-9 place-items-center rounded-full hover:bg-black/5"
-            style={{
-              cursor: "pointer",
-              color: task.starredMyDay ? tint.acc : "var(--ink-faint)",
-            }}
-          >
-            <Icon name="Star" className="h-5 w-5" />
-          </button>
-        )}
         <button
-          onClick={() => {
-            if (confirm(`Delete "${task.title}"?`)) removeTask(task.id);
+          onClick={() => toggleImportant(task)}
+          aria-label={task.important ? "Unmark important" : "Mark important"}
+          aria-pressed={!!task.important}
+          className="grid h-9 w-9 place-items-center rounded-full hover:bg-black/5"
+          style={{
+            cursor: "pointer",
+            color: task.important ? tint.acc : "var(--ink-faint)",
+          }}
+        >
+          <Icon name="Star" className="h-5 w-5" />
+        </button>
+        <button
+          onClick={() => toggleMyDay(task)}
+          aria-label={task.starredMyDay ? "Remove from My Day" : "Add to My Day"}
+          aria-pressed={!!task.starredMyDay}
+          className="grid h-9 w-9 place-items-center rounded-full hover:bg-black/5"
+          style={{
+            cursor: "pointer",
+            color: task.starredMyDay ? tint.acc : "var(--ink-faint)",
+          }}
+        >
+          <Icon name="Sun" className="h-5 w-5" />
+        </button>
+        <button
+          onClick={async () => {
+            if (
+              await confirm({
+                title: `Delete "${task.title}"?`,
+                confirmLabel: "Delete",
+              })
+            )
+              removeTask(task.id);
           }}
           aria-label={`Delete ${task.title}`}
           className="grid h-9 w-9 place-items-center rounded-full text-ink-faint hover:bg-black/5"

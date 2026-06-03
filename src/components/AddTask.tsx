@@ -9,7 +9,16 @@ import { Icon } from "./Icon";
 
 const WD = ["S", "M", "T", "W", "T", "F", "S"];
 
-export function AddTask({ listType }: { listType: ListType }) {
+export function AddTask({
+  listType,
+  listId,
+  myDay = false,
+}: {
+  listType: ListType;
+  listId?: string;
+  /** Quick-add from My Day: the new task is pinned into My Day. */
+  myDay?: boolean;
+}) {
   const { addTask } = useStore();
   const tint = LIST_TINT[listType];
   const [title, setTitle] = useState("");
@@ -18,6 +27,21 @@ export function AddTask({ listType }: { listType: ListType }) {
   const [points, setPoints] = useState(DEFAULT_POINTS[listType]);
   const [penalty, setPenalty] = useState(DEFAULT_SLIP_PENALTY);
   const [mult, setMult] = useState(1);
+  /** Bad only: "YYYY-MM-DD" the habit was quit; empty = starting now. */
+  const [cleanSince, setCleanSince] = useState("");
+
+  // Local midnight of a YYYY-MM-DD string (Date parsing of bare dates is UTC).
+  const dateToTs = (s: string): number => {
+    const [y, m, d] = s.split("-").map(Number);
+    return new Date(y, m - 1, d).getTime();
+  };
+
+  const todayStr = (() => {
+    const d = new Date();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${m}-${day}`;
+  })();
 
   const submit = async () => {
     const t = title.trim();
@@ -34,12 +58,17 @@ export function AddTask({ listType }: { listType: ListType }) {
           : undefined,
       slipPenalty: listType === "bad" ? penalty : undefined,
       rewardMultiplier: listType === "bad" ? mult : undefined,
+      cleanSince:
+        listType === "bad" && cleanSince ? dateToTs(cleanSince) : undefined,
+      listId: listType === "custom" ? listId : undefined,
+      starredMyDay: myDay || undefined,
     });
     setTitle("");
     setWeekdays([]);
     setPoints(DEFAULT_POINTS[listType]);
     setPenalty(DEFAULT_SLIP_PENALTY);
     setMult(1);
+    setCleanSince("");
     setOpen(false);
   };
 
@@ -62,7 +91,13 @@ export function AddTask({ listType }: { listType: ListType }) {
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && submit()}
-          placeholder={`Add to ${listType}…`}
+          placeholder={
+            myDay
+              ? "Add a task for today…"
+              : listType === "custom"
+                ? "Add a task…"
+                : `Add to ${listType}…`
+          }
           aria-label={`Add a ${listType} task`}
           className="min-w-0 flex-1 bg-transparent px-2 text-base font-medium outline-none placeholder:text-ink-faint"
         />
@@ -112,7 +147,9 @@ export function AddTask({ listType }: { listType: ListType }) {
             </div>
           )}
 
-          {(listType === "cool" || listType === "impossible") && (
+          {(listType === "cool" ||
+            listType === "impossible" ||
+            listType === "custom") && (
             <label className="flex items-center gap-2 font-semibold text-ink-soft">
               XP reward:
               <input
@@ -144,6 +181,19 @@ export function AddTask({ listType }: { listType: ListType }) {
                   onChange={(e) => setMult(Number(e.target.value))}
                   className="w-16 rounded-lg bg-page-2 px-2 py-1 text-ink outline-none"
                 />
+              </label>
+              <label className="flex items-center gap-2 font-semibold text-ink-soft">
+                Clean since:
+                <input
+                  type="date"
+                  value={cleanSince}
+                  max={todayStr}
+                  onChange={(e) => setCleanSince(e.target.value)}
+                  className="rounded-lg bg-page-2 px-2 py-1 text-ink outline-none"
+                />
+                <span className="text-xs font-medium text-ink-faint">
+                  {cleanSince ? "" : "(now)"}
+                </span>
               </label>
             </>
           )}

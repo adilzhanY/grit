@@ -1,10 +1,12 @@
 "use client";
 
 import { useStore } from "@/lib/store";
+import { useConfirm } from "./ConfirmDialog";
 import { Icon } from "./Icon";
 
 export function XpHero({ compact = false }: { compact?: boolean }) {
-  const { level, todayXp } = useStore();
+  const { level, todayXp, resetXp } = useStore();
+  const confirm = useConfirm();
   const pct = Math.round(level.progress * 100);
 
   if (compact) {
@@ -57,15 +59,34 @@ export function XpHero({ compact = false }: { compact?: boolean }) {
             {level.level}
           </p>
         </div>
-        <div className="rounded-full bg-white/15 px-4 py-2 text-right backdrop-blur">
-          <div className="flex items-center gap-1.5 text-sm font-bold">
-            <Icon name="Zap" className="h-4 w-4" />
-            {todayXp >= 0 ? "+" : ""}
-            {todayXp} today
+        <div className="flex flex-col items-end gap-2">
+          <div className="rounded-full bg-white/15 px-4 py-2 text-right backdrop-blur">
+            <div className="flex items-center gap-1.5 text-sm font-bold">
+              <Icon name="Zap" className="h-4 w-4" />
+              {todayXp >= 0 ? "+" : ""}
+              {todayXp} today
+            </div>
+            <div className="text-xs text-white/70 tabular-nums">
+              {level.totalXp.toLocaleString()} total XP
+            </div>
           </div>
-          <div className="text-xs text-white/70 tabular-nums">
-            {level.totalXp.toLocaleString()} total XP
-          </div>
+          <button
+            onClick={async () => {
+              if (
+                await confirm({
+                  title: "Reset XP to 0?",
+                  message: "Tasks and streaks are kept.",
+                  confirmLabel: "Reset",
+                })
+              ) {
+                void resetXp();
+              }
+            }}
+            className="clay-press rounded-full px-4 py-1.5 text-xs font-extrabold uppercase tracking-wider text-white"
+            style={{ background: "var(--bad-acc)", cursor: "pointer" }}
+          >
+            Reset
+          </button>
         </div>
       </div>
 

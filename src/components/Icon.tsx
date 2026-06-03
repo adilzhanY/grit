@@ -15,6 +15,8 @@ import {
   Trash2,
   ChevronRight,
   Zap,
+  ListChecks,
+  Menu,
   type LucideIcon,
 } from "lucide-react";
 
@@ -35,6 +37,8 @@ const MAP: Record<string, LucideIcon> = {
   Trash2,
   ChevronRight,
   Zap,
+  ListChecks,
+  Menu,
 };
 
 export function Icon({

@@ -1,6 +1,6 @@
-/** EBOSH domain types — Phase 1. */
+/** grit domain types — Phase 1. */
 
-export type ListType = "must" | "bad" | "cool" | "impossible";
+export type ListType = "must" | "bad" | "cool" | "impossible" | "custom";
 
 export type RecurrenceType = "daily" | "weekly";
 
@@ -22,10 +22,16 @@ export interface Task {
   archived: boolean;
   createdAt: number;
 
+  // --- Universal flags (any list) ---
+  /** User flagged this task as Important. Drives the Important view. */
+  important?: boolean;
+  /** User pinned this into My Day. Drives the My Day view for any list type. */
+  starredMyDay?: boolean;
+  /** Custom-list membership. Set only when listType === "custom". */
+  listId?: string;
+
   // --- Must only ---
   recurrence?: Recurrence;
-  /** User pinned this into My Day for today regardless of recurrence. */
-  starredMyDay?: boolean;
 
   // --- Bad only ---
   /** XP lost per slip (stored positive; applied as negative). */
@@ -39,6 +45,14 @@ export interface Task {
 
   // --- Cool / Impossible only ---
   achievedAt?: number;
+}
+
+/** A user-created list. Holds one-shot to-do tasks (listType === "custom"). */
+export interface CustomList {
+  id: string;
+  name: string;
+  order: number;
+  createdAt: number;
 }
 
 /** One completion of a recurring Must task on a given local day. */
@@ -55,6 +69,7 @@ export type LedgerType =
   | "bad_slip"
   | "cool_achieve"
   | "impossible_achieve"
+  | "custom_complete"
   | "streak_milestone"
   | "adjust";
 
@@ -89,6 +104,7 @@ export const DEFAULT_POINTS: Record<ListType, number> = {
   bad: 0, // bad uses slipPenalty, not points
   cool: 100,
   impossible: 1000,
+  custom: 15,
 };
 
 export const DEFAULT_SLIP_PENALTY = 100;
@@ -105,4 +121,5 @@ export const LIST_META: Record<
     icon: "Mountain",
     blurb: "Life-changing milestones.",
   },
+  custom: { label: "List", icon: "ListChecks", blurb: "Your tasks." },
 };

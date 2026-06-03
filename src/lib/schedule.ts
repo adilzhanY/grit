@@ -14,14 +14,22 @@ export function isMustDue(task: Task, day: string): boolean {
   return rec.weekdays.includes(weekdayOf(day));
 }
 
-/** Tasks shown in My Day: due Must tasks + anything starred in. */
+/**
+ * Tasks shown in My Day: due Must tasks (auto) + anything (any list) pinned in.
+ * Completed (archived) pinned tasks stay included so the view can list them in
+ * its Done section; archived Must tasks are out of rotation and excluded.
+ */
 export function myDayTasks(tasks: Task[], day: string): Task[] {
-  return tasks.filter(
-    (t) =>
-      t.listType === "must" &&
-      !t.archived &&
-      (isMustDue(t, day) || t.starredMyDay),
-  );
+  return tasks.filter((t) => {
+    if (t.listType === "must")
+      return !t.archived && (isMustDue(t, day) || t.starredMyDay);
+    return !!t.starredMyDay;
+  });
+}
+
+/** Tasks shown in Important: anything (any list) flagged important. */
+export function importantTasks(tasks: Task[]): Task[] {
+  return tasks.filter((t) => !t.archived && t.important);
 }
 
 const WD = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

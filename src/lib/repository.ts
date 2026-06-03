@@ -7,6 +7,7 @@ import {
   type LedgerEntry,
   type Settings,
   type ListType,
+  type CustomList,
   DEFAULT_SETTINGS,
   DEFAULT_POINTS,
   DEFAULT_SLIP_PENALTY,
@@ -14,7 +15,7 @@ import {
 import { pendingMilestones, streakMs } from "./milestones";
 
 /**
- * The single gateway between EBOSH's UI and persisted state. Every XP change goes
+ * The single gateway between grit's UI and persisted state. Every XP change goes
  * through here and lands in the append-only ledger, so XP/level/streaks stay derivable
  * and sync-friendly.
  */
@@ -54,11 +55,18 @@ export async function updateSettings(patch: Partial<Settings>): Promise<void> {
 async function addLedger(
   entry: Omit<LedgerEntry, "id" | "timestamp"> & { timestamp?: number },
 ): Promise<void> {
+  let delta = entry.delta;
+  // XP floors at 0: never deduct more than the user currently has, so the
+  // running total can't go negative and "hide" later gains in a debt hole.
+  if (delta < 0) {
+    const current = await totalXp();
+    delta = -Math.min(-delta, current);
+  }
   await db().ledger.add({
     id: uid(),
     timestamp: entry.timestamp ?? Date.now(),
     type: entry.type,
-    delta: entry.delta,
+    delta,
     taskId: entry.taskId,
     meta: entry.meta,
   });
@@ -68,12 +76,21 @@ export async function getLedger(): Promise<LedgerEntry[]> {
   return db().ledger.orderBy("timestamp").toArray();
 }
 
+/**
+ * Testing helper: wipe the XP ledger so XP/level go back to 0. Tasks,
+ * completions, custom lists and bad-task streak state are untouched.
+ */
+export async function resetXp(): Promise<void> {
+  await db().ledger.clear();
+}
+
 export async function totalXp(): Promise<number> {
-  let sum = 0;
-  await db().ledger.each((e) => {
-    sum += e.delta;
-  });
-  return Math.max(0, sum);
+  // Walk events in time order, flooring at 0 after each one. A penalty while at
+  // 0 XP costs nothing, and never leaves a hidden debt that eats later gains.
+  const all = await getLedger();
+  let bal = 0;
+  for (const e of all) bal = Math.max(0, bal + e.delta);
+  return bal;
 }
 
 /** XP earned today (positive deltas only, for the "today" readout). */
@@ -101,6 +118,11 @@ export async function addTask(input: {
   recurrence?: Task["recurrence"];
   slipPenalty?: number;
   rewardMultiplier?: number;
+  /** Bad only: the habit was already quit at this timestamp (backdated streak). */
+  cleanSince?: number;
+  listId?: string;
+  /** Pin the new task into My Day (e.g. quick-add from the My Day view). */
+  starredMyDay?: boolean;
 }): Promise<Task> {
   const siblings = await listTasks(input.listType);
   const order = siblings.length;
@@ -122,10 +144,24 @@ export async function addTask(input: {
   if (input.listType === "bad") {
     task.slipPenalty = input.slipPenalty ?? DEFAULT_SLIP_PENALTY;
     task.rewardMultiplier = input.rewardMultiplier ?? 1;
-    task.awardedMilestoneIds = [];
-    // Streak starts now.
-    task.lastSlipAt = undefined;
+    if (input.cleanSince && input.cleanSince < now) {
+      // Backdated quit: streak shows time clean since then, but milestones
+      // already crossed are pre-marked as awarded (no XP) — only milestones
+      // reached after creation count.
+      task.lastSlipAt = input.cleanSince;
+      task.awardedMilestoneIds = pendingMilestones(now - input.cleanSince, []).map(
+        (m) => m.id,
+      );
+    } else {
+      task.awardedMilestoneIds = [];
+      // Streak starts now.
+      task.lastSlipAt = undefined;
+    }
   }
+  if (input.listType === "custom") {
+    task.listId = input.listId;
+  }
+  if (input.starredMyDay) task.starredMyDay = true;
   await db().tasks.add(task);
   return task;
 }
@@ -241,10 +277,16 @@ export async function awardMilestones(
 
 // ---------- Cool / Impossible achievements ----------
 
+function achieveLedgerType(listType: ListType): LedgerEntry["type"] {
+  if (listType === "impossible") return "impossible_achieve";
+  if (listType === "custom") return "custom_complete";
+  return "cool_achieve";
+}
+
 export async function achieve(task: Task): Promise<void> {
   if (task.archived) return;
   await addLedger({
-    type: task.listType === "impossible" ? "impossible_achieve" : "cool_achieve",
+    type: achieveLedgerType(task.listType),
     delta: task.points,
     taskId: task.id,
     meta: task.title,
@@ -261,4 +303,39 @@ export async function unachieve(task: Task): Promise<void> {
     meta: `undo: ${task.title}`,
   });
   await updateTask(task.id, { archived: false, achievedAt: undefined });
+}
+
+// ---------- Custom lists ----------
+
+export async function listCustomLists(): Promise<CustomList[]> {
+  const all = await db().lists.toArray();
+  return all.sort((a, b) => a.order - b.order);
+}
+
+export async function addCustomList(name: string): Promise<CustomList> {
+  const existing = await listCustomLists();
+  const list: CustomList = {
+    id: uid(),
+    name: name.trim() || "Untitled list",
+    order: existing.length,
+    createdAt: Date.now(),
+  };
+  await db().lists.add(list);
+  return list;
+}
+
+export async function renameCustomList(id: string, name: string): Promise<void> {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  await db().lists.update(id, { name: trimmed });
+}
+
+/** Delete a list along with its tasks and their completions. */
+export async function deleteCustomList(id: string): Promise<void> {
+  const tasks = await db().tasks.where("listId").equals(id).toArray();
+  for (const t of tasks) {
+    await db().completions.where("taskId").equals(t.id).delete();
+  }
+  await db().tasks.where("listId").equals(id).delete();
+  await db().lists.delete(id);
 }

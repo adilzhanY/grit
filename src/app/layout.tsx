@@ -11,13 +11,13 @@ const onest = Onest({
 });
 
 export const metadata: Metadata = {
-  title: "EBOSH — ебошь",
+  title: "grit",
   description: "Gamified habit tracker. Do good, gain XP, level up. Avoid the bad.",
-  applicationName: "EBOSH",
+  applicationName: "grit",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "EBOSH",
+    title: "grit",
   },
 };
 

@@ -1,4 +1,4 @@
-# EBOSH — ебошь 🔥
+# grit 🔥
 
 A gamified habit tracker in the spirit of Microsoft To-Do. Do good, gain XP, level up.
 Avoid the bad, or pay for it. Bright-mode bento + claymorphism UI, installable PWA, local-first.

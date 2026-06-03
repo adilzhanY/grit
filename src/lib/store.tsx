@@ -8,20 +8,25 @@ import {
   useRef,
   useState,
 } from "react";
-import type { Settings, Task } from "./types";
+import type { CustomList, Settings, Task } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 import {
   achieve as repoAchieve,
   unachieve as repoUnachieve,
   addTask as repoAddTask,
+  addCustomList as repoAddCustomList,
   awardMilestones,
   completeMust,
   completionsForDay,
   deleteTask as repoDeleteTask,
+  deleteCustomList as repoDeleteCustomList,
   getSettings,
+  listCustomLists,
   listTasks,
   localDay,
   recordSlip,
+  renameCustomList as repoRenameCustomList,
+  resetXp as repoResetXp,
   totalXp,
   uncompleteMust,
   updateSettings,
@@ -40,6 +45,7 @@ interface StoreValue {
   ready: boolean;
   settings: Settings;
   tasks: Task[];
+  lists: CustomList[];
   /** Must-task ids completed today. */
   completedToday: Set<string>;
   today: string;
@@ -54,7 +60,12 @@ interface StoreValue {
   addTask: (input: Parameters<typeof repoAddTask>[0]) => Promise<void>;
   updateTask: (id: string, patch: Partial<Task>) => Promise<void>;
   removeTask: (id: string) => Promise<void>;
-  toggleStar: (task: Task) => Promise<void>;
+  toggleMyDay: (task: Task) => Promise<void>;
+  toggleImportant: (task: Task) => Promise<void>;
+  addList: (name: string) => Promise<CustomList>;
+  renameList: (id: string, name: string) => Promise<void>;
+  removeList: (id: string) => Promise<void>;
+  resetXp: () => Promise<void>;
   setSoundsEnabled: (on: boolean) => Promise<void>;
   dismissCelebration: () => void;
 }
@@ -71,6 +82,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [lists, setLists] = useState<CustomList[]>([]);
   const [completedToday, setCompletedToday] = useState<Set<string>>(new Set());
   const [today, setToday] = useState(() => localDay());
   const [level, setLevel] = useState<LevelInfo>(() =>
@@ -84,8 +96,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async (announceLevelUp = true) => {
     const s = await getSettings();
     const day = localDay();
-    const [allTasks, comps, xp, gained] = await Promise.all([
+    const [allTasks, customLists, comps, xp, gained] = await Promise.all([
       listTasks(),
+      listCustomLists(),
       completionsForDay(day),
       totalXp(),
       xpGainedOn(day),
@@ -95,6 +108,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setSettings(s);
     setSoundEnabled(s.soundsEnabled);
     setTasks(allTasks);
+    setLists(customLists);
     setCompletedToday(new Set(comps.map((c) => c.taskId)));
     setToday(day);
     setTodayXp(gained);
@@ -231,13 +245,51 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [refresh],
   );
 
-  const toggleStar = useCallback(
+  const toggleMyDay = useCallback(
     async (task: Task) => {
       await repoUpdateTask(task.id, { starredMyDay: !task.starredMyDay });
       await refresh(false);
     },
     [refresh],
   );
+
+  const toggleImportant = useCallback(
+    async (task: Task) => {
+      await repoUpdateTask(task.id, { important: !task.important });
+      await refresh(false);
+    },
+    [refresh],
+  );
+
+  const addList = useCallback(
+    async (name: string) => {
+      const list = await repoAddCustomList(name);
+      await refresh(false);
+      return list;
+    },
+    [refresh],
+  );
+
+  const renameList = useCallback(
+    async (id: string, name: string) => {
+      await repoRenameCustomList(id, name);
+      await refresh(false);
+    },
+    [refresh],
+  );
+
+  const removeList = useCallback(
+    async (id: string) => {
+      await repoDeleteCustomList(id);
+      await refresh(false);
+    },
+    [refresh],
+  );
+
+  const resetXp = useCallback(async () => {
+    await repoResetXp();
+    await refresh(false);
+  }, [refresh]);
 
   const setSoundsEnabled = useCallback(
     async (on: boolean) => {
@@ -254,6 +306,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     ready,
     settings,
     tasks,
+    lists,
     completedToday,
     today,
     level,
@@ -266,7 +319,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     addTask,
     updateTask,
     removeTask,
-    toggleStar,
+    toggleMyDay,
+    toggleImportant,
+    addList,
+    renameList,
+    removeList,
+    resetXp,
     setSoundsEnabled,
     dismissCelebration,
   };

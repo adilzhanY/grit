@@ -6,4 +6,5 @@ export const LIST_TINT: Record<ListType, { surf: string; acc: string }> = {
   bad: { surf: "var(--bad-surf)", acc: "var(--bad-acc)" },
   cool: { surf: "var(--cool-surf)", acc: "var(--cool-acc)" },
   impossible: { surf: "var(--imp-surf)", acc: "var(--imp-acc)" },
+  custom: { surf: "var(--surface)", acc: "var(--primary)" },
 };

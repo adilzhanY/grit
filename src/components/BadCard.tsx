@@ -10,10 +10,12 @@ import {
   nextMilestone,
   streakMs,
 } from "@/lib/milestones";
+import { useConfirm } from "./ConfirmDialog";
 import { Icon } from "./Icon";
 
 export function BadCard({ task }: { task: Task }) {
-  const { slip, removeTask } = useStore();
+  const { slip, removeTask, toggleMyDay, toggleImportant } = useStore();
+  const confirm = useConfirm();
   const now = useNow(1000);
   const tint = LIST_TINT.bad;
   const [shake, setShake] = useState(0);
@@ -52,16 +54,48 @@ export function BadCard({ task }: { task: Task }) {
             −{task.slipPenalty} XP if you slip
           </p>
         </div>
-        <button
-          onClick={() => {
-            if (confirm(`Delete "${task.title}"?`)) removeTask(task.id);
-          }}
-          aria-label={`Delete ${task.title}`}
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-ink-faint opacity-0 transition-opacity hover:bg-black/5 group-hover:opacity-100"
-          style={{ cursor: "pointer" }}
-        >
-          <Icon name="Trash2" className="h-4 w-4" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+          <button
+            onClick={() => toggleImportant(task)}
+            aria-label={task.important ? "Unmark important" : "Mark important"}
+            aria-pressed={!!task.important}
+            className="grid h-9 w-9 place-items-center rounded-full hover:bg-black/5"
+            style={{
+              cursor: "pointer",
+              color: task.important ? tint.acc : "var(--ink-faint)",
+            }}
+          >
+            <Icon name="Star" className="h-5 w-5" />
+          </button>
+          <button
+            onClick={() => toggleMyDay(task)}
+            aria-label={task.starredMyDay ? "Remove from My Day" : "Add to My Day"}
+            aria-pressed={!!task.starredMyDay}
+            className="grid h-9 w-9 place-items-center rounded-full hover:bg-black/5"
+            style={{
+              cursor: "pointer",
+              color: task.starredMyDay ? tint.acc : "var(--ink-faint)",
+            }}
+          >
+            <Icon name="Sun" className="h-5 w-5" />
+          </button>
+          <button
+            onClick={async () => {
+              if (
+                await confirm({
+                  title: `Delete "${task.title}"?`,
+                  confirmLabel: "Delete",
+                })
+              )
+                removeTask(task.id);
+            }}
+            aria-label={`Delete ${task.title}`}
+            className="grid h-9 w-9 place-items-center rounded-full text-ink-faint hover:bg-black/5"
+            style={{ cursor: "pointer" }}
+          >
+            <Icon name="Trash2" className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* Streak readout */}
