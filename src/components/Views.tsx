@@ -5,7 +5,7 @@ import type { ListType, Task } from "@/lib/types";
 import { LIST_META } from "@/lib/types";
 import { LIST_TINT } from "@/lib/tint";
 import { importantTasks, myDayTasks } from "@/lib/schedule";
-import { useStore } from "@/lib/store";
+import { useNow, useStore } from "@/lib/store";
 import { parseListView, useUi } from "@/lib/ui";
 import { XpHero } from "./XpHero";
 import { useConfirm } from "./ConfirmDialog";
@@ -63,6 +63,43 @@ function EmptyHint({ text }: { text: string }) {
 // Single-column rows: one task per row (flex makes the col-span-* utilities no-ops).
 const grid = "flex flex-col gap-4";
 
+/** Today's date + a live countdown to local midnight. */
+function TimeLeftBadge() {
+  const now = useNow(1000);
+  const d = new Date(now);
+  const midnight = new Date(
+    d.getFullYear(),
+    d.getMonth(),
+    d.getDate() + 1,
+  ).getTime();
+  const totalSec = Math.max(0, Math.floor((midnight - now) / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const left = `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+
+  return (
+    <div
+      className="rounded-2xl px-5 py-2.5 text-center clay-inset"
+      style={{ background: "var(--page-2)" }}
+    >
+      <p className="text-xs font-bold uppercase tracking-widest text-ink-soft">
+        {d.toLocaleDateString(undefined, {
+          weekday: "short",
+          month: "long",
+          day: "numeric",
+        })}
+      </p>
+      <p className="text-3xl font-extrabold leading-tight tabular-nums text-primary">
+        {left}
+      </p>
+      <p className="text-[10px] font-bold uppercase tracking-wider text-ink-faint">
+        left today
+      </p>
+    </div>
+  );
+}
+
 function MyDay() {
   const { tasks, today, completedToday } = useStore();
   const all = myDayTasks(tasks, today);
@@ -79,19 +116,11 @@ function MyDay() {
       </div>
 
       <div
-        className="flex items-center justify-between p-5 clay sm:col-span-2 2xl:col-span-3"
+        className="flex flex-wrap items-center justify-between gap-4 p-5 clay sm:col-span-2 2xl:col-span-3"
         style={{ background: "var(--surface)" }}
       >
-        <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">My Day</h1>
-          <p className="text-sm font-medium text-ink-soft">
-            {new Date().toLocaleDateString(undefined, {
-              weekday: "long",
-              month: "long",
-              day: "numeric",
-            })}
-          </p>
-        </div>
+        <h1 className="text-2xl font-extrabold tracking-tight">My Day</h1>
+        <TimeLeftBadge />
         <div className="text-right">
           <p className="text-3xl font-extrabold tabular-nums text-primary">
             {done.length}
