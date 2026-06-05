@@ -10,6 +10,16 @@ export interface Recurrence {
   weekdays: number[];
 }
 
+/** A child step of a task. Not a full task: no star, notes, or My Day. */
+export interface Subtask {
+  id: string;
+  title: string;
+  /** When completed. For Must parents, counts as done only if it's today. */
+  doneAt?: number;
+  /** XP actually awarded on completion, so undo reverses the exact amount. */
+  awardedXp?: number;
+}
+
 export interface Task {
   id: string;
   listType: ListType;
@@ -29,6 +39,12 @@ export interface Task {
   starredMyDay?: boolean;
   /** Custom-list membership. Set only when listType === "custom". */
   listId?: string;
+  /** Child steps (any list except bad). Parent is done only when all are
+   *  done; its points are distributed across them. */
+  subtasks?: Subtask[];
+  /** XP awarded alongside an auto-completion to top up the remaining pool
+   *  (e.g. after deleting the last undone subtask). Reversed on un-complete. */
+  subtaskRemainderXp?: number;
 
   // --- Must only ---
   recurrence?: Recurrence;
