@@ -4,6 +4,7 @@ import {
   Sparkles,
   Mountain,
   Check,
+  CheckCheck,
   Plus,
   Star,
   Sun,
@@ -16,6 +17,7 @@ import {
   ChevronRight,
   Zap,
   ListChecks,
+  ListPlus,
   Menu,
   type LucideIcon,
 } from "lucide-react";
@@ -26,6 +28,7 @@ const MAP: Record<string, LucideIcon> = {
   Sparkles,
   Mountain,
   Check,
+  CheckCheck,
   Plus,
   Star,
   Sun,
@@ -38,6 +41,7 @@ const MAP: Record<string, LucideIcon> = {
   ChevronRight,
   Zap,
   ListChecks,
+  ListPlus,
   Menu,
 };
 
