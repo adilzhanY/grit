@@ -14,6 +14,10 @@ import {
   achieve as repoAchieve,
   unachieve as repoUnachieve,
   addTask as repoAddTask,
+  addSubtask as repoAddSubtask,
+  deleteSubtask as repoDeleteSubtask,
+  toggleSubtask as repoToggleSubtask,
+  setAllSubtasks as repoSetAllSubtasks,
   addCustomList as repoAddCustomList,
   awardMilestones,
   completeMust,
@@ -62,6 +66,11 @@ interface StoreValue {
   removeTask: (id: string) => Promise<void>;
   toggleMyDay: (task: Task) => Promise<void>;
   toggleImportant: (task: Task) => Promise<void>;
+  addSubtask: (task: Task, title: string) => Promise<void>;
+  removeSubtask: (task: Task, subId: string) => Promise<void>;
+  toggleSubtask: (task: Task, subId: string) => Promise<void>;
+  /** Parent-check shortcut: complete or un-check every subtask. */
+  setAllSubtasks: (task: Task, done: boolean) => Promise<void>;
   addList: (name: string) => Promise<CustomList>;
   renameList: (id: string, name: string) => Promise<void>;
   removeList: (id: string) => Promise<void>;
@@ -71,6 +80,13 @@ interface StoreValue {
 }
 
 const Ctx = createContext<StoreValue | null>(null);
+
+/** Completion sound for a task acting as a subtask parent. */
+function parentSound(task: Task): "good" | "cool" | "epic" {
+  if (task.listType === "impossible") return "epic";
+  if (task.listType === "cool") return "cool";
+  return "good";
+}
 
 export function useStore(): StoreValue {
   const v = useContext(Ctx);
@@ -261,6 +277,45 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [refresh],
   );
 
+  const addSubtask = useCallback(
+    async (task: Task, title: string) => {
+      await repoAddSubtask(task, title);
+      await refresh(false);
+    },
+    [refresh],
+  );
+
+  const removeSubtask = useCallback(
+    async (task: Task, subId: string) => {
+      // Deleting the last undone subtask can complete the parent (with
+      // leftover XP) — allow the level-up announcement.
+      await repoDeleteSubtask(task, subId);
+      await refresh(true);
+    },
+    [refresh],
+  );
+
+  const toggleSubtask = useCallback(
+    async (task: Task, subId: string) => {
+      unlockAudio();
+      const { checked, parentCompleted } = await repoToggleSubtask(task, subId);
+      if (parentCompleted) play(parentSound(task));
+      else if (checked) play("good");
+      await refresh(checked);
+    },
+    [refresh],
+  );
+
+  const setAllSubtasks = useCallback(
+    async (task: Task, done: boolean) => {
+      unlockAudio();
+      await repoSetAllSubtasks(task, done);
+      if (done) play(parentSound(task));
+      await refresh(done);
+    },
+    [refresh],
+  );
+
   const addList = useCallback(
     async (name: string) => {
       const list = await repoAddCustomList(name);
@@ -321,6 +376,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     removeTask,
     toggleMyDay,
     toggleImportant,
+    addSubtask,
+    removeSubtask,
+    toggleSubtask,
+    setAllSubtasks,
     addList,
     renameList,
     removeList,
