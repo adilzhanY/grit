@@ -28,6 +28,9 @@ interface Subtask {
 interface Task {
   // ...existing fields...
   subtasks?: Subtask[];
+  /** XP awarded alongside an auto-completion to top up the remaining pool
+      (e.g. after deleting the last undone subtask). Reversed on un-complete. */
+  subtaskRemainderXp?: number;
 }
 ```
 
@@ -109,7 +112,14 @@ one subtask exists, the parent itself awards **0 extra XP**.
 ## Edge cases
 
 - Deleting an undone subtask: shares recompute from the remaining pool.
-- Deleting a done subtask: its awarded XP stays (no clawback); pool recomputes.
+- Deleting a done subtask: its awarded XP is reversed (ledger `adjust`) —
+  otherwise the freed share would re-enter the pool and be awarded twice,
+  breaking the exact-total invariant. The pool then recomputes.
+- Once the parent is done, the thread is read-only: add-subtask and delete
+  affordances are hidden (un-checking subtasks or the parent still works and
+  re-opens the thread for editing).
+- Un-completing a parent that auto-completed with leftover XP reverses that
+  leftover too (tracked as `subtaskRemainderXp` on the task).
 - Deleting the last undone subtask while others are done: parent
   auto-completes, and the leftover pool (the deleted subtask's share) is
   awarded with the parent's completion entry — keeping total awarded equal to
