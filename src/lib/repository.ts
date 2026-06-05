@@ -3,6 +3,7 @@
 import { db } from "./db";
 import {
   type Task,
+  type Subtask,
   type Completion,
   type LedgerEntry,
   type Settings,
@@ -338,4 +339,259 @@ export async function deleteCustomList(id: string): Promise<void> {
   }
   await db().tasks.where("listId").equals(id).delete();
   await db().lists.delete(id);
+}
+
+// ---------- Subtasks ----------
+
+/** Is this subtask done? Must subtasks reset daily; one-shots stay done. */
+export function subtaskDone(
+  task: Task,
+  sub: Subtask,
+  date = localDay(),
+): boolean {
+  if (sub.doneAt === undefined) return false;
+  return task.listType === "must" ? localDay(sub.doneAt) === date : true;
+}
+
+/**
+ * XP share per subtask id. Done subtasks map to what they actually awarded;
+ * undone subtasks split the remaining pool (points − awarded so far) evenly,
+ * remainder to the earliest. The last subtask to complete therefore always
+ * receives exactly the remaining pool, so the total awarded always equals
+ * the parent's points — even after mid-flight adds/removes.
+ */
+export function subtaskShares(
+  task: Task,
+  date = localDay(),
+): Map<string, number> {
+  const subs = task.subtasks ?? [];
+  const shares = new Map<string, number>();
+  const undone: Subtask[] = [];
+  let pool = task.points;
+  for (const s of subs) {
+    if (subtaskDone(task, s, date)) {
+      shares.set(s.id, s.awardedXp ?? 0);
+      pool -= s.awardedXp ?? 0;
+    } else {
+      undone.push(s);
+    }
+  }
+  pool = Math.max(0, pool);
+  undone.forEach((s, i) => {
+    shares.set(
+      s.id,
+      Math.floor(pool / undone.length) + (i < pool % undone.length ? 1 : 0),
+    );
+  });
+  return shares;
+}
+
+/** Ledger type for completing (a share of) a task of this list type. */
+function completeLedgerType(listType: ListType): LedgerEntry["type"] {
+  return listType === "must" ? "must_complete" : achieveLedgerType(listType);
+}
+
+/** Parent done state: must = completed today; one-shot = archived. */
+async function parentDone(task: Task, date: string): Promise<boolean> {
+  if (task.listType === "must") return !!(await getCompletion(task.id, date));
+  const fresh = await db().tasks.get(task.id);
+  return !!(fresh ?? task).archived;
+}
+
+/**
+ * If every subtask is done, complete the parent. XP was already distributed
+ * via subtask shares, so the parent itself awards 0 — except any leftover
+ * pool (e.g. an undone subtask was just deleted), which is topped up here so
+ * the total still equals the parent's points.
+ */
+async function maybeCompleteParent(task: Task, date: string): Promise<boolean> {
+  const subs = task.subtasks ?? [];
+  if (subs.length === 0) return false;
+  if (!subs.every((s) => subtaskDone(task, s, date))) return false;
+  if (await parentDone(task, date)) return false;
+
+  const leftover = Math.max(
+    0,
+    task.points - subs.reduce((sum, s) => sum + (s.awardedXp ?? 0), 0),
+  );
+  if (task.listType === "must") {
+    await db().completions.add({
+      id: uid(),
+      taskId: task.id,
+      date,
+      completedAt: Date.now(),
+    });
+  } else {
+    await db().tasks.update(task.id, { archived: true, achievedAt: Date.now() });
+  }
+  if (leftover > 0) {
+    await addLedger({
+      type: completeLedgerType(task.listType),
+      delta: leftover,
+      taskId: task.id,
+      meta: task.title,
+    });
+  }
+  await db().tasks.update(task.id, {
+    subtaskRemainderXp: leftover > 0 ? leftover : undefined,
+  });
+  return true;
+}
+
+/**
+ * Un-complete a parent that was completed via subtasks. The parent itself
+ * carried 0 XP (shares hold it), except a possible leftover top-up — reverse
+ * that here.
+ */
+async function uncompleteParent(task: Task, date: string): Promise<void> {
+  const fresh = (await db().tasks.get(task.id)) ?? task;
+  const remainder = fresh.subtaskRemainderXp ?? 0;
+  if (remainder > 0) {
+    await addLedger({
+      type: "adjust",
+      delta: -remainder,
+      taskId: task.id,
+      meta: `undo: ${task.title}`,
+    });
+    await db().tasks.update(task.id, { subtaskRemainderXp: undefined });
+  }
+  if (task.listType === "must") {
+    const existing = await getCompletion(task.id, date);
+    if (existing) await db().completions.delete(existing.id);
+  } else if (fresh.archived) {
+    await db().tasks.update(task.id, { archived: false, achievedAt: undefined });
+  }
+}
+
+/** Append a new (undone) subtask. */
+export async function addSubtask(task: Task, title: string): Promise<void> {
+  const t = title.trim();
+  if (!t) return;
+  const subs = [...(task.subtasks ?? []), { id: uid(), title: t }];
+  await updateTask(task.id, { subtasks: subs });
+}
+
+/**
+ * Delete a subtask. A done subtask's awarded XP is reversed (otherwise its
+ * share would re-enter the pool and be awarded twice). Deleting the last
+ * undone subtask while the rest are done auto-completes the parent, awarding
+ * the leftover pool with it.
+ */
+export async function deleteSubtask(task: Task, subId: string): Promise<void> {
+  const date = localDay();
+  const subs = task.subtasks ?? [];
+  const sub = subs.find((s) => s.id === subId);
+  if (!sub) return;
+  if (subtaskDone(task, sub, date) && (sub.awardedXp ?? 0) > 0) {
+    await addLedger({
+      type: "adjust",
+      delta: -(sub.awardedXp ?? 0),
+      taskId: task.id,
+      meta: `undo: ${task.title} · ${sub.title}`,
+    });
+  }
+  const rest = subs.filter((s) => s.id !== subId);
+  await updateTask(task.id, { subtasks: rest });
+  await maybeCompleteParent({ ...task, subtasks: rest }, date);
+}
+
+/**
+ * Toggle one subtask. Checking awards its current share; un-checking
+ * reverses the exact awarded XP and un-completes the parent if it was done.
+ * Returns what happened so the UI can pick sounds.
+ */
+export async function toggleSubtask(
+  task: Task,
+  subId: string,
+): Promise<{ checked: boolean; parentCompleted: boolean }> {
+  const date = localDay();
+  const subs = [...(task.subtasks ?? [])];
+  const i = subs.findIndex((s) => s.id === subId);
+  if (i === -1) return { checked: false, parentCompleted: false };
+  const sub = subs[i];
+
+  if (subtaskDone(task, sub, date)) {
+    const wasDone = await parentDone(task, date);
+    if ((sub.awardedXp ?? 0) > 0) {
+      await addLedger({
+        type: "adjust",
+        delta: -(sub.awardedXp ?? 0),
+        taskId: task.id,
+        meta: `undo: ${task.title} · ${sub.title}`,
+      });
+    }
+    subs[i] = { ...sub, doneAt: undefined, awardedXp: undefined };
+    await updateTask(task.id, { subtasks: subs });
+    if (wasDone) await uncompleteParent(task, date);
+    return { checked: false, parentCompleted: false };
+  }
+
+  const share = subtaskShares(task, date).get(subId) ?? 0;
+  subs[i] = { ...sub, doneAt: Date.now(), awardedXp: share };
+  await updateTask(task.id, { subtasks: subs });
+  if (share > 0) {
+    await addLedger({
+      type: completeLedgerType(task.listType),
+      delta: share,
+      taskId: task.id,
+      meta: `${task.title} · ${sub.title}`,
+    });
+  }
+  const parentCompleted = await maybeCompleteParent(
+    { ...task, subtasks: subs },
+    date,
+  );
+  return { checked: true, parentCompleted };
+}
+
+/** Parent-check shortcut: complete all remaining subtasks, or un-check all. */
+export async function setAllSubtasks(task: Task, done: boolean): Promise<void> {
+  const date = localDay();
+  const subs = task.subtasks ?? [];
+  if (subs.length === 0) return;
+
+  if (done) {
+    const shares = subtaskShares(task, date);
+    const now = Date.now();
+    const next: Subtask[] = [];
+    for (const s of subs) {
+      if (subtaskDone(task, s, date)) {
+        next.push(s);
+        continue;
+      }
+      const share = shares.get(s.id) ?? 0;
+      next.push({ ...s, doneAt: now, awardedXp: share });
+      if (share > 0) {
+        await addLedger({
+          type: completeLedgerType(task.listType),
+          delta: share,
+          taskId: task.id,
+          meta: `${task.title} · ${s.title}`,
+        });
+      }
+    }
+    await updateTask(task.id, { subtasks: next });
+    await maybeCompleteParent({ ...task, subtasks: next }, date);
+  } else {
+    const wasDone = await parentDone(task, date);
+    const refund = subs.reduce(
+      (sum, s) => sum + (subtaskDone(task, s, date) ? (s.awardedXp ?? 0) : 0),
+      0,
+    );
+    if (refund > 0) {
+      await addLedger({
+        type: "adjust",
+        delta: -refund,
+        taskId: task.id,
+        meta: `undo: ${task.title}`,
+      });
+    }
+    const next = subs.map((s) =>
+      subtaskDone(task, s, date)
+        ? { ...s, doneAt: undefined, awardedXp: undefined }
+        : s,
+    );
+    await updateTask(task.id, { subtasks: next });
+    if (wasDone) await uncompleteParent(task, date);
+  }
 }
