@@ -25,7 +25,7 @@ export function Celebration() {
         >
           <div
             className="grid h-11 w-11 place-items-center rounded-full text-white"
-            style={{ background: "linear-gradient(135deg,#14b8a6,#0b7a70)" }}
+            style={{ background: "linear-gradient(135deg,#3a423c,#171b18)" }}
           >
             <Icon name="Shield" className="h-5 w-5" />
           </div>
@@ -51,7 +51,7 @@ export function Celebration() {
         className="animate-celebrate max-w-sm p-10 text-center text-white clay"
         style={{
           background:
-            "radial-gradient(600px 280px at 50% -20%, #2dd4bf 0%, transparent 60%), linear-gradient(135deg,#14b8a6,#0b7a70)",
+            "radial-gradient(600px 280px at 50% -20%, #525c55 0%, transparent 60%), linear-gradient(135deg,#3a423c,#171b18)",
         }}
       >
         <div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-white/15">

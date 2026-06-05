@@ -13,9 +13,9 @@
   --ink-soft: #4b5650;
   --ink-faint: #76817b;
 
-  /* Brand */
-  --primary: #0d9488;
-  --primary-deep: #0b7a70;
+  /* Brand — soft charcoal with a green undertone (matches --ink family) */
+  --primary: #272d29;
+  --primary-deep: #161a17;
   --accent: #f97316;
 
   /* Per-list clay tints: surface + accent (accent stays >=4.5:1 on white-ish) */
