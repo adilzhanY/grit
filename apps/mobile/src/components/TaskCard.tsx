@@ -76,8 +76,16 @@ export function TaskCard({
     requestAnimationFrame(() => inputRef.current?.focus());
   };
 
-  const open = (expanded && hasSubs) || adding;
-  const showInput = !done && (adding || (expanded && hasSubs));
+  // `expanded` is the single source of truth for the thread. Collapsing also
+  // cancels an in-progress add so it can never get stuck open.
+  const open = expanded;
+  const showInput = !done && adding;
+  const toggleExpand = () =>
+    setExpanded((e) => {
+      const next = !e;
+      if (!next) setAdding(false);
+      return next;
+    });
 
   return (
     <View style={[{ backgroundColor: tint.surf, borderRadius: R.md, padding: 12 }, claySm()]}>
@@ -108,19 +116,24 @@ export function TaskCard({
           </Squish>
         </View>
 
-        <Pressable style={{ flex: 1 }} onPress={() => setActionsOpen((o) => !o)}>
-          <Txt
-            weight="semibold"
-            size={15}
-            color={C.ink}
-            style={done ? { textDecorationLine: "line-through", opacity: 0.55 } : undefined}
-          >
-            {task.title}
-          </Txt>
+        {/* Title toggles the action row; the chevron (separate, NOT nested)
+            toggles the subtask thread — so the two never conflict. */}
+        <View style={{ flex: 1 }}>
+          <Pressable onPress={() => setActionsOpen((o) => !o)}>
+            <Txt
+              weight="semibold"
+              size={15}
+              color={C.ink}
+              style={done ? { textDecorationLine: "line-through", opacity: 0.55 } : undefined}
+            >
+              {task.title}
+            </Txt>
+          </Pressable>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginTop: 2 }}>
             {hasSubs && !future ? (
               <Pressable
-                onPress={() => setExpanded((e) => !e)}
+                onPress={toggleExpand}
+                hitSlop={10}
                 style={{ flexDirection: "row", alignItems: "center", gap: 3 }}
               >
                 <Icon name={open ? "ChevronDown" : "ChevronRight"} size={14} color={tint.acc} />
@@ -130,7 +143,7 @@ export function TaskCard({
             {task.recurrence ? <Txt size={11} weight="medium" color={C.inkSoft}>{recurrenceLabel(task)}</Txt> : null}
             {!task.recurrence && task.archived ? <Txt size={11} weight="medium" color={C.inkSoft}>Achieved</Txt> : null}
           </View>
-        </Pressable>
+        </View>
 
         <View style={{ backgroundColor: C.surface, borderRadius: R.pill, paddingHorizontal: 10, paddingVertical: 3 }}>
           <Txt size={12} weight="extrabold" color={tint.acc}>+{task.points}</Txt>
