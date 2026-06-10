@@ -3,6 +3,8 @@ import {
   BookOpen,
   Beef,
   Cake,
+  CalendarCheck,
+  CalendarClock,
   CalendarDays,
   ChartColumn,
   Check,
@@ -22,6 +24,7 @@ import {
   Pencil,
   Play,
   Plus,
+  Repeat,
   Ruler,
   Save,
   Scale,
@@ -41,10 +44,11 @@ import {
 import { C } from "../theme";
 
 const MAP: Record<string, LucideIcon> = {
-  BookOpen, Beef, Cake, CalendarDays, ChartColumn, Check, CheckCheck,
-  ChevronRight, Clock, Coffee, Droplets, Flame, Footprints, Gauge, ListChecks,
-  Moon, Mountain, NotebookPen, Pause, Pencil, Play, Plus, Ruler, Save, Scale,
-  Skull, Sparkles, Star, Sun, Timer, TrendingDown, TrendingUp, Trash2, Trophy, UserCircle, X,
+  BookOpen, Beef, Cake, CalendarCheck, CalendarClock, CalendarDays, ChartColumn,
+  Check, CheckCheck, ChevronRight, Clock, Coffee, Droplets, Flame, Footprints,
+  Gauge, ListChecks, Moon, Mountain, NotebookPen, Pause, Pencil, Play, Plus,
+  Repeat, Ruler, Save, Scale, Skull, Sparkles, Star, Sun, Timer, TrendingDown,
+  TrendingUp, Trash2, Trophy, UserCircle, X,
 };
 
 export function Icon({
