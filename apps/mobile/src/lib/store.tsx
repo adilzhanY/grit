@@ -44,6 +44,7 @@ import { AppState } from "react-native";
 import { emptyDB, loadDB, saveDB, uid, type DB } from "./db";
 import { play, setSoundEnabled, unlockAudio, type SoundKind } from "./sounds";
 import { useAuth } from "./auth";
+import { supabase } from "./supabase";
 import { sync as runSyncCycle } from "./sync";
 import { bundleToDB, exportBundle, type BackupBundle } from "./backup";
 
@@ -700,7 +701,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const res = await runSyncCycle(dbRef.current, user.id);
       if (res) {
         saveDB(dbRef.current);
-        force();
+        // Re-render only when remote changes actually landed (avoids a loop
+        // with the debounced push effect below).
+        if (res.pulled > 0) force();
       }
     } catch (err) {
       setSyncError(err instanceof Error ? err.message : "Sync failed.");
@@ -734,7 +737,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return count;
   }, [commit]);
 
-  // Auto-sync: on sign-in, every 30s, and when the app returns to foreground.
+  // Auto-sync: on sign-in, periodic fallback, and when the app returns to foreground.
   useEffect(() => {
     if (!user) return;
     void syncNow();
@@ -745,6 +748,33 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => {
       clearInterval(id);
       subPromise.remove();
+    };
+  }, [user, syncNow]);
+
+  // Push local changes to the cloud almost immediately (debounced).
+  useEffect(() => {
+    if (!user || !ready) return;
+    const id = setTimeout(() => void syncNow(), 700);
+    return () => clearTimeout(id);
+  }, [version, user, ready, syncNow]);
+
+  // Realtime: pull the instant a row changes for this user on the server.
+  useEffect(() => {
+    if (!user) return;
+    const sb = supabase();
+    if (!sb) return;
+    const tables = ["tasks", "completions", "ledger", "settings", "lists", "foods", "day_logs", "focus"];
+    const channel = sb.channel(`grit-sync-${user.id}`);
+    for (const table of tables) {
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table, filter: `user_id=eq.${user.id}` },
+        () => void syncNow(),
+      );
+    }
+    channel.subscribe();
+    return () => {
+      void sb.removeChannel(channel);
     };
   }, [user, syncNow]);
 

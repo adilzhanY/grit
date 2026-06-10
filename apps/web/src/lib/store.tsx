@@ -64,6 +64,7 @@ import {
 } from "./repository";
 import { downloadBackup, importData } from "./backup";
 import { sync } from "./sync";
+import { supabase } from "./supabase";
 import { useAuth } from "./auth";
 import { computeLevel, type LevelInfo } from "./leveling";
 import { play, setSoundEnabled, unlockAudio } from "./sounds";
@@ -198,6 +199,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
   const [todayXp, setTodayXp] = useState(0);
   const [celebration, setCelebration] = useState<Celebration | null>(null);
+  // Bumped on every local data change to trigger a debounced push.
+  const [changeSeq, setChangeSeq] = useState(0);
 
   const prevLevel = useRef(0);
 
@@ -237,6 +240,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setCelebration({ kind: "levelup", level: info.level });
     }
     prevLevel.current = info.level;
+    // Signal that data changed so the debounced push can fire.
+    setChangeSeq((n) => n + 1);
   }, []);
 
   // Check bad-task milestones; award + announce the most valuable new one.
@@ -642,7 +647,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, refresh]);
 
-  // Sync on sign-in, every 30s while signed in, and when the tab regains focus.
+  // Sync on sign-in, periodically as a fallback, and when the tab regains focus.
   useEffect(() => {
     if (!user) return;
     void runSync();
@@ -654,6 +659,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [user, runSync]);
+
+  // Push local changes to the cloud almost immediately (debounced) so the other
+  // device sees them right away.
+  useEffect(() => {
+    if (!user || changeSeq === 0) return;
+    const id = setTimeout(() => void runSync(), 700);
+    return () => clearTimeout(id);
+  }, [changeSeq, user, runSync]);
+
+  // Realtime: pull the instant a row changes for this user on the server.
+  useEffect(() => {
+    if (!user) return;
+    const sb = supabase();
+    if (!sb) return;
+    const tables = ["tasks", "completions", "ledger", "settings", "lists", "foods", "day_logs", "focus"];
+    const channel = sb.channel(`grit-sync-${user.id}`);
+    for (const table of tables) {
+      channel.on(
+        "postgres_changes",
+        { event: "*", schema: "public", table, filter: `user_id=eq.${user.id}` },
+        () => void runSync(),
+      );
+    }
+    channel.subscribe();
+    return () => {
+      void sb.removeChannel(channel);
     };
   }, [user, runSync]);
 
