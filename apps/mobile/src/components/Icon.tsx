@@ -9,6 +9,7 @@ import {
   ChartColumn,
   Check,
   CheckCheck,
+  ChevronDown,
   ChevronRight,
   Clock,
   Coffee,
@@ -45,7 +46,7 @@ import { C } from "../theme";
 
 const MAP: Record<string, LucideIcon> = {
   BookOpen, Beef, Cake, CalendarCheck, CalendarClock, CalendarDays, ChartColumn,
-  Check, CheckCheck, ChevronRight, Clock, Coffee, Droplets, Flame, Footprints,
+  Check, CheckCheck, ChevronDown, ChevronRight, Clock, Coffee, Droplets, Flame, Footprints,
   Gauge, ListChecks, Moon, Mountain, NotebookPen, Pause, Pencil, Play, Plus,
   Repeat, Ruler, Save, Scale, Skull, Sparkles, Star, Sun, Timer, TrendingDown,
   TrendingUp, Trash2, Trophy, UserCircle, X,

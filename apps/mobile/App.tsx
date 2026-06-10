@@ -19,6 +19,7 @@ import { ConfirmProvider } from "./src/components/ConfirmDialog";
 import { Celebration } from "./src/components/Celebration";
 import { Squish } from "./src/components/anim";
 import { Today } from "./src/screens/Today";
+import { Planned } from "./src/screens/Planned";
 import { Habits } from "./src/screens/Habits";
 import { DailyLog } from "./src/screens/DailyLog";
 import { Focus } from "./src/screens/Focus";
@@ -82,6 +83,7 @@ function Root() {
 
       <View style={{ flex: 1 }}>
         {tab === "today" && <Today />}
+        {tab === "planned" && <Planned />}
         {tab === "habits" && <Habits />}
         {tab === "log" && <DailyLog />}
         {tab === "focus" && <Focus />}

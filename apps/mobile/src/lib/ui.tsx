@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState } from "react";
 import type { DayLogKind } from "@grit/core";
 
-export type Tab = "today" | "habits" | "log" | "focus" | "stats";
+export type Tab = "today" | "planned" | "habits" | "log" | "focus" | "stats";
 
 interface UiValue {
   tab: Tab;

@@ -9,7 +9,16 @@ import { useConfirm } from "./ConfirmDialog";
 import { FloatUp, Squish } from "./anim";
 
 /** A positive task (Must / Cool / Impossible / custom). */
-export function TaskCard({ task, showMustBadge }: { task: Task; showMustBadge?: boolean }) {
+export function TaskCard({
+  task,
+  showMustBadge,
+  forDay,
+}: {
+  task: Task;
+  showMustBadge?: boolean;
+  /** Recurring done/toggle apply to this day instead of today (Planned view). */
+  forDay?: string;
+}) {
   const { today, completedOn, toggleMust, achieve, unachieve, toggleImportant, toggleMyDay, removeTask } =
     useStore();
   const tint = LIST_TINT[task.listType];
@@ -17,11 +26,12 @@ export function TaskCard({ task, showMustBadge }: { task: Task; showMustBadge?: 
   const [open, setOpen] = useState(false);
   const [float, setFloat] = useState<number | null>(null);
 
-  const done = task.recurrence ? completedOn.has(`${task.id}:${today}`) : task.archived;
+  const day = forDay ?? today;
+  const done = task.recurrence ? completedOn.has(`${task.id}:${day}`) : task.archived;
 
   const onToggle = () => {
     if (!done) setFloat(Date.now()); // floating +XP only when completing
-    if (task.recurrence) return void toggleMust(task);
+    if (task.recurrence) return void toggleMust(task, day);
     return void (task.archived ? unachieve(task) : achieve(task));
   };
 

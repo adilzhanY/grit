@@ -7,6 +7,7 @@ import { Txt } from "./ui";
 
 const ITEMS: { tab: Tab; label: string; icon: string }[] = [
   { tab: "today", label: "Today", icon: "Sun" },
+  { tab: "planned", label: "Planned", icon: "CalendarDays" },
   { tab: "habits", label: "Habits", icon: "Flame" },
   { tab: "log", label: "Log", icon: "NotebookPen" },
   { tab: "focus", label: "Focus", icon: "Timer" },
