@@ -1,0 +1,63 @@
+/** Icon wrapper over lucide-react-native, name-mapped like the web Icon. */
+import {
+  BookOpen,
+  Beef,
+  Cake,
+  CalendarDays,
+  ChartColumn,
+  Check,
+  CheckCheck,
+  ChevronRight,
+  Clock,
+  Coffee,
+  Droplets,
+  Flame,
+  Footprints,
+  Gauge,
+  ListChecks,
+  Moon,
+  Mountain,
+  NotebookPen,
+  Pause,
+  Pencil,
+  Play,
+  Plus,
+  Ruler,
+  Save,
+  Scale,
+  Skull,
+  Sparkles,
+  Star,
+  Sun,
+  Timer,
+  TrendingDown,
+  TrendingUp,
+  Trash2,
+  Trophy,
+  UserCircle,
+  X,
+  type LucideIcon,
+} from "lucide-react-native";
+import { C } from "../theme";
+
+const MAP: Record<string, LucideIcon> = {
+  BookOpen, Beef, Cake, CalendarDays, ChartColumn, Check, CheckCheck,
+  ChevronRight, Clock, Coffee, Droplets, Flame, Footprints, Gauge, ListChecks,
+  Moon, Mountain, NotebookPen, Pause, Pencil, Play, Plus, Ruler, Save, Scale,
+  Skull, Sparkles, Star, Sun, Timer, TrendingDown, TrendingUp, Trash2, Trophy, UserCircle, X,
+};
+
+export function Icon({
+  name,
+  size = 20,
+  color = C.ink,
+  strokeWidth = 2.4,
+}: {
+  name: string;
+  size?: number;
+  color?: string;
+  strokeWidth?: number;
+}) {
+  const Cmp = MAP[name] ?? Sparkles;
+  return <Cmp size={size} color={color} strokeWidth={strokeWidth} />;
+}

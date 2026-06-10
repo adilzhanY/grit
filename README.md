@@ -16,16 +16,39 @@ Levels are a pure function of total XP (base 1500, brutal ×1.3 growth) — they
 slip. Every XP change is an append-only ledger entry, so XP/level/streaks are always derivable
 and ready for cloud sync later.
 
+## Monorepo layout
+
+npm workspaces:
+
+```
+grit/
+├─ apps/
+│  ├─ web/      Next.js app
+│  └─ mobile/   Expo / React Native app
+├─ packages/
+│  └─ core/     @grit/core — shared, platform-agnostic domain logic
+│                (types, schedule, daylog, leveling, milestones, localDay)
+└─ supabase/    schema.sql — cloud sync tables (run in the Supabase SQL editor)
+```
+
+`@grit/core` is pure TypeScript — no DOM, no IndexedDB, no React Native — the brain
+both apps share. Web consumes it directly and via thin re-export shims in
+`apps/web/src/lib/*`, so existing `@/lib/*` imports keep working. Storage and UI
+stay per-app.
+
 ## Stack
 
-Next.js 16 (App Router) · React 19 · Tailwind v4 · TypeScript · Dexie (IndexedDB) · Web Audio.
+Web: Next.js 16 (App Router) · React 19 · Tailwind v4 · Dexie (IndexedDB) · Web Audio.
+Mobile: Expo · React Native. Cloud sync: Supabase. Shared: TypeScript.
 
 ## Develop
 
 ```bash
-npm run dev      # http://localhost:3000
-npm run build    # production build
-npm run lint
+npm install        # installs all workspaces
+
+npm run web        # Next.js dev server (apps/web) → http://localhost:3000
+npm run web:build  # production build of the web app
+npm run mobile     # Expo dev server (apps/mobile) — heavy install on first run
 ```
 
 Design spec: `docs/superpowers/specs/2026-05-31-ebosh-phase1-design.md`.
