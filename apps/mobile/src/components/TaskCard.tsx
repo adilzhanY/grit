@@ -6,6 +6,7 @@ import { C, LIST_TINT, R, claySm } from "../theme";
 import { Txt } from "./ui";
 import { Icon } from "./Icon";
 import { useConfirm } from "./ConfirmDialog";
+import { FloatUp, Squish } from "./anim";
 
 /** A positive task (Must / Cool / Impossible / custom). */
 export function TaskCard({ task, showMustBadge }: { task: Task; showMustBadge?: boolean }) {
@@ -14,10 +15,12 @@ export function TaskCard({ task, showMustBadge }: { task: Task; showMustBadge?: 
   const tint = LIST_TINT[task.listType];
   const confirm = useConfirm();
   const [open, setOpen] = useState(false);
+  const [float, setFloat] = useState<number | null>(null);
 
   const done = task.recurrence ? completedOn.has(`${task.id}:${today}`) : task.archived;
 
   const onToggle = () => {
+    if (!done) setFloat(Date.now()); // floating +XP only when completing
     if (task.recurrence) return void toggleMust(task);
     return void (task.archived ? unachieve(task) : achieve(task));
   };
@@ -30,22 +33,31 @@ export function TaskCard({ task, showMustBadge }: { task: Task; showMustBadge?: 
       ]}
     >
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
-        <Pressable
-          onPress={onToggle}
-          style={[
-            {
-              width: 40,
-              height: 40,
-              borderRadius: R.sm,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: done ? tint.acc : C.surface,
-            },
-            claySm(),
-          ]}
-        >
-          <Icon name="Check" color={done ? "#fff" : "rgba(20,26,24,0.22)"} size={20} strokeWidth={3.2} />
-        </Pressable>
+        <View>
+          {float !== null ? (
+            <FloatUp key={float} style={{ position: "absolute", top: -18, left: 0, right: 0, alignItems: "center", zIndex: 5 }}>
+              <Txt weight="extrabold" size={16} color={tint.acc}>
+                +{task.points}
+              </Txt>
+            </FloatUp>
+          ) : null}
+          <Squish
+            onPress={onToggle}
+            style={[
+              {
+                width: 40,
+                height: 40,
+                borderRadius: R.sm,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: done ? tint.acc : C.surface,
+              },
+              claySm(),
+            ]}
+          >
+            <Icon name="Check" color={done ? "#fff" : "rgba(20,26,24,0.22)"} size={20} strokeWidth={3.2} />
+          </Squish>
+        </View>
 
         <Pressable style={{ flex: 1 }} onPress={() => setOpen((o) => !o)}>
           <Txt

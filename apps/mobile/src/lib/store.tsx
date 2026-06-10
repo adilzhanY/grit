@@ -64,6 +64,10 @@ function patchSettings(db: DB, patch: Partial<Settings>): void {
   db.settings = stamp({ ...db.settings, ...patch });
 }
 
+export type Celebration =
+  | { kind: "levelup"; level: number }
+  | { kind: "milestone"; label: string; xp: number; title: string };
+
 // ---- ledger helpers (mirror web repository) ----
 
 function totalXp(ledger: LedgerEntry[]): number {
@@ -159,6 +163,10 @@ interface StoreValue {
 
   setSoundsEnabled: (on: boolean) => Promise<void>;
 
+  // celebration overlay
+  celebration: Celebration | null;
+  dismissCelebration: () => void;
+
   // sync + backup
   syncing: boolean;
   syncError: string | null;
@@ -217,6 +225,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [syncing, setSyncing] = useState(false);
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [celebration, setCelebration] = useState<Celebration | null>(null);
+  const prevLevel = useRef<number | null>(null);
 
   // useCallback isn't exported as useCallback in some React builds re-export;
   // alias to the real hook here.
@@ -339,6 +349,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const sweepMilestones = cb(() => {
     const db = dbRef.current;
     let changed = false;
+    let party: Celebration | null = null;
     const ts = Date.now();
     for (const task of db.tasks) {
       if (task.listType !== "bad") continue;
@@ -347,12 +358,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (pending.length === 0) continue;
       const mult = task.rewardMultiplier ?? 1;
       for (const m of pending) {
+        const xp = Math.round(m.baseXp * mult);
         pushLedger(db, {
           type: "streak_milestone",
-          delta: Math.round(m.baseXp * mult),
+          delta: xp,
           taskId: task.id,
           meta: `${task.title} · ${m.label} clean`,
         });
+        party = { kind: "milestone", label: m.label, xp, title: task.title };
       }
       const i = db.tasks.findIndex((t) => t.id === task.id);
       db.tasks[i] = stamp({
@@ -363,6 +376,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     if (changed) {
       play("milestone");
+      if (party) setCelebration(party);
       commit();
     }
   }, [commit]);
@@ -696,6 +710,28 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now, ready]);
 
+  const dismissCelebration = cb(() => setCelebration(null), []);
+
+  // Fire the level-up overlay when the derived level climbs.
+  useEffect(() => {
+    if (!ready) return;
+    const lvl = computeLevel(
+      totalXp(dbRef.current.ledger),
+      dbRef.current.settings.levelBase,
+      dbRef.current.settings.levelGrowth,
+    ).level;
+    if (prevLevel.current === null) {
+      prevLevel.current = lvl;
+      return;
+    }
+    if (lvl > prevLevel.current) {
+      setCelebration({ kind: "levelup", level: lvl });
+      play("levelup");
+    }
+    prevLevel.current = lvl;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [version, ready]);
+
   const db = dbRef.current;
   const settings = db.settings;
   const value: StoreValue = useMemo(() => {
@@ -746,6 +782,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addFocusTask,
       removeFocusTask,
       setSoundsEnabled,
+      celebration,
+      dismissCelebration,
       syncing,
       syncError,
       syncNow,
@@ -753,7 +791,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       importBundle,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready, today, now, version, syncing, syncError, syncNow]);
+  }, [ready, today, now, version, syncing, syncError, syncNow, celebration]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -10,6 +10,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { C, FONT, R, clay, claySm } from "../theme";
+import { Squish } from "./anim";
 
 export function Txt({
   children,
@@ -110,7 +111,7 @@ export function PrimaryButton({
   color?: string;
 }) {
   return (
-    <Pressable
+    <Squish
       onPress={onPress}
       disabled={disabled}
       style={[
@@ -128,7 +129,7 @@ export function PrimaryButton({
       <Txt weight="bold" color={color}>
         {label}
       </Txt>
-    </Pressable>
+    </Squish>
   );
 }
 

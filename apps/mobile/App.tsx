@@ -16,6 +16,8 @@ import { UiProvider, useUi } from "./src/lib/ui";
 import { C } from "./src/theme";
 import { AccountSheet } from "./src/components/AccountSheet";
 import { ConfirmProvider } from "./src/components/ConfirmDialog";
+import { Celebration } from "./src/components/Celebration";
+import { Squish } from "./src/components/anim";
 import { Today } from "./src/screens/Today";
 import { Habits } from "./src/screens/Habits";
 import { DailyLog } from "./src/screens/DailyLog";
@@ -88,32 +90,32 @@ function Root() {
 
       {/* FAB — only on the home page */}
       {tab === "today" ? (
-        <Pressable
-          onPress={() => setMenu(true)}
-          style={{
-            position: "absolute",
-            right: 20,
-            bottom: 96,
-            width: 60,
-            height: 60,
-            borderRadius: 30,
-            backgroundColor: C.accent,
-            alignItems: "center",
-            justifyContent: "center",
-            shadowColor: "#141a18",
-            shadowOffset: { width: 0, height: 6 },
-            shadowOpacity: 0.3,
-            shadowRadius: 10,
-            elevation: 6,
-          }}
-        >
-          <Icon name="Plus" color="#fff" size={28} strokeWidth={3} />
-        </Pressable>
+        <View style={{ position: "absolute", right: 20, bottom: 96 }}>
+          <Squish
+            onPress={() => setMenu(true)}
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: 30,
+              backgroundColor: C.accent,
+              alignItems: "center",
+              justifyContent: "center",
+              shadowColor: "#141a18",
+              shadowOffset: { width: 0, height: 6 },
+              shadowOpacity: 0.3,
+              shadowRadius: 10,
+              elevation: 6,
+            }}
+          >
+            <Icon name="Plus" color="#fff" size={28} strokeWidth={3} />
+          </Squish>
+        </View>
       ) : null}
 
       <BottomNav />
       <LogMenu open={menu} onClose={() => setMenu(false)} />
       <AccountSheet open={account} onClose={() => setAccount(false)} />
+      <Celebration />
     </View>
   );
 }
