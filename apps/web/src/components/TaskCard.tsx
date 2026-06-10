@@ -221,7 +221,7 @@ export function TaskCard({
   return (
     <div className={className}>
       <div
-        className="group relative flex items-center gap-3 p-3 clay"
+        className="group relative flex items-center gap-3 p-3 clay transform-gpu"
         style={{ background: tint.surf }}
       >
         {/* Complete / achieve toggle (with subtasks: complete/un-check all) */}
@@ -352,8 +352,8 @@ export function TaskCard({
         {/* Hover actions — overlaid so they don't steal title width */}
         {!editing && (
         <div
-          className="absolute right-3 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-full p-1 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 focus-within:opacity-100"
-          style={{ background: tint.surf }}
+          className="absolute right-3 top-1/2 flex -translate-y-1/2 transform-gpu items-center gap-1 rounded-full p-1 opacity-0 shadow-sm transition-opacity group-hover:opacity-100 focus-within:opacity-100"
+          style={{ background: tint.surf, willChange: "opacity" }}
         >
           <button
             onClick={startEdit}
