@@ -35,6 +35,7 @@ import {
   type LevelInfo,
   type ListType,
   type Settings,
+  type Subtask,
   type Task,
   type WeightUnit,
   DEFAULT_POINTS,
@@ -110,6 +111,86 @@ function achieveType(listType: ListType): LedgerType {
   return "cool_achieve";
 }
 
+// ---- subtasks (ported from web repository) ----
+
+/** A subtask is done if completed; recurring parents only count today. */
+export function subtaskDone(task: Task, sub: Subtask, date: string): boolean {
+  if (sub.doneAt === undefined) return false;
+  return task.recurrence ? localDay(sub.doneAt) === date : true;
+}
+
+/** XP each subtask awards: done ones keep their award; the rest split the pool. */
+export function subtaskShares(task: Task, date: string): Map<string, number> {
+  const subs = task.subtasks ?? [];
+  const shares = new Map<string, number>();
+  const undone: Subtask[] = [];
+  let pool = task.points;
+  for (const s of subs) {
+    if (subtaskDone(task, s, date)) {
+      shares.set(s.id, s.awardedXp ?? 0);
+      pool -= s.awardedXp ?? 0;
+    } else {
+      undone.push(s);
+    }
+  }
+  pool = Math.max(0, pool);
+  undone.forEach((s, i) =>
+    shares.set(s.id, Math.floor(pool / undone.length) + (i < pool % undone.length ? 1 : 0)),
+  );
+  return shares;
+}
+
+function getCompletion(db: DB, taskId: string, date: string) {
+  return db.completions.find((c) => c.taskId === taskId && c.date === date);
+}
+
+function parentDoneDb(db: DB, task: Task, date: string): boolean {
+  if (task.recurrence) return !!getCompletion(db, task.id, date);
+  const fresh = db.tasks.find((t) => t.id === task.id) ?? task;
+  return !!fresh.archived;
+}
+
+/** Complete the parent when all subtasks are done; tops up leftover XP. */
+function maybeCompleteParent(db: DB, task: Task, date: string): boolean {
+  const subs = task.subtasks ?? [];
+  if (subs.length === 0) return false;
+  if (!subs.every((s) => subtaskDone(task, s, date))) return false;
+  if (parentDoneDb(db, task, date)) return false;
+
+  const leftover = Math.max(0, task.points - subs.reduce((sum, s) => sum + (s.awardedXp ?? 0), 0));
+  if (task.recurrence) {
+    db.completions.push(stamp({ id: uid(), taskId: task.id, date, completedAt: Date.now() }));
+  } else {
+    const i = db.tasks.findIndex((t) => t.id === task.id);
+    if (i >= 0) db.tasks[i] = stamp({ ...db.tasks[i], archived: true, achievedAt: Date.now() });
+  }
+  if (leftover > 0) {
+    pushLedger(db, { type: completeType(task.listType), delta: leftover, taskId: task.id, meta: task.title });
+  }
+  const j = db.tasks.findIndex((t) => t.id === task.id);
+  if (j >= 0) db.tasks[j] = stamp({ ...db.tasks[j], subtaskRemainderXp: leftover > 0 ? leftover : undefined });
+  return true;
+}
+
+function uncompleteParent(db: DB, task: Task, date: string): void {
+  const fi = db.tasks.findIndex((t) => t.id === task.id);
+  const fresh = fi >= 0 ? db.tasks[fi] : task;
+  const remainder = fresh.subtaskRemainderXp ?? 0;
+  if (remainder > 0) {
+    pushLedger(db, { type: "adjust", delta: -remainder, taskId: task.id, meta: `undo: ${task.title}` });
+    if (fi >= 0) db.tasks[fi] = stamp({ ...db.tasks[fi], subtaskRemainderXp: undefined });
+  }
+  if (task.recurrence) {
+    const existing = getCompletion(db, task.id, date);
+    if (existing) {
+      db.completions = db.completions.filter((c) => c.id !== existing.id);
+      tomb(db, "completions", existing.id);
+    }
+  } else if (fresh.archived) {
+    if (fi >= 0) db.tasks[fi] = stamp({ ...db.tasks[fi], archived: false, achievedAt: undefined });
+  }
+}
+
 // ---- context shape ----
 
 interface StoreValue {
@@ -139,6 +220,12 @@ interface StoreValue {
   toggleImportant: (task: Task) => Promise<void>;
   toggleMyDay: (task: Task) => Promise<void>;
   recordSlip: (task: Task) => Promise<void>;
+
+  // subtasks
+  addSubtask: (task: Task, title: string) => Promise<void>;
+  removeSubtask: (task: Task, subId: string) => Promise<void>;
+  toggleSubtask: (task: Task, subId: string) => Promise<void>;
+  setAllSubtasks: (task: Task, done: boolean) => Promise<void>;
 
   // custom lists
   addList: (name: string) => Promise<DB["lists"][number]>;
@@ -351,6 +438,106 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
     }
     play("bad");
+    commit();
+  }, [commit]);
+
+  // ---------- subtasks ----------
+  const addSubtask = cb(async (taskArg: Task, title: string) => {
+    const db = dbRef.current;
+    const i = db.tasks.findIndex((t) => t.id === taskArg.id);
+    const t = title.trim();
+    if (i < 0 || !t) return;
+    const subs = [...(db.tasks[i].subtasks ?? []), { id: uid(), title: t }];
+    db.tasks[i] = stamp({ ...db.tasks[i], subtasks: subs });
+    commit();
+  }, [commit]);
+
+  const removeSubtask = cb(async (taskArg: Task, subId: string) => {
+    const db = dbRef.current;
+    const date = localDay();
+    const i = db.tasks.findIndex((t) => t.id === taskArg.id);
+    if (i < 0) return;
+    const task = db.tasks[i];
+    const subs = task.subtasks ?? [];
+    const sub = subs.find((s) => s.id === subId);
+    if (!sub) return;
+    if (subtaskDone(task, sub, date) && (sub.awardedXp ?? 0) > 0) {
+      pushLedger(db, { type: "adjust", delta: -(sub.awardedXp ?? 0), taskId: task.id, meta: `undo: ${task.title} · ${sub.title}` });
+    }
+    db.tasks[i] = stamp({ ...task, subtasks: subs.filter((s) => s.id !== subId) });
+    maybeCompleteParent(db, db.tasks[i], date);
+    commit();
+  }, [commit]);
+
+  const toggleSubtask = cb(async (taskArg: Task, subId: string) => {
+    unlockAudio();
+    const db = dbRef.current;
+    const date = localDay();
+    const i = db.tasks.findIndex((t) => t.id === taskArg.id);
+    if (i < 0) return;
+    const task = db.tasks[i];
+    const subs = [...(task.subtasks ?? [])];
+    const si = subs.findIndex((s) => s.id === subId);
+    if (si < 0) return;
+    const sub = subs[si];
+
+    if (subtaskDone(task, sub, date)) {
+      const wasDone = parentDoneDb(db, task, date);
+      if ((sub.awardedXp ?? 0) > 0) {
+        pushLedger(db, { type: "adjust", delta: -(sub.awardedXp ?? 0), taskId: task.id, meta: `undo: ${task.title} · ${sub.title}` });
+      }
+      subs[si] = { ...sub, doneAt: undefined, awardedXp: undefined };
+      db.tasks[i] = stamp({ ...task, subtasks: subs });
+      if (wasDone) uncompleteParent(db, db.tasks[i], date);
+      commit();
+      return;
+    }
+
+    const share = subtaskShares(task, date).get(subId) ?? 0;
+    subs[si] = { ...sub, doneAt: Date.now(), awardedXp: share };
+    db.tasks[i] = stamp({ ...task, subtasks: subs });
+    if (share > 0) {
+      pushLedger(db, { type: completeType(task.listType), delta: share, taskId: task.id, meta: `${task.title} · ${sub.title}` });
+    }
+    const completed = maybeCompleteParent(db, db.tasks[i], date);
+    play(completed && task.listType === "impossible" ? "epic" : completed && task.listType === "cool" ? "cool" : "good");
+    commit();
+  }, [commit]);
+
+  const setAllSubtasks = cb(async (taskArg: Task, done: boolean) => {
+    unlockAudio();
+    const db = dbRef.current;
+    const date = localDay();
+    const i = db.tasks.findIndex((t) => t.id === taskArg.id);
+    if (i < 0) return;
+    const task = db.tasks[i];
+    const subs = task.subtasks ?? [];
+    if (subs.length === 0) return;
+
+    if (done) {
+      const shares = subtaskShares(task, date);
+      const now2 = Date.now();
+      const next = subs.map((s) => {
+        if (subtaskDone(task, s, date)) return s;
+        const share = shares.get(s.id) ?? 0;
+        if (share > 0) {
+          pushLedger(db, { type: completeType(task.listType), delta: share, taskId: task.id, meta: `${task.title} · ${s.title}` });
+        }
+        return { ...s, doneAt: now2, awardedXp: share };
+      });
+      db.tasks[i] = stamp({ ...task, subtasks: next });
+      maybeCompleteParent(db, db.tasks[i], date);
+      play("good");
+    } else {
+      const wasDone = parentDoneDb(db, task, date);
+      const refund = subs.reduce((sum, s) => sum + (subtaskDone(task, s, date) ? (s.awardedXp ?? 0) : 0), 0);
+      if (refund > 0) {
+        pushLedger(db, { type: "adjust", delta: -refund, taskId: task.id, meta: `undo: ${task.title}` });
+      }
+      const next = subs.map((s) => (subtaskDone(task, s, date) ? { ...s, doneAt: undefined, awardedXp: undefined } : s));
+      db.tasks[i] = stamp({ ...task, subtasks: next });
+      if (wasDone) uncompleteParent(db, db.tasks[i], date);
+    }
     commit();
   }, [commit]);
 
@@ -841,6 +1028,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       toggleImportant,
       toggleMyDay,
       recordSlip,
+      addSubtask,
+      removeSubtask,
+      toggleSubtask,
+      setAllSubtasks,
       addList,
       renameList,
       removeList,

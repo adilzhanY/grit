@@ -5,8 +5,32 @@
  *  - Squish     → .clay-press active scale (pressable squish)
  *  - Celebrate  → @keyframes celebrate (level-up overlay)
  */
-import React, { useEffect, useRef } from "react";
-import { Animated, Easing, Pressable, type ViewStyle } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { Animated, Easing, Pressable, View, type ViewStyle } from "react-native";
+
+/** Smooth expand/collapse by animating height (like the web grid-rows trick). */
+export function Collapsible({ open, children }: { open: boolean; children: React.ReactNode }) {
+  const [measured, setMeasured] = useState(0);
+  const h = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(h, {
+      toValue: open ? measured : 0,
+      duration: 260,
+      easing: Easing.inOut(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [open, measured, h]);
+  return (
+    <Animated.View style={{ height: measured ? h : undefined, overflow: "hidden" }}>
+      <View
+        style={{ position: "absolute", left: 0, right: 0 }}
+        onLayout={(e) => setMeasured(e.nativeEvent.layout.height)}
+      >
+        {children}
+      </View>
+    </Animated.View>
+  );
+}
 
 /** Spring scale+fade in — the modal/pill entrance. */
 export function PopIn({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
