@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { formatStreak, streakMs, type ListType, type Task } from "@grit/core";
 import { useStore } from "../lib/store";
@@ -52,13 +52,19 @@ export function Habits() {
     setDraft("");
   };
 
+  // onSubmitEditing + onBlur can both fire — guard so we create exactly once.
+  const creatingRef = useRef(false);
   const createList = async () => {
+    if (creatingRef.current) return;
+    creatingRef.current = true;
     const n = newList.trim();
     setNewList("");
     setCreating(false);
-    if (!n) return;
-    const l = await addList(n);
-    setSel(`list:${l.id}`);
+    if (n) {
+      const l = await addList(n);
+      setSel(`list:${l.id}`);
+    }
+    creatingRef.current = false;
   };
 
   return (
@@ -154,20 +160,21 @@ export function Habits() {
         </Txt>
       ) : null}
 
+      {/* Active + achieved are kept as siblings of one parent (no Fragment) so
+          a one-shot task completing — which moves it across the divider —
+          keeps its card mounted and its +XP float animation plays. */}
       {type === "bad"
         ? active.map((t) => <BadCard key={t.id} task={t} now={now} />)
         : active.map((t) => <TaskCard key={t.id} task={t} />)}
 
       {achieved.length > 0 ? (
-        <>
-          <View style={{ marginTop: 8 }}>
-            <SectionTitle>{isList ? "Done" : "Achieved"}</SectionTitle>
-          </View>
-          {achieved.map((t) => (
-            <TaskCard key={t.id} task={t} />
-          ))}
-        </>
+        <View key="__achieved_header" style={{ marginTop: 8 }}>
+          <SectionTitle>{isList ? "Done" : "Achieved"}</SectionTitle>
+        </View>
       ) : null}
+      {achieved.map((t) => (
+        <TaskCard key={t.id} task={t} />
+      ))}
     </ScrollView>
   );
 }

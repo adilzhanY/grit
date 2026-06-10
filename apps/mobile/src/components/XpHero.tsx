@@ -1,4 +1,5 @@
-import { View } from "react-native";
+import { useEffect, useRef } from "react";
+import { Animated, Easing, View } from "react-native";
 import { useStore } from "../lib/store";
 import { C, R } from "../theme";
 import { Card, Txt } from "./ui";
@@ -6,6 +7,17 @@ import { Icon } from "./Icon";
 
 export function XpHero() {
   const { level, xpToday } = useStore();
+  // Smoothly grow/shrink the progress bar when XP changes (like the web).
+  const anim = useRef(new Animated.Value(level.progress)).current;
+  useEffect(() => {
+    Animated.timing(anim, {
+      toValue: level.progress,
+      duration: 500,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    }).start();
+  }, [level.progress, anim]);
+  const width = anim.interpolate({ inputRange: [0, 1], outputRange: ["0%", "100%"] });
   return (
     <Card background={C.primary}>
       <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
@@ -46,10 +58,10 @@ export function XpHero() {
         <View
           style={{ height: 10, borderRadius: R.pill, backgroundColor: "rgba(255,255,255,0.14)", overflow: "hidden" }}
         >
-          <View
+          <Animated.View
             style={{
               height: "100%",
-              width: `${Math.round(level.progress * 100)}%`,
+              width,
               backgroundColor: C.accent,
               borderRadius: R.pill,
             }}

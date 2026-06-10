@@ -61,20 +61,20 @@ export function Today() {
         </Txt>
       ) : null}
 
+      {/* Flat siblings (no Fragment) so a task moving to Done keeps its card
+          mounted and the +XP float animation plays. */}
       {active.map((t) => (
         <TaskCard key={t.id} task={t} showMustBadge />
       ))}
 
       {done.length > 0 ? (
-        <>
-          <View style={{ marginTop: 8 }}>
-            <SectionTitle>Done</SectionTitle>
-          </View>
-          {done.map((t) => (
-            <TaskCard key={t.id} task={t} showMustBadge />
-          ))}
-        </>
+        <View key="__done_header" style={{ marginTop: 8 }}>
+          <SectionTitle>Done</SectionTitle>
+        </View>
       ) : null}
+      {done.map((t) => (
+        <TaskCard key={t.id} task={t} showMustBadge />
+      ))}
     </ScrollView>
   );
 }
