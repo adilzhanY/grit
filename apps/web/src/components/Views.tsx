@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Children, useEffect, useState } from "react";
 import type { ListType, Task } from "@/lib/types";
 import { LIST_META } from "@/lib/types";
 import { LIST_TINT } from "@/lib/tint";
@@ -79,14 +79,41 @@ function EmptyHint({ text }: { text: string }) {
 // section titles) interleaved with masonry card columns.
 const grid = "flex flex-col gap-4";
 
-// Masonry card layout. CSS columns let each card flow independently, so a card
-// with an expanded subtask thread only pushes the cards below it in its own
-// column — its neighbors never get dead space. break-inside-avoid keeps a card
-// whole; mb-4 spaces rows (column gap is handled by `gap`).
+/** Responsive masonry column count: 1 (phone) / 2 (sm+) / 3 (2xl+). */
+function useColumnCount(): number {
+  const get = () => {
+    if (typeof window === "undefined") return 1;
+    const w = window.innerWidth;
+    if (w >= 1536) return 3;
+    if (w >= 640) return 2;
+    return 1;
+  };
+  const [n, setN] = useState(1); // start at 1 to match SSR, fix on mount
+  useEffect(() => {
+    const onResize = () => setN(get());
+    onResize();
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return n;
+}
+
+// Masonry via real flexbox columns (NOT CSS multi-column, which intermittently
+// fails to paint hover overlays in Chrome). Cards are distributed round-robin
+// into N flex columns, so a card with an expanded subtask thread only pushes
+// the cards below it in its own column — neighbors keep their place.
 function CardColumns({ children }: { children: React.ReactNode }) {
+  const cols = useColumnCount();
+  const items = Children.toArray(children);
+  const buckets: React.ReactNode[][] = Array.from({ length: cols }, () => []);
+  items.forEach((child, i) => buckets[i % cols].push(child));
   return (
-    <div className="columns-1 gap-4 sm:columns-2 2xl:columns-3 [&>*]:mb-4 [&>*]:break-inside-avoid">
-      {children}
+    <div className="flex items-start gap-4">
+      {buckets.map((bucket, i) => (
+        <div key={i} className="flex min-w-0 flex-1 flex-col gap-4">
+          {bucket}
+        </div>
+      ))}
     </div>
   );
 }
