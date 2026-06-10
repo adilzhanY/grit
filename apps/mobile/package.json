@@ -19,7 +19,7 @@
     "expo-font": "~13.3.1",
     "expo-status-bar": "~2.2.3",
     "lucide-react-native": "^0.487.0",
-    "react": "19.2.4",
+    "react": "19.0.0",
     "react-native": "0.79.1",
     "react-native-safe-area-context": "5.4.0",
     "react-native-svg": "15.11.2",
