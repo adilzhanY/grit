@@ -16,7 +16,7 @@ const TABS: { type: ListType; label: string; icon: string }[] = [
 ];
 
 export function Habits() {
-  const { tasks, lists, addList, renameList, removeList, addTask, now } = useStore();
+  const { tasks, lists, today, completedOn, addList, renameList, removeList, addTask, now } = useStore();
   const confirm = useConfirm();
   const [sel, setSel] = useState<string>("must");
   const [draft, setDraft] = useState("");
@@ -42,8 +42,11 @@ export function Habits() {
   const all = isList
     ? tasks.filter((t) => t.listId === listId)
     : tasks.filter((t) => t.listType === sel);
-  const active = all.filter((t) => !t.archived);
-  const achieved = all.filter((t) => t.archived);
+  // Recurring tasks are "done" when completed today; one-shots when archived.
+  const isDone = (t: Task) =>
+    t.recurrence ? completedOn.has(`${t.id}:${today}`) : t.archived;
+  const active = type === "bad" ? all.filter((t) => !t.archived) : all.filter((t) => !isDone(t));
+  const achieved = type === "bad" ? [] : all.filter(isDone);
 
   const submit = () => {
     const n = draft.trim();
@@ -169,7 +172,7 @@ export function Habits() {
 
       {achieved.length > 0 ? (
         <View key="__achieved_header" style={{ marginTop: 8 }}>
-          <SectionTitle>{isList ? "Done" : "Achieved"}</SectionTitle>
+          <SectionTitle>{type === "cool" || type === "impossible" ? "Achieved" : "Done"}</SectionTitle>
         </View>
       ) : null}
       {achieved.map((t) => (
