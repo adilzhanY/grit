@@ -15,6 +15,7 @@ import { StoreProvider, useStore } from "./src/lib/store";
 import { UiProvider, useUi } from "./src/lib/ui";
 import { C } from "./src/theme";
 import { AccountSheet } from "./src/components/AccountSheet";
+import { ConfirmProvider } from "./src/components/ConfirmDialog";
 import { Today } from "./src/screens/Today";
 import { Habits } from "./src/screens/Habits";
 import { DailyLog } from "./src/screens/DailyLog";
@@ -139,10 +140,12 @@ export default function App() {
       <AuthProvider>
         <StoreProvider>
           <UiProvider>
-            <SafeAreaView style={{ flex: 1, backgroundColor: C.page }} edges={["top"]}>
-              <Root />
-            </SafeAreaView>
-            <StatusBar style="dark" />
+            <ConfirmProvider>
+              <SafeAreaView style={{ flex: 1, backgroundColor: C.page }} edges={["top"]}>
+                <Root />
+              </SafeAreaView>
+              <StatusBar style="dark" />
+            </ConfirmProvider>
           </UiProvider>
         </StoreProvider>
       </AuthProvider>

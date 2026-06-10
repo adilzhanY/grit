@@ -6,6 +6,7 @@ import { C, LIST_TINT, R, claySm } from "../theme";
 import { TaskCard } from "../components/TaskCard";
 import { Icon } from "../components/Icon";
 import { SectionTitle, TextField, Txt } from "../components/ui";
+import { useConfirm } from "../components/ConfirmDialog";
 
 const TABS: { type: ListType; label: string; icon: string }[] = [
   { type: "must", label: "Must", icon: "Flame" },
@@ -106,6 +107,7 @@ export function Habits() {
 
 function BadCard({ task, now }: { task: Task; now: number }) {
   const { recordSlip, removeTask } = useStore();
+  const confirm = useConfirm();
   const tint = LIST_TINT.bad;
   const streak = streakMs(now, task.lastSlipAt, task.createdAt);
   return (
@@ -117,7 +119,13 @@ function BadCard({ task, now }: { task: Task; now: number }) {
             {task.title}
           </Txt>
         </View>
-        <Pressable onPress={() => removeTask(task.id)} style={{ padding: 4 }}>
+        <Pressable
+          onPress={async () => {
+            if (await confirm({ title: `Delete "${task.title}"?`, confirmLabel: "Delete" }))
+              void removeTask(task.id);
+          }}
+          style={{ padding: 4 }}
+        >
           <Icon name="Trash2" size={16} color={C.inkFaint} />
         </Pressable>
       </View>

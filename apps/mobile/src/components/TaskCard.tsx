@@ -5,12 +5,14 @@ import { useStore } from "../lib/store";
 import { C, LIST_TINT, R, claySm } from "../theme";
 import { Txt } from "./ui";
 import { Icon } from "./Icon";
+import { useConfirm } from "./ConfirmDialog";
 
 /** A positive task (Must / Cool / Impossible / custom). */
 export function TaskCard({ task, showMustBadge }: { task: Task; showMustBadge?: boolean }) {
   const { today, completedOn, toggleMust, achieve, unachieve, toggleImportant, toggleMyDay, removeTask } =
     useStore();
   const tint = LIST_TINT[task.listType];
+  const confirm = useConfirm();
   const [open, setOpen] = useState(false);
 
   const done = task.recurrence ? completedOn.has(`${task.id}:${today}`) : task.archived;
@@ -80,7 +82,14 @@ export function TaskCard({ task, showMustBadge }: { task: Task; showMustBadge?: 
         <View style={{ flexDirection: "row", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
           <ActionBtn name="Star" active={!!task.important} color={tint.acc} onPress={() => toggleImportant(task)} />
           <ActionBtn name="Sun" active={!!task.starredMyDay} color={tint.acc} onPress={() => toggleMyDay(task)} />
-          <ActionBtn name="Trash2" color={C.inkFaint} onPress={() => removeTask(task.id)} />
+          <ActionBtn
+            name="Trash2"
+            color={C.inkFaint}
+            onPress={async () => {
+              if (await confirm({ title: `Delete "${task.title}"?`, confirmLabel: "Delete" }))
+                void removeTask(task.id);
+            }}
+          />
         </View>
       ) : null}
     </View>

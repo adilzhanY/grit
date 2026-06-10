@@ -5,10 +5,12 @@ import { useStore } from "../lib/store";
 import { C, FONT, R, claySm } from "../theme";
 import { Divider, PrimaryButton, SectionTitle, Txt } from "./ui";
 import { Icon } from "./Icon";
+import { useConfirm } from "./ConfirmDialog";
 
 export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { enabled, user, signIn, signUp, signOut } = useAuth();
   const { syncing, syncError, syncNow, exportBundle, importBundle, settings, setProfile, setSoundsEnabled } = useStore();
+  const confirm = useConfirm();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,6 +46,8 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
   };
 
   const doImport = async () => {
+    if (!(await confirm({ title: "Replace all local data?", message: "This overwrites everything on this device with the backup.", confirmLabel: "Replace" })))
+      return;
     try {
       const count = await importBundle(importText.trim());
       setImportText("");

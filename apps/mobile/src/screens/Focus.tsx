@@ -6,6 +6,7 @@ import { useStore } from "../lib/store";
 import { C, R, claySm } from "../theme";
 import { Card, NumberField, PrimaryButton, SectionTitle, TextField, Txt } from "../components/ui";
 import { Icon } from "../components/Icon";
+import { useConfirm } from "../components/ConfirmDialog";
 
 const num = (s: string) => Math.max(0, Math.round(Number(s) || 0));
 const PRESETS = [
@@ -25,6 +26,7 @@ const PERIODS: { v: Period; l: string }[] = [
 
 export function Focus() {
   const { dayLogs, settings, today, now, activeFocus, startFocusSession, cancelFocusSession, saveFocusSession, addFocusTask, removeFocusTask } = useStore();
+  const confirm = useConfirm();
   const [focusMin, setFocusMin] = useState("25");
   const [restMin, setRestMin] = useState("5");
   const [task, setTask] = useState<string | null>(null);
@@ -65,7 +67,15 @@ export function Focus() {
           {isFocus && elapsedMin >= 1 ? (
             <PrimaryButton label="Save" background={C.accent} onPress={() => void saveFocusSession()} />
           ) : null}
-          <PrimaryButton label={isFocus ? "Give up" : "Skip rest"} background={isFocus ? C.badAcc : C.primary} onPress={() => void cancelFocusSession()} />
+          <PrimaryButton
+            label={isFocus ? "Give up" : "Skip rest"}
+            background={isFocus ? C.badAcc : C.primary}
+            onPress={async () => {
+              if (!isFocus) return void cancelFocusSession();
+              if (await confirm({ title: "Give up this pomodoro?", message: "An abandoned session earns no XP.", confirmLabel: "Give up" }))
+                void cancelFocusSession();
+            }}
+          />
         </View>
       </ScrollView>
     );
@@ -98,7 +108,18 @@ export function Focus() {
         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
           <Chip label="No task" on={task === null} onPress={() => setTask(null)} />
           {allTasks.map((t) => (
-            <Chip key={t} label={t} on={task === t} onPress={() => setTask(task === t ? null : t)} onRemove={() => { if (task === t) setTask(null); void removeFocusTask(t); }} />
+            <Chip
+              key={t}
+              label={t}
+              on={task === t}
+              onPress={() => setTask(task === t ? null : t)}
+              onRemove={async () => {
+                if (await confirm({ title: `Delete focus task "${t}"?`, message: "Past sessions keep their time.", confirmLabel: "Delete" })) {
+                  if (task === t) setTask(null);
+                  void removeFocusTask(t);
+                }
+              }}
+            />
           ))}
         </View>
         <View style={{ flexDirection: "row", gap: 8, marginTop: 8, alignItems: "center" }}>

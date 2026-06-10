@@ -23,6 +23,7 @@ import { useUi } from "../lib/ui";
 import { C, R, claySm } from "../theme";
 import { Card, NumberField, Pill, PrimaryButton, SectionTitle, TextField, Txt } from "../components/ui";
 import { Icon } from "../components/Icon";
+import { useConfirm } from "../components/ConfirmDialog";
 
 const num = (s: string) => Math.max(0, Math.round(Number(s) || 0));
 
@@ -108,6 +109,7 @@ function xpPillProps(xp: number) {
 
 function HistoryRow({ log, title, detail }: { log: DayLog; title: string; detail?: string }) {
   const { removeDayLog } = useStore();
+  const confirm = useConfirm();
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.page2, borderRadius: R.sm, paddingHorizontal: 12, paddingVertical: 10 }}>
       <View style={{ flex: 1 }}>
@@ -121,7 +123,13 @@ function HistoryRow({ log, title, detail }: { log: DayLog; title: string; detail
         ) : null}
       </View>
       {log.awardedXp !== 0 ? <Pill {...xpPillProps(log.awardedXp)} /> : null}
-      <Pressable onPress={() => removeDayLog(log.id)} style={{ padding: 4 }}>
+      <Pressable
+        onPress={async () => {
+          if (await confirm({ title: "Delete this log?", message: "Its XP will be reversed.", confirmLabel: "Delete" }))
+            void removeDayLog(log.id);
+        }}
+        style={{ padding: 4 }}
+      >
         <Icon name="Trash2" size={15} color={C.inkFaint} />
       </Pressable>
     </View>
@@ -146,6 +154,7 @@ function History({ kind, render }: { kind: DayLogKind; render: (l: DayLog) => { 
 // ---------------- Food ----------------
 function FoodPanel() {
   const { settings, foods, dayLogs, today, logFood, removeFood, setCalorieLimit } = useStore();
+  const confirm = useConfirm();
   const [name, setName] = useState("");
   const [calories, setCalories] = useState("");
   const [protein, setProtein] = useState("");
@@ -222,7 +231,14 @@ function FoodPanel() {
                   <Txt weight="semibold" size={13}>{f.name}</Txt>
                   <Txt size={11} color={C.inkFaint}>{f.calories} kcal · P{f.protein} C{f.carbs} F{f.fat}</Txt>
                 </Pressable>
-                <Pressable onPress={() => removeFood(f.id)}><Icon name="X" size={12} color={C.inkFaint} /></Pressable>
+                <Pressable
+                  onPress={async () => {
+                    if (await confirm({ title: `Remove "${f.name}" from saved foods?`, confirmLabel: "Remove" }))
+                      void removeFood(f.id);
+                  }}
+                >
+                  <Icon name="X" size={12} color={C.inkFaint} />
+                </Pressable>
               </View>
             ))}
           </View>
