@@ -124,6 +124,7 @@ interface StoreValue {
   completedOn: Set<string>;
   dayLogs: DayLog[];
   foods: DB["foods"];
+  lists: DB["lists"];
   ledger: LedgerEntry[];
   activeFocus: ActiveFocus | null;
 
@@ -137,6 +138,11 @@ interface StoreValue {
   toggleImportant: (task: Task) => Promise<void>;
   toggleMyDay: (task: Task) => Promise<void>;
   recordSlip: (task: Task) => Promise<void>;
+
+  // custom lists
+  addList: (name: string) => Promise<DB["lists"][number]>;
+  renameList: (id: string, name: string) => Promise<void>;
+  removeList: (id: string) => Promise<void>;
 
   // daily log
   logFood: (
@@ -185,6 +191,7 @@ function buildTask(input: {
   cleanSince?: number;
   starredMyDay?: boolean;
   plannedFor?: string;
+  listId?: string;
   order: number;
 }): Task {
   const now = Date.now();
@@ -209,6 +216,7 @@ function buildTask(input: {
     task.awardedMilestoneIds = [];
     if (input.cleanSince && input.cleanSince < now) task.lastSlipAt = input.cleanSince;
   }
+  if (input.listType === "custom" && input.listId) task.listId = input.listId;
   if (input.starredMyDay) task.starredMyDay = true;
   if (input.plannedFor) task.plannedFor = input.plannedFor;
   return task;
@@ -342,6 +350,43 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       });
     }
     play("bad");
+    commit();
+  }, [commit]);
+
+  // ---------- custom lists ----------
+  const addList = cb(async (name: string) => {
+    const db = dbRef.current;
+    const list = stamp({
+      id: uid(),
+      name: name.trim() || "Untitled list",
+      order: db.lists.length,
+      createdAt: Date.now(),
+    });
+    db.lists.push(list);
+    commit();
+    return list;
+  }, [commit]);
+
+  const renameList = cb(async (id: string, name: string) => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    const db = dbRef.current;
+    const i = db.lists.findIndex((l) => l.id === id);
+    if (i >= 0) db.lists[i] = stamp({ ...db.lists[i], name: trimmed });
+    commit();
+  }, [commit]);
+
+  const removeList = cb(async (id: string) => {
+    const db = dbRef.current;
+    const tasks = db.tasks.filter((t) => t.listId === id);
+    for (const t of tasks) {
+      db.completions.filter((c) => c.taskId === t.id).forEach((c) => tomb(db, "completions", c.id));
+      tomb(db, "tasks", t.id);
+    }
+    db.completions = db.completions.filter((c) => !tasks.some((t) => t.id === c.taskId));
+    db.tasks = db.tasks.filter((t) => t.listId !== id);
+    db.lists = db.lists.filter((l) => l.id !== id);
+    tomb(db, "lists", id);
     commit();
   }, [commit]);
 
@@ -754,6 +799,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       completedOn,
       dayLogs: [...db.dayLogs].sort((a, b) => b.loggedAt - a.loggedAt),
       foods: db.foods,
+      lists: [...db.lists].sort((a, b) => a.order - b.order),
       ledger: db.ledger,
       activeFocus: db.activeFocus,
       addTask,
@@ -765,6 +811,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       toggleImportant,
       toggleMyDay,
       recordSlip,
+      addList,
+      renameList,
+      removeList,
       logFood,
       removeFood,
       setCalorieLimit,

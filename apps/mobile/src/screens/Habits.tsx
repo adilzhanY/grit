@@ -1,8 +1,8 @@
-import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Pressable, ScrollView, TextInput, View } from "react-native";
 import { formatStreak, streakMs, type ListType, type Task } from "@grit/core";
 import { useStore } from "../lib/store";
-import { C, LIST_TINT, R, claySm } from "../theme";
+import { C, FONT, LIST_TINT, R, claySm } from "../theme";
 import { TaskCard } from "../components/TaskCard";
 import { Icon } from "../components/Icon";
 import { SectionTitle, TextField, Txt } from "../components/ui";
@@ -16,67 +16,134 @@ const TABS: { type: ListType; label: string; icon: string }[] = [
 ];
 
 export function Habits() {
-  const { tasks, addTask, now } = useStore();
-  const [type, setType] = useState<ListType>("must");
+  const { tasks, lists, addList, renameList, removeList, addTask, now } = useStore();
+  const confirm = useConfirm();
+  const [sel, setSel] = useState<string>("must");
   const [draft, setDraft] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [newList, setNewList] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+
+  const listId = sel.startsWith("list:") ? sel.slice(5) : null;
+  const list = listId ? lists.find((l) => l.id === listId) : null;
+  const isList = !!list;
+  // Safe even for a just-deleted list (falls back to a valid tint this frame).
+  const type: ListType = isList
+    ? "custom"
+    : (["must", "bad", "cool", "impossible"].includes(sel) ? (sel as ListType) : "custom");
   const tint = LIST_TINT[type];
 
-  const all = tasks.filter((t) => t.listType === type);
+  // If the selected list disappears (deleted here or via sync), reset.
+  useEffect(() => {
+    if (sel.startsWith("list:") && !lists.some((l) => `list:${l.id}` === sel)) setSel("must");
+  }, [sel, lists]);
+
+  const all = isList
+    ? tasks.filter((t) => t.listId === listId)
+    : tasks.filter((t) => t.listType === sel);
   const active = all.filter((t) => !t.archived);
   const achieved = all.filter((t) => t.archived);
 
   const submit = () => {
     const n = draft.trim();
     if (!n) return;
-    void addTask({ listType: type, title: n });
+    void addTask({ listType: type, title: n, ...(isList && listId ? { listId } : {}) });
     setDraft("");
+  };
+
+  const createList = async () => {
+    const n = newList.trim();
+    setNewList("");
+    setCreating(false);
+    if (!n) return;
+    const l = await addList(n);
+    setSel(`list:${l.id}`);
   };
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
-      <Txt size={24} weight="extrabold">
-        Habits
-      </Txt>
+      <Txt size={24} weight="extrabold">Habits & Lists</Txt>
 
-      {/* Segmented tabs */}
+      {/* Selector: gamified types + custom lists + new */}
       <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
         {TABS.map((t) => {
-          const on = type === t.type;
+          const on = sel === t.type;
           const tt = LIST_TINT[t.type];
           return (
-            <Pressable
-              key={t.type}
-              onPress={() => setType(t.type)}
-              style={[
-                {
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 6,
-                  paddingHorizontal: 14,
-                  paddingVertical: 8,
-                  borderRadius: R.pill,
-                  backgroundColor: on ? tt.acc : C.surface,
-                },
-                claySm(),
-              ]}
-            >
-              <Icon name={t.icon} size={16} color={on ? "#fff" : tt.acc} />
-              <Txt weight="bold" size={13} color={on ? "#fff" : C.inkSoft}>
-                {t.label}
-              </Txt>
-            </Pressable>
+            <Chip key={t.type} icon={t.icon} label={t.label} on={on} color={tt.acc} onPress={() => setSel(t.type)} />
           );
         })}
+        {lists.map((l) => (
+          <Chip
+            key={l.id}
+            icon="ListChecks"
+            label={l.name}
+            on={sel === `list:${l.id}`}
+            color={C.primary}
+            onPress={() => setSel(`list:${l.id}`)}
+          />
+        ))}
+        {creating ? (
+          <TextInput
+            autoFocus
+            value={newList}
+            onChangeText={setNewList}
+            onBlur={createList}
+            onSubmitEditing={createList}
+            placeholder="List name"
+            placeholderTextColor={C.inkFaint}
+            style={{ minWidth: 130, backgroundColor: C.surface, borderRadius: R.pill, paddingHorizontal: 14, paddingVertical: 8, fontFamily: FONT.bold, fontSize: 13, color: C.ink }}
+          />
+        ) : (
+          <Pressable onPress={() => setCreating(true)} style={[{ flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: R.pill, backgroundColor: C.surface }, claySm()]}>
+            <Icon name="Plus" size={16} color={C.primary} />
+            <Txt weight="bold" size={13} color={C.primary}>New list</Txt>
+          </Pressable>
+        )}
       </View>
 
+      {/* Custom list header: rename + delete */}
+      {isList && list ? (
+        <View style={[{ flexDirection: "row", alignItems: "center", gap: 10, padding: 14, borderRadius: R.md, backgroundColor: C.surface }, claySm()]}>
+          <View style={{ width: 40, height: 40, borderRadius: R.sm, backgroundColor: C.primary, alignItems: "center", justifyContent: "center" }}>
+            <Icon name="ListChecks" color="#fff" size={20} />
+          </View>
+          {editingName ? (
+            <TextInput
+              autoFocus
+              value={nameDraft}
+              onChangeText={setNameDraft}
+              onBlur={() => { void renameList(list.id, nameDraft); setEditingName(false); }}
+              onSubmitEditing={() => { void renameList(list.id, nameDraft); setEditingName(false); }}
+              style={{ flex: 1, fontFamily: FONT.extrabold, fontSize: 18, color: C.ink }}
+            />
+          ) : (
+            <Pressable style={{ flex: 1 }} onPress={() => { setNameDraft(list.name); setEditingName(true); }}>
+              <Txt size={18} weight="extrabold" numberOfLines={1}>{list.name}</Txt>
+              <Txt size={11} weight="medium" color={C.inkFaint}>{active.length} {active.length === 1 ? "task" : "tasks"} · tap to rename</Txt>
+            </Pressable>
+          )}
+          <Pressable
+            onPress={async () => {
+              if (await confirm({ title: `Delete list "${list.name}"?`, message: "Its tasks will be deleted too.", confirmLabel: "Delete" })) {
+                setSel("must");
+                void removeList(list.id);
+              }
+            }}
+            style={{ padding: 6 }}
+          >
+            <Icon name="Trash2" size={18} color={C.inkFaint} />
+          </Pressable>
+        </View>
+      ) : null}
+
+      {/* Add task */}
       <View style={{ flexDirection: "row", gap: 8, alignItems: "center" }}>
         <View style={{ flex: 1 }}>
-          <TextField value={draft} onChange={setDraft} placeholder={`Add to ${type}…`} onSubmit={submit} />
+          <TextField value={draft} onChange={setDraft} placeholder={`Add to ${isList && list ? list.name : type}…`} onSubmit={submit} />
         </View>
-        <Pressable
-          onPress={submit}
-          style={{ width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: tint.acc }}
-        >
+        <Pressable onPress={submit} style={{ width: 44, height: 44, borderRadius: 14, alignItems: "center", justifyContent: "center", backgroundColor: tint.acc }}>
           <Icon name="Plus" color="#fff" size={20} />
         </Pressable>
       </View>
@@ -94,7 +161,7 @@ export function Habits() {
       {achieved.length > 0 ? (
         <>
           <View style={{ marginTop: 8 }}>
-            <SectionTitle>Achieved</SectionTitle>
+            <SectionTitle>{isList ? "Done" : "Achieved"}</SectionTitle>
           </View>
           {achieved.map((t) => (
             <TaskCard key={t.id} task={t} />
@@ -102,6 +169,23 @@ export function Habits() {
         </>
       ) : null}
     </ScrollView>
+  );
+}
+
+function Chip({ icon, label, on, color, onPress }: { icon: string; label: string; on: boolean; color: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: R.pill, backgroundColor: on ? color : C.surface, maxWidth: 200 },
+        claySm(),
+      ]}
+    >
+      <Icon name={icon} size={16} color={on ? "#fff" : color} />
+      <Txt weight="bold" size={13} color={on ? "#fff" : C.inkSoft} numberOfLines={1}>
+        {label}
+      </Txt>
+    </Pressable>
   );
 }
 
