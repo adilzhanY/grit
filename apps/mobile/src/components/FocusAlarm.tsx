@@ -20,65 +20,61 @@ import { PopIn } from "./anim";
 import { Icon } from "./Icon";
 import { PrimaryButton, Txt } from "./ui";
 
-const pad = (n: number) => String(n).padStart(2, "0");
-
 export function FocusAlarm() {
   const { activeFocus, now, finishFocusSession, continueFocusSession, cancelFocusSession } = useStore();
-  const scheduledKey = useRef<string | null>(null);
 
   useEffect(() => {
     void configureNotifications();
   }, []);
 
-  // Drive notifications + the in-app ringing from the session state.
+  const a = activeFocus;
+  const elapsed = !!a && focusElapsed(a, now);
+  // Only reconcile notifications when the session actually changes — the
+  // native chronometer ticks on its own, so no per-second churn.
+  const notifKey = a ? `${a.phase}:${a.startedAt}:${a.pausedAt ?? "run"}` : "none";
+
   useEffect(() => {
-    const a = activeFocus;
-    if (!a) {
-      void clearOngoing();
-      void cancelAlarm();
-      stopAlarm();
-      scheduledKey.current = null;
-      return;
-    }
-    const isFocus = a.phase === "focus";
-    const title = a.label ?? (isFocus ? "Pomo Focus" : "Break");
-
-    if (focusElapsed(a, now)) {
-      void clearOngoing();
-      void cancelAlarm();
-      startAlarm(isFocus ? "focusEnd" : "restEnd");
-      scheduledKey.current = null;
-      return;
-    }
-
-    stopAlarm();
-    const left = focusRemainingMs(a, now);
-    const body = `${a.pausedAt != null ? "Paused · " : ""}${Math.floor(left / 60_000)}:${pad(
-      Math.floor((left % 60_000) / 1000),
-    )}`;
-    void showOngoing(title, body);
-
-    const key = a.pausedAt != null ? null : `${a.phase}:${a.startedAt}`;
-    if (key) {
-      if (scheduledKey.current !== key) {
-        scheduledKey.current = key;
-        void scheduleAlarm(
-          focusPhaseEnd(a),
+    (async () => {
+      if (!a) {
+        await clearOngoing();
+        await cancelAlarm();
+        return;
+      }
+      const isFocus = a.phase === "focus";
+      const title = a.label ?? (isFocus ? "Pomo Focus" : "Break");
+      const endAt = focusPhaseEnd(a);
+      if (a.pausedAt != null) {
+        await showOngoing({ title, endAt, paused: true, remainingMs: focusRemainingMs(a, a.pausedAt) });
+        await cancelAlarm();
+      } else {
+        await showOngoing({ title, endAt, paused: false });
+        await scheduleAlarm(
+          endAt,
           isFocus ? "Focus complete" : "Break’s over",
           isFocus ? "Time for a break." : "Ready to get back to it?",
         );
       }
-    } else if (scheduledKey.current !== null) {
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notifKey]);
+
+  // When the phase runs out: drop the ongoing, ring the in-app chime.
+  useEffect(() => {
+    if (elapsed && a) {
+      void clearOngoing();
       void cancelAlarm();
-      scheduledKey.current = null;
+      startAlarm(a.phase === "focus" ? "focusEnd" : "restEnd");
+    } else {
+      stopAlarm();
     }
-  }, [activeFocus, now]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [elapsed]);
 
-  if (!activeFocus || !focusElapsed(activeFocus, now)) return null;
+  if (!a || !elapsed) return null;
 
-  const isFocus = activeFocus.phase === "focus";
+  const isFocus = a.phase === "focus";
   const color = isFocus ? C.accent : C.coolAcc;
-  const label = activeFocus.label;
+  const label = a.label;
 
   return (
     <View
@@ -112,7 +108,7 @@ export function FocusAlarm() {
           <View style={{ width: "100%", gap: 10 }}>
             {isFocus ? (
               <>
-                {activeFocus.restMin > 0 ? (
+                {a.restMin > 0 ? (
                   <PrimaryButton label="Start break" background={C.coolAcc} onPress={() => void finishFocusSession(true)} />
                 ) : null}
                 <PrimaryButton label="Save & finish" background={C.primary} onPress={() => void finishFocusSession(false)} />

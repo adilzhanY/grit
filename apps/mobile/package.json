@@ -12,6 +12,7 @@
   "dependencies": {
     "@expo-google-fonts/onest": "^0.4.1",
     "@grit/core": "*",
+    "@notifee/react-native": "^9.1.8",
     "@react-native-async-storage/async-storage": "2.1.2",
     "@supabase/supabase-js": "^2.107.0",
     "expo": "~53.0.0",

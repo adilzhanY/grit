@@ -34,7 +34,7 @@ const PERIODS: { v: Period; l: string }[] = [
 ];
 
 export function Focus() {
-  const { dayLogs, settings, today, now, activeFocus, startFocusSession, cancelFocusSession, saveFocusSession, pauseFocusSession, resumeFocusSession, addFocusTask, removeFocusTask } = useStore();
+  const { dayLogs, settings, today, now, activeFocus, startFocusSession, cancelFocusSession, saveFocusSession, pauseFocusSession, resumeFocusSession, addFocusTask, removeFocusTask, removeDayLog } = useStore();
   const confirm = useConfirm();
   const [focusMin, setFocusMin] = useState("25");
   const [restMin, setRestMin] = useState("5");
@@ -171,15 +171,13 @@ export function Focus() {
 
       {/* per-task time */}
       <Card>
-        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-          <SectionTitle>Focus tasks</SectionTitle>
-          <View style={{ flexDirection: "row", gap: 4, backgroundColor: C.page2, borderRadius: R.pill, padding: 3 }}>
-            {PERIODS.map((p) => (
-              <Pressable key={p.v} onPress={() => setPeriod(p.v)} style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: R.pill, backgroundColor: period === p.v ? C.surface : "transparent" }}>
-                <Txt size={11} weight="bold" color={period === p.v ? C.ink : C.inkSoft}>{p.l}</Txt>
-              </Pressable>
-            ))}
-          </View>
+        <SectionTitle>Focus tasks</SectionTitle>
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 4, backgroundColor: C.page2, borderRadius: R.pill, padding: 3, alignSelf: "flex-start", marginTop: 8 }}>
+          {PERIODS.map((p) => (
+            <Pressable key={p.v} onPress={() => setPeriod(p.v)} style={{ paddingHorizontal: 11, paddingVertical: 5, borderRadius: R.pill, backgroundColor: period === p.v ? C.surface : "transparent" }}>
+              <Txt size={12} weight="bold" color={period === p.v ? C.ink : C.inkSoft}>{p.l}</Txt>
+            </Pressable>
+          ))}
         </View>
         <View style={{ marginTop: 8 }}>
           {allTasks.length === 0 ? (
@@ -215,6 +213,16 @@ export function Focus() {
                         <Txt size={14} weight="extrabold">{l.name ?? "Focus"}</Txt>
                       </View>
                       <Txt weight="bold" size={13} color={C.inkSoft}>{fmtMinutes(l.minutes ?? 0)}</Txt>
+                      <Pressable
+                        onPress={async () => {
+                          if (await confirm({ title: "Delete this focus session?", message: "Its XP will be reversed.", confirmLabel: "Delete" }))
+                            void removeDayLog(l.id);
+                        }}
+                        hitSlop={8}
+                        style={{ padding: 2 }}
+                      >
+                        <Icon name="Trash2" size={16} color={C.inkFaint} />
+                      </Pressable>
                     </View>
                   );
                 })}
