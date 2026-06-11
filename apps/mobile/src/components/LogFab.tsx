@@ -5,6 +5,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Animated, Easing, Pressable, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { DayLogKind } from "@grit/core";
 import { useUi } from "../lib/ui";
 import { C, R, clay, claySm } from "../theme";
@@ -20,11 +21,13 @@ const OPTIONS: { kind: DayLogKind | "focus"; label: string; icon: string; acc: s
   { kind: "focus", label: "Focus", icon: "Timer", acc: C.accent },
 ];
 
-const FAB_BOTTOM = 96;
 const FAB_SIZE = 60;
 
 export function LogFab() {
   const { openLog, setTab } = useUi();
+  const insets = useSafeAreaInsets();
+  // Sit clear above the navbar (its height grows with the safe-area inset).
+  const fabBottom = 84 + Math.max(insets.bottom, 10);
   const [open, setOpen] = useState(false);
   // Jelly spring: stays mounted so the close animation can play out.
   const p = useRef(new Animated.Value(0)).current;
@@ -96,7 +99,7 @@ export function LogFab() {
           {
             position: "absolute",
             right: 20,
-            bottom: FAB_BOTTOM + FAB_SIZE + 14,
+            bottom: fabBottom + FAB_SIZE + 14,
             width: 232,
             backgroundColor: C.surface,
             borderRadius: R.lg,
@@ -140,7 +143,7 @@ export function LogFab() {
       </Animated.View>
 
       {/* The FAB itself */}
-      <View style={{ position: "absolute", right: 20, bottom: FAB_BOTTOM }}>
+      <View style={{ position: "absolute", right: 20, bottom: fabBottom }}>
         <Pressable
           onPress={() => setOpen((o) => !o)}
           style={[
