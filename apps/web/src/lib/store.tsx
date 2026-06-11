@@ -46,6 +46,7 @@ import {
   xpGainedOn,
   listFoods,
   saveFood as repoSaveFood,
+  updateFood as repoUpdateFood,
   deleteFood as repoDeleteFood,
   listDayLogs,
   addFoodLog as repoAddFoodLog,
@@ -113,6 +114,10 @@ interface StoreValue {
   logFood: (
     input: { name: string; calories: number; protein: number; carbs: number; fat: number },
     save?: boolean,
+  ) => Promise<void>;
+  updateFood: (
+    id: string,
+    patch: { name: string; calories: number; protein: number; carbs: number; fat: number },
   ) => Promise<void>;
   removeFood: (id: string) => Promise<void>;
   logSleep: (minutes: number) => Promise<void>;
@@ -534,6 +539,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [refresh],
   );
 
+  const updateFood = useCallback(
+    async (
+      id: string,
+      patch: { name: string; calories: number; protein: number; carbs: number; fat: number },
+    ) => {
+      await repoUpdateFood(id, patch);
+      await refresh(false);
+    },
+    [refresh],
+  );
+
   const removeFood = useCallback(
     async (id: string) => {
       await repoDeleteFood(id);
@@ -722,6 +738,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     foods,
     dayLogs,
     logFood,
+    updateFood,
     removeFood,
     logSleep,
     logSteps,

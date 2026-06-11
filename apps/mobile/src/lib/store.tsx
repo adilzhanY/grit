@@ -237,6 +237,10 @@ interface StoreValue {
     input: { name: string; calories: number; protein: number; carbs: number; fat: number },
     save?: boolean,
   ) => Promise<void>;
+  updateFood: (
+    id: string,
+    patch: { name: string; calories: number; protein: number; carbs: number; fat: number },
+  ) => Promise<void>;
   removeFood: (id: string) => Promise<void>;
   setCalorieLimit: (n: number) => Promise<void>;
   logSleep: (minutes: number) => Promise<void>;
@@ -639,6 +643,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [commit],
   );
 
+  const updateFood = cb(
+    async (
+      id: string,
+      patch: { name: string; calories: number; protein: number; carbs: number; fat: number },
+    ) => {
+      const db = dbRef.current;
+      const i = db.foods.findIndex((f) => f.id === id);
+      if (i === -1) return;
+      db.foods[i] = stamp({ ...db.foods[i], ...patch });
+      commit();
+    },
+    [commit],
+  );
+
   const removeFood = cb(async (id: string) => {
     const db = dbRef.current;
     db.foods = db.foods.filter((f) => f.id !== id);
@@ -1036,6 +1054,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       renameList,
       removeList,
       logFood,
+      updateFood,
       removeFood,
       setCalorieLimit,
       logSleep,

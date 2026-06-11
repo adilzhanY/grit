@@ -192,9 +192,10 @@ const num = (s: string) => Math.max(0, Math.round(Number(s) || 0));
 // ---------------- Food ----------------
 
 function FoodPanel() {
-  const { settings, foods, dayLogs, today, logFood, removeFood, setCalorieLimit } =
+  const { settings, foods, dayLogs, today, logFood, updateFood, removeFood, setCalorieLimit } =
     useStore();
   const confirm = useConfirm();
+  const [editing, setEditing] = useState<FoodItem | null>(null);
   const [name, setName] = useState("");
   const [calories, setCalories] = useState("");
   const [protein, setProtein] = useState("");
@@ -328,11 +329,11 @@ function FoodPanel() {
       {foods.length > 0 && (
         <div className="flex flex-col gap-2">
           <SectionTitle>Saved foods</SectionTitle>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {foods.map((f: FoodItem) => (
-              <span
+              <div
                 key={f.id}
-                className="group flex items-center gap-1 rounded-full py-1 pl-1 pr-2"
+                className="group relative flex flex-col gap-2 rounded-2xl p-3"
                 style={{ background: "var(--surface)", boxShadow: "var(--clay-sm)" }}
               >
                 <button
@@ -346,32 +347,57 @@ function FoodPanel() {
                     })
                   }
                   aria-label={`Add ${f.name}`}
-                  className="flex items-center gap-1.5 rounded-full px-2 py-0.5 text-sm font-semibold hover:bg-black/5"
+                  className="flex items-center gap-1.5 pr-12 text-left text-sm font-bold hover:opacity-70"
                   style={{ cursor: "pointer" }}
                 >
-                  <Icon name="Plus" className="h-3.5 w-3.5 text-primary" />
-                  {f.name}
-                  <span className="text-xs font-medium text-ink-faint">
-                    {f.calories} kcal · P{f.protein} C{f.carbs} F{f.fat}
+                  <Icon name="Plus" className="h-4 w-4 shrink-0 text-primary" />
+                  <span className="truncate">{f.name}</span>
+                </button>
+                <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs font-semibold text-ink-faint">
+                  <span className="flex items-center gap-1" title="Calories">
+                    <Icon name="Flame" className="h-3.5 w-3.5" />
+                    {f.calories}
                   </span>
-                </button>
-                <button
-                  onClick={async () => {
-                    if (
-                      await confirm({
-                        title: `Remove "${f.name}" from saved foods?`,
-                        confirmLabel: "Remove",
-                      })
-                    )
-                      removeFood(f.id);
-                  }}
-                  aria-label={`Remove ${f.name} from saved foods`}
-                  className="grid h-5 w-5 place-items-center rounded-full text-ink-faint opacity-0 transition-opacity hover:bg-black/5 group-hover:opacity-100"
-                  style={{ cursor: "pointer" }}
-                >
-                  <Icon name="X" className="h-3 w-3" />
-                </button>
-              </span>
+                  <span className="flex items-center gap-1" title="Protein">
+                    <Icon name="Beef" className="h-3.5 w-3.5" />
+                    {f.protein}g
+                  </span>
+                  <span className="flex items-center gap-1" title="Carbs">
+                    <Icon name="Wheat" className="h-3.5 w-3.5" />
+                    {f.carbs}g
+                  </span>
+                  <span className="flex items-center gap-1" title="Fat">
+                    <Icon name="Droplets" className="h-3.5 w-3.5" />
+                    {f.fat}g
+                  </span>
+                </div>
+                <div className="absolute right-2 top-2 flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                  <button
+                    onClick={() => setEditing(f)}
+                    aria-label={`Edit ${f.name}`}
+                    className="grid h-6 w-6 place-items-center rounded-full text-ink-faint hover:bg-black/5"
+                    style={{ cursor: "pointer" }}
+                  >
+                    <Icon name="Pencil" className="h-3 w-3" />
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (
+                        await confirm({
+                          title: `Remove "${f.name}" from saved foods?`,
+                          confirmLabel: "Remove",
+                        })
+                      )
+                        removeFood(f.id);
+                    }}
+                    aria-label={`Remove ${f.name} from saved foods`}
+                    className="grid h-6 w-6 place-items-center rounded-full text-ink-faint hover:bg-black/5"
+                    style={{ cursor: "pointer" }}
+                  >
+                    <Icon name="X" className="h-3 w-3" />
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -387,7 +413,7 @@ function FoodPanel() {
               log={l}
               icon="Utensils"
               title={l.name ?? "Food"}
-              detail={`${l.calories ?? 0} kcal · P${l.protein ?? 0} C${l.carbs ?? 0} F${l.fat ?? 0}`}
+              detail={`${fmtClock(l.loggedAt)} · ${l.calories ?? 0} kcal · P${l.protein ?? 0} C${l.carbs ?? 0} F${l.fat ?? 0}`}
             />
           ))}
         </div>
@@ -398,7 +424,7 @@ function FoodPanel() {
         excludeToday
         icon="Utensils"
         title={(l) => l.name ?? "Food"}
-        detail={(l) => `${l.calories ?? 0} kcal`}
+        detail={(l) => `${fmtClock(l.loggedAt)} · ${l.calories ?? 0} kcal`}
       />
       </div>
 
@@ -438,6 +464,108 @@ function FoodPanel() {
           <LogButton onClick={submit} disabled={!name.trim() || !calories}>
             Log food
           </LogButton>
+        </div>
+      </div>
+
+      {editing && (
+        <EditFoodModal
+          food={editing}
+          onClose={() => setEditing(null)}
+          onSave={async (patch) => {
+            await updateFood(editing.id, patch);
+            setEditing(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** Edit a saved food's name + macros in a pop-in modal. */
+function EditFoodModal({
+  food,
+  onClose,
+  onSave,
+}: {
+  food: FoodItem;
+  onClose: () => void;
+  onSave: (patch: {
+    name: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  }) => void;
+}) {
+  const [name, setName] = useState(food.name);
+  const [calories, setCalories] = useState(String(food.calories));
+  const [protein, setProtein] = useState(String(food.protein));
+  const [carbs, setCarbs] = useState(String(food.carbs));
+  const [fat, setFat] = useState(String(food.fat));
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const save = () => {
+    if (!name.trim()) return;
+    onSave({
+      name: name.trim(),
+      calories: num(calories),
+      protein: num(protein),
+      carbs: num(carbs),
+      fat: num(fat),
+    });
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Edit ${food.name}`}
+      onClick={onClose}
+    >
+      <div
+        className="animate-pop flex w-full max-w-sm flex-col gap-3 p-6 clay"
+        style={{ background: "var(--surface)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <p className="text-lg font-extrabold tracking-tight">Edit food</p>
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Food name"
+          aria-label="Food name"
+          className="rounded-xl bg-page-2 px-3 py-2.5 text-sm font-semibold text-ink outline-none placeholder:text-ink-faint"
+        />
+        <div className="grid grid-cols-2 gap-3">
+          <NumberField label="Calories" icon="Flame" value={calories} onChange={setCalories} suffix="kcal" />
+          <NumberField label="Protein" icon="Beef" value={protein} onChange={setProtein} suffix="g" />
+          <NumberField label="Carbs" icon="Wheat" value={carbs} onChange={setCarbs} suffix="g" />
+          <NumberField label="Fat" icon="Droplets" value={fat} onChange={setFat} suffix="g" />
+        </div>
+        <div className="mt-2 flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="clay-press px-4 py-2 text-sm font-bold"
+            style={{ background: "var(--page-2)", color: "var(--ink-soft)", cursor: "pointer" }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={!name.trim()}
+            className="clay-press px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+            style={{ background: "var(--primary)", cursor: "pointer" }}
+          >
+            Save
+          </button>
         </div>
       </div>
     </div>

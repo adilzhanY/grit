@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, View } from "react-native";
+import { Modal, Pressable, ScrollView, View } from "react-native";
 import {
   ageFromBirthday,
   fmtMinutes,
@@ -16,6 +16,7 @@ import {
   type BodySex,
   type DayLog,
   type DayLogKind,
+  type FoodItem,
   type WeightUnit,
 } from "@grit/core";
 import { useStore } from "../lib/store";
@@ -23,9 +24,23 @@ import { useUi } from "../lib/ui";
 import { C, R, claySm } from "../theme";
 import { Card, NumberField, Pill, PrimaryButton, SectionTitle, TextField, Txt } from "../components/ui";
 import { Icon } from "../components/Icon";
+import { PopIn } from "../components/anim";
 import { useConfirm } from "../components/ConfirmDialog";
 
 const num = (s: string) => Math.max(0, Math.round(Number(s) || 0));
+
+/** "07:47" for a timestamp (24h, colon-separated). */
+const fmtClock = (ts: number) => {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
+const FOOD_MACROS: { field: "calories" | "protein" | "carbs" | "fat"; icon: string; suffix: string }[] = [
+  { field: "calories", icon: "Flame", suffix: "" },
+  { field: "protein", icon: "Beef", suffix: "g" },
+  { field: "carbs", icon: "Wheat", suffix: "g" },
+  { field: "fat", icon: "Droplets", suffix: "g" },
+];
 
 const TRACKERS: { kind: DayLogKind; label: string; icon: string; acc: string }[] = [
   { kind: "food", label: "Food", icon: "Flame", acc: C.mustAcc },
@@ -153,8 +168,9 @@ function History({ kind, render }: { kind: DayLogKind; render: (l: DayLog) => { 
 
 // ---------------- Food ----------------
 function FoodPanel() {
-  const { settings, foods, dayLogs, today, logFood, removeFood, setCalorieLimit } = useStore();
+  const { settings, foods, dayLogs, today, logFood, updateFood, removeFood, setCalorieLimit } = useStore();
   const confirm = useConfirm();
+  const [editing, setEditing] = useState<FoodItem | null>(null);
   const [name, setName] = useState("");
   const [calories, setCalories] = useState("");
   const [protein, setProtein] = useState("");
@@ -225,20 +241,41 @@ function FoodPanel() {
           <SectionTitle>Saved foods</SectionTitle>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
             {foods.map((f) => (
-              <View key={f.id} style={[{ flexDirection: "row", alignItems: "center", gap: 6, backgroundColor: C.surface, borderRadius: R.pill, paddingVertical: 5, paddingHorizontal: 10 }, claySm()]}>
-                <Pressable onPress={() => logFood({ name: f.name, calories: f.calories, protein: f.protein, carbs: f.carbs, fat: f.fat })} style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-                  <Icon name="Plus" size={14} color={C.primary} />
-                  <Txt weight="semibold" size={13}>{f.name}</Txt>
-                  <Txt size={11} color={C.inkFaint}>{f.calories} kcal · P{f.protein} C{f.carbs} F{f.fat}</Txt>
-                </Pressable>
-                <Pressable
-                  onPress={async () => {
-                    if (await confirm({ title: `Remove "${f.name}" from saved foods?`, confirmLabel: "Remove" }))
-                      void removeFood(f.id);
-                  }}
-                >
-                  <Icon name="X" size={12} color={C.inkFaint} />
-                </Pressable>
+              <View
+                key={f.id}
+                style={[{ width: "48%", backgroundColor: C.surface, borderRadius: R.md, padding: 12, gap: 8 }, claySm()]}
+              >
+                <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 6 }}>
+                  <Pressable
+                    onPress={() => logFood({ name: f.name, calories: f.calories, protein: f.protein, carbs: f.carbs, fat: f.fat })}
+                    style={{ flexDirection: "row", alignItems: "center", gap: 6, flex: 1 }}
+                  >
+                    <Icon name="Plus" size={15} color={C.primary} />
+                    <Txt weight="bold" size={14} numberOfLines={1} style={{ flex: 1 }}>{f.name}</Txt>
+                  </Pressable>
+                  <View style={{ flexDirection: "row", gap: 2 }}>
+                    <Pressable onPress={() => setEditing(f)} hitSlop={8}>
+                      <Icon name="Pencil" size={13} color={C.inkFaint} />
+                    </Pressable>
+                    <Pressable
+                      onPress={async () => {
+                        if (await confirm({ title: `Remove "${f.name}" from saved foods?`, confirmLabel: "Remove" }))
+                          void removeFood(f.id);
+                      }}
+                      hitSlop={8}
+                    >
+                      <Icon name="X" size={14} color={C.inkFaint} />
+                    </Pressable>
+                  </View>
+                </View>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+                  {FOOD_MACROS.map((m) => (
+                    <View key={m.field} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+                      <Icon name={m.icon} size={13} color={C.inkSoft} />
+                      <Txt size={12} weight="semibold" color={C.inkFaint}>{f[m.field]}{m.suffix}</Txt>
+                    </View>
+                  ))}
+                </View>
               </View>
             ))}
           </View>
@@ -265,8 +302,85 @@ function FoodPanel() {
         </View>
       </Card>
 
-      <History kind="food" render={(l) => ({ title: l.name ?? "Food", detail: `${l.calories ?? 0} kcal · P${l.protein ?? 0} C${l.carbs ?? 0} F${l.fat ?? 0}` })} />
+      <History kind="food" render={(l) => ({ title: l.name ?? "Food", detail: `${fmtClock(l.loggedAt)} · ${l.calories ?? 0} kcal · P${l.protein ?? 0} C${l.carbs ?? 0} F${l.fat ?? 0}` })} />
+
+      <EditFoodModal
+        food={editing}
+        onClose={() => setEditing(null)}
+        onSave={async (patch) => {
+          if (editing) await updateFood(editing.id, patch);
+          setEditing(null);
+        }}
+      />
     </View>
+  );
+}
+
+/** Edit a saved food's name + macros in a pop-in modal (matches the web). */
+function EditFoodModal({
+  food,
+  onClose,
+  onSave,
+}: {
+  food: FoodItem | null;
+  onClose: () => void;
+  onSave: (patch: { name: string; calories: number; protein: number; carbs: number; fat: number }) => void;
+}) {
+  return (
+    <Modal visible={!!food} transparent animationType="fade" onRequestClose={onClose}>
+      {food ? <EditFoodForm food={food} onClose={onClose} onSave={onSave} /> : null}
+    </Modal>
+  );
+}
+
+function EditFoodForm({
+  food,
+  onClose,
+  onSave,
+}: {
+  food: FoodItem;
+  onClose: () => void;
+  onSave: (patch: { name: string; calories: number; protein: number; carbs: number; fat: number }) => void;
+}) {
+  const [name, setName] = useState(food.name);
+  const [calories, setCalories] = useState(String(food.calories));
+  const [protein, setProtein] = useState(String(food.protein));
+  const [carbs, setCarbs] = useState(String(food.carbs));
+  const [fat, setFat] = useState(String(food.fat));
+
+  return (
+    <Pressable
+      onPress={onClose}
+      style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center", padding: 24 }}
+    >
+      <PopIn>
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          style={[{ width: "100%", maxWidth: 380, backgroundColor: C.surface, borderRadius: R.md, padding: 22, gap: 12 }, claySm()]}
+        >
+          <Txt size={18} weight="extrabold">Edit food</Txt>
+          <TextField value={name} onChange={setName} placeholder="Food name" />
+          <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 10 }}>
+            <NumberField label="Calories" value={calories} onChange={setCalories} suffix="kcal" width={120} />
+            <NumberField label="Protein" value={protein} onChange={setProtein} suffix="g" width={88} />
+            <NumberField label="Carbs" value={carbs} onChange={setCarbs} suffix="g" width={88} />
+            <NumberField label="Fat" value={fat} onChange={setFat} suffix="g" width={88} />
+          </View>
+          <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 8, marginTop: 4 }}>
+            <Pressable onPress={onClose} style={{ borderRadius: R.sm, paddingHorizontal: 16, paddingVertical: 9, backgroundColor: C.page2 }}>
+              <Txt weight="bold" size={13} color={C.inkSoft}>Cancel</Txt>
+            </Pressable>
+            <PrimaryButton
+              label="Save"
+              disabled={!name.trim()}
+              onPress={() =>
+                onSave({ name: name.trim(), calories: num(calories), protein: num(protein), carbs: num(carbs), fat: num(fat) })
+              }
+            />
+          </View>
+        </Pressable>
+      </PopIn>
+    </Pressable>
   );
 }
 

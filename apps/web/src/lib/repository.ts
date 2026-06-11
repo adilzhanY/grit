@@ -645,6 +645,13 @@ export async function saveFood(input: {
   return food;
 }
 
+export async function updateFood(
+  id: string,
+  patch: { name: string; calories: number; protein: number; carbs: number; fat: number },
+): Promise<void> {
+  await db().foods.update(id, patch);
+}
+
 export async function deleteFood(id: string): Promise<void> {
   await db().foods.delete(id);
 }
