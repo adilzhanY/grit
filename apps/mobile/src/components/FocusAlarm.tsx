@@ -43,6 +43,13 @@ export function FocusAlarm() {
       const isFocus = a.phase === "focus";
       const title = a.label ?? (isFocus ? "Pomo Focus" : "Break");
       const endAt = focusPhaseEnd(a);
+      // Already finished (e.g. reopened after the alarm fired): the elapsed
+      // effect rings/clears — don't post a stale 0:00 chronometer.
+      if (a.pausedAt == null && Date.now() >= endAt) {
+        await clearOngoing();
+        await cancelAlarm();
+        return;
+      }
       if (a.pausedAt != null) {
         await showOngoing({ title, endAt, paused: true, remainingMs: focusRemainingMs(a, a.pausedAt) });
         await cancelAlarm();
