@@ -59,7 +59,10 @@ import {
   startFocus as repoStartFocus,
   cancelFocus as repoCancelFocus,
   saveFocusEarly as repoSaveFocusEarly,
-  syncFocus,
+  pauseFocus as repoPauseFocus,
+  resumeFocus as repoResumeFocus,
+  finishFocus as repoFinishFocus,
+  continueFocus as repoContinueFocus,
   addFocusTask as repoAddFocusTask,
   removeFocusTask as repoRemoveFocusTask,
 } from "./repository";
@@ -149,8 +152,13 @@ interface StoreValue {
   saveFocusSession: () => Promise<void>;
   /** Abandon the running session (or skip the rest). No XP. */
   cancelFocusSession: () => Promise<void>;
-  /** Apply due phase transitions (focus done → XP + rest). Call on tick. */
-  tickFocus: () => Promise<void>;
+  /** Freeze / unfreeze the countdown without ending the session. */
+  pauseFocusSession: () => Promise<void>;
+  resumeFocusSession: () => Promise<void>;
+  /** Focus alarm answered: bank the pomodoro, then rest (true) or stop (false). */
+  finishFocusSession: (startRest: boolean) => Promise<void>;
+  /** Rest alarm answered with "keep going": start a fresh focus phase. */
+  continueFocusSession: () => Promise<void>;
   resetXp: () => Promise<void>;
   setSoundsEnabled: (on: boolean) => Promise<void>;
   dismissCelebration: () => void;
@@ -272,8 +280,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     let alive = true;
     (async () => {
       await seedIfEmpty();
-      // A pomodoro that finished while the app was closed still pays out.
-      await syncFocus();
       const s = await getSettings();
       prevLevel.current = computeLevel(
         await totalXp(),
@@ -343,18 +349,33 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const cancelFocusSession = useCallback(async () => {
-    // Skipping the rest gets the back-to-work cue; giving up stays silent.
-    const wasRest = activeFocus?.phase === "rest";
     await repoCancelFocus();
-    if (wasRest) play("restEnd");
     await refresh(false);
-  }, [activeFocus, refresh]);
+  }, [refresh]);
 
-  const tickFocus = useCallback(async () => {
-    const { completed, restEnded } = await syncFocus();
-    if (completed) play("focusEnd");
-    else if (restEnded) play("restEnd");
-    await refresh(completed);
+  const pauseFocusSession = useCallback(async () => {
+    await repoPauseFocus();
+    await refresh(false);
+  }, [refresh]);
+
+  const resumeFocusSession = useCallback(async () => {
+    await repoResumeFocus();
+    await refresh(false);
+  }, [refresh]);
+
+  const finishFocusSession = useCallback(
+    async (startRest: boolean) => {
+      await repoFinishFocus(startRest);
+      play("good");
+      await refresh(true);
+    },
+    [refresh],
+  );
+
+  const continueFocusSession = useCallback(async () => {
+    await repoContinueFocus();
+    play("focusStart");
+    await refresh(false);
   }, [refresh]);
 
   // Periodic milestone + day-rollover check.
@@ -362,8 +383,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const id = setInterval(() => {
       if (localDay() !== today) void refresh(false);
       void checkMilestones();
-      // Settle a finished pomodoro even when the Focus panel isn't open.
-      if (activeFocus) void tickFocus();
     }, 30_000);
     const onVis = () => {
       if (document.visibilityState === "visible") void checkMilestones();
@@ -373,7 +392,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVis);
     };
-  }, [today, refresh, checkMilestones, activeFocus, tickFocus]);
+  }, [today, refresh, checkMilestones]);
 
   // ---- actions ----
   const toggleMust = useCallback(
@@ -754,7 +773,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     removeFocusTask,
     saveFocusSession,
     cancelFocusSession,
-    tickFocus,
+    pauseFocusSession,
+    resumeFocusSession,
+    finishFocusSession,
+    continueFocusSession,
     resetXp,
     setSoundsEnabled,
     dismissCelebration,

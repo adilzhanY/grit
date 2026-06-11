@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { focusElapsed, focusPhaseEnd, focusRemainingMs } from "@/lib/daylog";
 import { useNow, useStore } from "@/lib/store";
 import { useUi } from "@/lib/ui";
 import { Icon } from "./Icon";
@@ -19,25 +19,20 @@ function fmtClock(ts: number): string {
  * Slides in/out so leaving/returning to the panel feels like a hand-off.
  */
 export function FocusBanner() {
-  const { activeFocus, tickFocus } = useStore();
+  const { activeFocus } = useStore();
   const { view, dailyLogTab, setView, setDailyLogTab } = useUi();
   const now = useNow(1000);
 
   const onFocusPanel = view === "dailylog" && dailyLogTab === "focus";
-  const show = !!activeFocus && !onFocusPanel;
+  // Hide while ringing — the full-screen alarm overlay takes over then.
+  const elapsed = !!activeFocus && focusElapsed(activeFocus, now);
+  const show = !!activeFocus && !onFocusPanel && !elapsed;
 
   const isFocus = activeFocus?.phase === "focus";
-  const phaseEnd = activeFocus
-    ? activeFocus.startedAt +
-      (isFocus ? activeFocus.focusMin : activeFocus.restMin) * 60_000
-    : 0;
+  const paused = activeFocus?.pausedAt != null;
+  const phaseEnd = activeFocus ? focusPhaseEnd(activeFocus) : 0;
 
-  // Keep phase transitions snappy even away from the panel.
-  useEffect(() => {
-    if (activeFocus && now >= phaseEnd) void tickFocus();
-  }, [activeFocus, now, phaseEnd, tickFocus]);
-
-  const leftMs = Math.max(0, phaseEnd - now);
+  const leftMs = activeFocus ? focusRemainingMs(activeFocus, now) : 0;
   const leftMin = Math.floor(leftMs / 60_000);
   const leftSec = Math.floor((leftMs % 60_000) / 1000);
   const totalMs = activeFocus
@@ -103,7 +98,7 @@ export function FocusBanner() {
               {leftMin}:{String(leftSec).padStart(2, "0")}
             </span>
             <span className="text-[11px] font-semibold leading-tight text-ink-faint">
-              {isFocus ? "Focus" : "Rest"} · until {fmtClock(phaseEnd)}
+              {paused ? "Paused" : `${isFocus ? "Focus" : "Rest"} · until ${fmtClock(phaseEnd)}`}
             </span>
           </span>
         </>

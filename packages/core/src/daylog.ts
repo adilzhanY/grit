@@ -1,4 +1,4 @@
-import type { BodySex, DayLog, WeightUnit } from "./types";
+import type { ActiveFocus, BodySex, DayLog, WeightUnit } from "./types";
 
 /**
  * Daily Log XP rules — pure functions so the UI can preview exactly what the
@@ -49,6 +49,33 @@ export const FOCUS_SET_XP = 50;
 
 export function focusXp(minutes: number): number {
   return minutes * XP_PER_FOCUS_MIN;
+}
+
+// ---- Running-session timing (shared by web + mobile) ----
+
+/** Length of the current phase in ms. */
+export function focusPhaseMs(a: ActiveFocus): number {
+  return (a.phase === "focus" ? a.focusMin : a.restMin) * 60_000;
+}
+
+/** Wall-clock instant the current phase is scheduled to end. */
+export function focusPhaseEnd(a: ActiveFocus): number {
+  return a.startedAt + focusPhaseMs(a);
+}
+
+/** Milliseconds left in the phase; frozen at the paused instant while paused. */
+export function focusRemainingMs(a: ActiveFocus, now: number): number {
+  return Math.max(0, focusPhaseEnd(a) - (a.pausedAt ?? now));
+}
+
+/** Milliseconds elapsed in the phase; frozen while paused. */
+export function focusElapsedMs(a: ActiveFocus, now: number): number {
+  return Math.max(0, (a.pausedAt ?? now) - a.startedAt);
+}
+
+/** True once the phase's time is up and it isn't paused — the alarm should ring. */
+export function focusElapsed(a: ActiveFocus, now: number): boolean {
+  return a.pausedAt == null && now >= focusPhaseEnd(a);
 }
 
 // ---- Food ----

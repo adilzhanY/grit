@@ -19,6 +19,8 @@ import {
   pendingMilestones,
   streakMs,
   focusXp,
+  focusPhaseEnd,
+  focusElapsedMs,
   foodPenalty,
   localDay,
   readingXp,
@@ -255,7 +257,10 @@ interface StoreValue {
   startFocusSession: (focusMin: number, restMin: number, label?: string) => Promise<void>;
   cancelFocusSession: () => Promise<void>;
   saveFocusSession: () => Promise<void>;
-  tickFocus: () => Promise<void>;
+  pauseFocusSession: () => Promise<void>;
+  resumeFocusSession: () => Promise<void>;
+  finishFocusSession: (startRest: boolean) => Promise<void>;
+  continueFocusSession: () => Promise<void>;
   addFocusTask: (name: string) => Promise<void>;
   removeFocusTask: (name: string) => Promise<void>;
 
@@ -831,7 +836,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const db = dbRef.current;
     const a = db.activeFocus;
     if (!a || a.phase !== "focus") return;
-    const mins = Math.floor((Date.now() - a.startedAt) / 60_000);
+    const mins = Math.floor(focusElapsedMs(a, Date.now()) / 60_000);
     if (mins < 1) return;
     const xp = focusXp(mins);
     if (xp !== 0) pushLedger(db, { type: "focus_log", delta: xp, meta: `focus ${mins}m`, timestamp: Date.now() });
@@ -850,30 +855,48 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     commit();
   }, [commit]);
 
-  const tickFocus = cb(async () => {
+  const pauseFocusSession = cb(async () => {
+    const db = dbRef.current;
+    const a = db.activeFocus;
+    if (!a || a.pausedAt != null) return;
+    db.activeFocus = stamp<ActiveFocus>({ ...a, pausedAt: Date.now() });
+    commit();
+  }, [commit]);
+
+  const resumeFocusSession = cb(async () => {
+    const db = dbRef.current;
+    const a = db.activeFocus;
+    if (!a || a.pausedAt == null) return;
+    const { pausedAt, ...rest } = a;
+    db.activeFocus = stamp<ActiveFocus>({ ...rest, startedAt: a.startedAt + (Date.now() - pausedAt) });
+    commit();
+  }, [commit]);
+
+  // Focus alarm answered: bank the pomodoro (full XP), then rest or stop.
+  const finishFocusSession = cb(async (startRest: boolean) => {
+    const db = dbRef.current;
+    const a = db.activeFocus;
+    if (!a || a.phase !== "focus") return;
+    completeFocusBlock(db, a, focusPhaseEnd(a));
+    if (startRest && a.restMin > 0) {
+      const { pausedAt, ...rest } = a;
+      db.activeFocus = stamp<ActiveFocus>({ ...rest, phase: "rest", startedAt: Date.now() });
+    } else {
+      db.activeFocus = null;
+      tomb(db, "focus", "active");
+    }
+    play("good");
+    commit();
+  }, [commit]);
+
+  // Rest alarm answered with "keep going": start a fresh focus phase.
+  const continueFocusSession = cb(async () => {
     const db = dbRef.current;
     const a = db.activeFocus;
     if (!a) return;
-    const ts = Date.now();
-    if (a.phase === "focus") {
-      const end = a.startedAt + a.focusMin * 60_000;
-      if (ts < end) return;
-      completeFocusBlock(db, a, end);
-      play("focusEnd");
-      if (a.restMin > 0 && ts < end + a.restMin * 60_000) {
-        db.activeFocus = stamp<ActiveFocus>({ ...a, phase: "rest", startedAt: end });
-      } else {
-        db.activeFocus = null;
-        tomb(db, "focus", "active");
-      }
-      commit();
-      return;
-    }
-    const end = a.startedAt + a.restMin * 60_000;
-    if (ts < end) return;
-    db.activeFocus = null;
-    tomb(db, "focus", "active");
-    play("restEnd");
+    const { pausedAt, ...rest } = a;
+    db.activeFocus = stamp<ActiveFocus>({ ...rest, phase: "focus", startedAt: Date.now() });
+    play("focusStart");
     commit();
   }, [commit]);
 
@@ -983,9 +1006,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user, syncNow]);
 
-  // Drive focus auto-completion + milestone sweeps on each heartbeat.
+  // Periodic milestone sweep (focus phases settle via the manual alarm).
   useEffect(() => {
-    if (dbRef.current.activeFocus) void tickFocus();
     if (ready) sweepMilestones();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [now, ready]);
@@ -1067,7 +1089,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       startFocusSession,
       cancelFocusSession,
       saveFocusSession,
-      tickFocus,
+      pauseFocusSession,
+      resumeFocusSession,
+      finishFocusSession,
+      continueFocusSession,
       addFocusTask,
       removeFocusTask,
       setSoundsEnabled,

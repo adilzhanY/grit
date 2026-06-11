@@ -7,6 +7,10 @@ import {
   fmtWeight,
   fmtXp,
   focusXp,
+  focusRemainingMs,
+  focusElapsedMs,
+  focusPhaseEnd,
+  focusElapsed,
   foodTotal,
   calorieGoals,
   type CalorieGoals,
@@ -1323,7 +1327,8 @@ function FocusPanel() {
     startFocusSession,
     cancelFocusSession,
     saveFocusSession,
-    tickFocus,
+    pauseFocusSession,
+    resumeFocusSession,
     addFocusTask,
     removeFocusTask,
   } = useStore();
@@ -1337,29 +1342,20 @@ function FocusPanel() {
   const [customFrom, setCustomFrom] = useState(today);
   const [customTo, setCustomTo] = useState(today);
 
-  // Drive phase transitions: when the countdown crosses zero, settle in the DB.
-  const phaseEnd = activeFocus
-    ? activeFocus.startedAt +
-      (activeFocus.phase === "focus"
-        ? activeFocus.focusMin
-        : activeFocus.restMin) *
-        60_000
-    : null;
-  useEffect(() => {
-    if (phaseEnd !== null && now >= phaseEnd) void tickFocus();
-  }, [now, phaseEnd, tickFocus]);
+  const phaseEnd = activeFocus ? focusPhaseEnd(activeFocus) : null;
 
-  // Countdown in the tab title while a session runs.
+  // Countdown in the tab title while a session runs (frozen while paused).
   useEffect(() => {
-    if (!activeFocus || phaseEnd === null) return;
-    const left = Math.max(0, phaseEnd - now);
+    if (!activeFocus) return;
+    const left = focusRemainingMs(activeFocus, now);
     const m = Math.floor(left / 60_000);
     const s = Math.floor((left % 60_000) / 1000);
-    document.title = `${activeFocus.phase === "focus" ? "🔥" : "☕"} ${m}:${String(s).padStart(2, "0")} · grit`;
+    const paused = activeFocus.pausedAt != null;
+    document.title = `${paused ? "⏸" : activeFocus.phase === "focus" ? "🔥" : "☕"} ${m}:${String(s).padStart(2, "0")} · grit`;
     return () => {
       document.title = "grit";
     };
-  }, [activeFocus, phaseEnd, now]);
+  }, [activeFocus, now]);
 
   const focusLogs = dayLogs.filter((l) => l.kind === "focus");
   const todays = focusLogs.filter((l) => l.date === today);
@@ -1386,11 +1382,14 @@ function FocusPanel() {
   // ---- Running session ----
   if (activeFocus && phaseEnd !== null) {
     const isFocus = activeFocus.phase === "focus";
+    const paused = activeFocus.pausedAt != null;
+    const elapsed = focusElapsed(activeFocus, now);
     const totalMs =
       (isFocus ? activeFocus.focusMin : activeFocus.restMin) * 60_000;
-    const leftMs = Math.max(0, phaseEnd - now);
+    const leftMs = focusRemainingMs(activeFocus, now);
     const leftMin = Math.floor(leftMs / 60_000);
     const leftSec = Math.floor((leftMs % 60_000) / 1000);
+    const canSave = Math.floor(focusElapsedMs(activeFocus, now) / 60_000) >= 1;
     const color = isFocus ? "var(--accent)" : "var(--cool-acc)";
 
     // Today's finished blocks + the one in progress (only during a focus phase).
@@ -1406,7 +1405,7 @@ function FocusPanel() {
           ? [
               {
                 start: activeFocus.startedAt,
-                end: now,
+                end: Math.min(now, phaseEnd),
                 label: activeFocus.label ?? "Focus",
                 running: true,
               },
@@ -1422,10 +1421,10 @@ function FocusPanel() {
       >
         <span
           className="flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-extrabold uppercase tracking-wider text-white"
-          style={{ background: color }}
+          style={{ background: paused ? "var(--ink-soft)" : color }}
         >
-          <Icon name={isFocus ? "Timer" : "Coffee"} className="h-4 w-4" />
-          {isFocus ? "Focus" : "Rest"}
+          <Icon name={paused ? "Pause" : isFocus ? "Timer" : "Coffee"} className="h-4 w-4" />
+          {paused ? "Paused" : isFocus ? "Focus" : "Rest"}
         </span>
 
         {activeFocus.label && (
@@ -1448,13 +1447,23 @@ function FocusPanel() {
           )}
         </FocusRing>
 
-        {isFocus ? (
+        {/* While the alarm is ringing the overlay owns the choices. */}
+        {!elapsed && (
           <div className="flex items-center gap-3">
-            {/* Save appears once a full minute has elapsed. */}
-            {Math.floor((now - activeFocus.startedAt) / 60_000) >= 1 && (
+            {/* Pause / Resume */}
+            <button
+              onClick={() => (paused ? resumeFocusSession() : pauseFocusSession())}
+              aria-label={paused ? "Resume" : "Pause"}
+              className="clay-press grid h-12 w-12 place-items-center rounded-full text-white"
+              style={{ background: color, cursor: "pointer" }}
+            >
+              <Icon name={paused ? "Play" : "Pause"} className="h-5 w-5" />
+            </button>
+
+            {isFocus && canSave && (
               <button
                 onClick={async () => {
-                  const mins = Math.floor((Date.now() - activeFocus.startedAt) / 60_000);
+                  const mins = Math.floor(focusElapsedMs(activeFocus, Date.now()) / 60_000);
                   if (
                     await confirm({
                       title: "Save this focus session?",
@@ -1470,8 +1479,10 @@ function FocusPanel() {
                 Save
               </button>
             )}
+
             <button
               onClick={async () => {
+                if (!isFocus) return void cancelFocusSession();
                 if (
                   await confirm({
                     title: "Give up this pomodoro?",
@@ -1482,19 +1493,15 @@ function FocusPanel() {
                   void cancelFocusSession();
               }}
               className="clay-press px-5 py-2.5 text-sm font-bold"
-              style={{ background: "var(--bad-acc)", color: "#fff", cursor: "pointer" }}
+              style={{
+                background: isFocus ? "var(--bad-acc)" : "var(--primary)",
+                color: "#fff",
+                cursor: "pointer",
+              }}
             >
-              Give up
+              {isFocus ? "Give up" : "Skip rest"}
             </button>
           </div>
-        ) : (
-          <button
-            onClick={() => cancelFocusSession()}
-            className="clay-press px-5 py-2.5 text-sm font-bold"
-            style={{ background: "var(--primary)", color: "#fff", cursor: "pointer" }}
-          >
-            Skip rest
-          </button>
         )}
       </div>
 

@@ -58,3 +58,32 @@ export function play(kind: SoundKind) {
     // Audio must never break the UI.
   }
 }
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let alarmPlayer: any = null;
+
+/** Loop a chime until stopAlarm() — used while the focus/rest alarm is ringing. */
+export function startAlarm(kind: "focusEnd" | "restEnd") {
+  if (!enabled) return;
+  try {
+    stopAlarm();
+    alarmPlayer = createAudioPlayer(FILES[kind]);
+    alarmPlayer.loop = true;
+    alarmPlayer.seekTo(0);
+    alarmPlayer.play();
+  } catch {
+    // ignore
+  }
+}
+
+export function stopAlarm() {
+  try {
+    if (alarmPlayer) {
+      alarmPlayer.pause();
+      alarmPlayer.remove?.();
+      alarmPlayer = null;
+    }
+  } catch {
+    // ignore
+  }
+}

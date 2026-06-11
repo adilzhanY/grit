@@ -27,6 +27,8 @@ import {
   weightLossXp,
   walkCalories,
   ageFromBirthday,
+  focusPhaseEnd,
+  focusElapsedMs,
   FOCUS_SET_SIZE,
   FOCUS_SET_XP,
 } from "./daylog";
@@ -880,6 +882,45 @@ export async function cancelFocus(): Promise<void> {
   await db().focus.delete("active");
 }
 
+/** Freeze the countdown (the session stays alive). */
+export async function pauseFocus(now = Date.now()): Promise<void> {
+  const a = await getActiveFocus();
+  if (!a || a.pausedAt != null) return;
+  await db().focus.put({ ...a, pausedAt: now });
+}
+
+/** Resume: shift the start forward by the paused span so the clock continues. */
+export async function resumeFocus(now = Date.now()): Promise<void> {
+  const a = await getActiveFocus();
+  if (!a || a.pausedAt == null) return;
+  const { pausedAt, ...rest } = a;
+  await db().focus.put({ ...rest, startedAt: a.startedAt + (now - pausedAt) });
+}
+
+/**
+ * The focus phase's alarm was answered: bank the finished pomodoro (full XP),
+ * then either roll into the rest phase or end the session.
+ */
+export async function finishFocus(startRest: boolean, now = Date.now()): Promise<void> {
+  const a = await getActiveFocus();
+  if (!a || a.phase !== "focus") return;
+  await completeFocusBlock(a, focusPhaseEnd(a));
+  if (startRest && a.restMin > 0) {
+    const { pausedAt, ...rest } = a;
+    await db().focus.put({ ...rest, phase: "rest", startedAt: now });
+  } else {
+    await db().focus.delete("active");
+  }
+}
+
+/** The rest alarm was answered with "keep going": start a fresh focus phase. */
+export async function continueFocus(now = Date.now()): Promise<void> {
+  const a = await getActiveFocus();
+  if (!a) return;
+  const { pausedAt, ...rest } = a;
+  await db().focus.put({ ...rest, phase: "focus", startedAt: now });
+}
+
 /**
  * End a running focus block early, banking the elapsed whole minutes as a focus
  * log (base XP for the time actually spent). No-op if under a minute or not in
@@ -888,7 +929,7 @@ export async function cancelFocus(): Promise<void> {
 export async function saveFocusEarly(now = Date.now()): Promise<DayLog | null> {
   const a = await getActiveFocus();
   if (!a || a.phase !== "focus") return null;
-  const elapsedMin = Math.floor((now - a.startedAt) / 60_000);
+  const elapsedMin = Math.floor(focusElapsedMs(a, now) / 60_000);
   if (elapsedMin < 1) return null;
 
   const xp = focusXp(elapsedMin);
@@ -946,38 +987,3 @@ async function completeFocusBlock(a: ActiveFocus, endTs: number): Promise<void> 
   });
 }
 
-/**
- * Apply any due phase transitions to the running session. Idempotent; safe to
- * call on load and on every tick. A focus block past its end completes with
- * full XP (even if the app was closed) and rolls into rest; a finished rest
- * clears the session. Returns the current state and whether a focus block
- * completed during this call (for sounds/celebration).
- */
-export async function syncFocus(now = Date.now()): Promise<{
-  active: ActiveFocus | null;
-  /** A focus block finished (XP awarded) during this call. */
-  completed: boolean;
-  /** The rest phase ran out during this call — back to work. */
-  restEnded: boolean;
-}> {
-  const a = await getActiveFocus();
-  if (!a) return { active: null, completed: false, restEnded: false };
-
-  if (a.phase === "focus") {
-    const end = a.startedAt + a.focusMin * 60_000;
-    if (now < end) return { active: a, completed: false, restEnded: false };
-    await completeFocusBlock(a, end);
-    if (a.restMin > 0 && now < end + a.restMin * 60_000) {
-      const rest: ActiveFocus = { ...a, phase: "rest", startedAt: end };
-      await db().focus.put(rest);
-      return { active: rest, completed: true, restEnded: false };
-    }
-    await db().focus.delete("active");
-    return { active: null, completed: true, restEnded: false };
-  }
-
-  const end = a.startedAt + a.restMin * 60_000;
-  if (now < end) return { active: a, completed: false, restEnded: false };
-  await db().focus.delete("active");
-  return { active: null, completed: false, restEnded: true };
-}

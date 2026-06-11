@@ -1,7 +1,16 @@
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import Svg, { Circle } from "react-native-svg";
-import { addDays, fmtMinutes, focusXp, type DayLog } from "@grit/core";
+import {
+  addDays,
+  fmtMinutes,
+  focusXp,
+  focusElapsed,
+  focusElapsedMs,
+  focusPhaseEnd,
+  focusRemainingMs,
+  type DayLog,
+} from "@grit/core";
 import { useStore } from "../lib/store";
 import { C, R, claySm } from "../theme";
 import { Card, NumberField, PrimaryButton, SectionTitle, TextField, Txt } from "../components/ui";
@@ -25,7 +34,7 @@ const PERIODS: { v: Period; l: string }[] = [
 ];
 
 export function Focus() {
-  const { dayLogs, settings, today, now, activeFocus, startFocusSession, cancelFocusSession, saveFocusSession, addFocusTask, removeFocusTask } = useStore();
+  const { dayLogs, settings, today, now, activeFocus, startFocusSession, cancelFocusSession, saveFocusSession, pauseFocusSession, resumeFocusSession, addFocusTask, removeFocusTask } = useStore();
   const confirm = useConfirm();
   const [focusMin, setFocusMin] = useState("25");
   const [restMin, setRestMin] = useState("5");
@@ -40,43 +49,54 @@ export function Focus() {
   // ----- running -----
   if (activeFocus) {
     const isFocus = activeFocus.phase === "focus";
+    const paused = activeFocus.pausedAt != null;
+    const elapsed = focusElapsed(activeFocus, now);
     const totalMs = (isFocus ? activeFocus.focusMin : activeFocus.restMin) * 60_000;
-    const end = activeFocus.startedAt + totalMs;
-    const leftMs = Math.max(0, end - now);
+    const end = focusPhaseEnd(activeFocus);
+    const leftMs = focusRemainingMs(activeFocus, now);
     const leftMin = Math.floor(leftMs / 60_000);
     const leftSec = Math.floor((leftMs % 60_000) / 1000);
     const frac = totalMs > 0 ? 1 - leftMs / totalMs : 0;
-    const color = isFocus ? C.accent : C.coolAcc;
-    const elapsedMin = Math.floor((now - activeFocus.startedAt) / 60_000);
+    const color = paused ? C.inkSoft : isFocus ? C.accent : C.coolAcc;
+    const canSave = Math.floor(focusElapsedMs(activeFocus, now) / 60_000) >= 1;
 
     return (
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140, alignItems: "center", gap: 18 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: color, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 7, marginTop: 16 }}>
-          <Icon name={isFocus ? "Timer" : "Coffee"} size={16} color="#fff" />
-          <Txt weight="extrabold" color="#fff" size={13} style={{ textTransform: "uppercase", letterSpacing: 1 }}>{isFocus ? "Focus" : "Rest"}</Txt>
+          <Icon name={paused ? "Pause" : isFocus ? "Timer" : "Coffee"} size={16} color="#fff" />
+          <Txt weight="extrabold" color="#fff" size={13} style={{ textTransform: "uppercase", letterSpacing: 1 }}>{paused ? "Paused" : isFocus ? "Focus" : "Rest"}</Txt>
         </View>
         {activeFocus.label ? <Txt size={18} weight="extrabold">{activeFocus.label}</Txt> : null}
 
-        <Ring frac={frac} color={color}>
+        <Ring frac={frac} color={isFocus ? C.accent : C.coolAcc}>
           <Txt size={52} weight="extrabold">{leftMin}:{String(leftSec).padStart(2, "0")}</Txt>
           <Txt size={13} weight="bold" color={C.inkSoft}>{clock(activeFocus.startedAt)} – {clock(end)}</Txt>
           {isFocus ? <Txt size={12} weight="semibold" color={C.inkFaint}>+{focusXp(activeFocus.focusMin)} XP on finish</Txt> : null}
         </Ring>
 
-        <View style={{ flexDirection: "row", gap: 10 }}>
-          {isFocus && elapsedMin >= 1 ? (
-            <PrimaryButton label="Save" background={C.accent} onPress={() => void saveFocusSession()} />
-          ) : null}
-          <PrimaryButton
-            label={isFocus ? "Give up" : "Skip rest"}
-            background={isFocus ? C.badAcc : C.primary}
-            onPress={async () => {
-              if (!isFocus) return void cancelFocusSession();
-              if (await confirm({ title: "Give up this pomodoro?", message: "An abandoned session earns no XP.", confirmLabel: "Give up" }))
-                void cancelFocusSession();
-            }}
-          />
-        </View>
+        {/* The full-screen alarm owns the choices once a phase ends. */}
+        {!elapsed ? (
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
+            <Pressable
+              onPress={() => (paused ? resumeFocusSession() : pauseFocusSession())}
+              style={[{ width: 56, height: 56, borderRadius: 28, backgroundColor: isFocus ? C.accent : C.coolAcc, alignItems: "center", justifyContent: "center" }, claySm()]}
+            >
+              <Icon name={paused ? "Play" : "Pause"} size={24} color="#fff" />
+            </Pressable>
+            {isFocus && canSave ? (
+              <PrimaryButton label="Save" background={C.accent} onPress={() => void saveFocusSession()} />
+            ) : null}
+            <PrimaryButton
+              label={isFocus ? "Give up" : "Skip rest"}
+              background={isFocus ? C.badAcc : C.primary}
+              onPress={async () => {
+                if (!isFocus) return void cancelFocusSession();
+                if (await confirm({ title: "Give up this pomodoro?", message: "An abandoned session earns no XP.", confirmLabel: "Give up" }))
+                  void cancelFocusSession();
+              }}
+            />
+          </View>
+        ) : null}
       </ScrollView>
     );
   }

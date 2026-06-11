@@ -1,5 +1,6 @@
 /** Icon wrapper over lucide-react-native, name-mapped like the web Icon. */
 import {
+  BellRing,
   BookOpen,
   Beef,
   Cake,
@@ -48,7 +49,7 @@ import {
 import { C } from "../theme";
 
 const MAP: Record<string, LucideIcon> = {
-  BookOpen, Beef, Cake, CalendarCheck, CalendarClock, CalendarDays, ChartColumn,
+  BellRing, BookOpen, Beef, Cake, CalendarCheck, CalendarClock, CalendarDays, ChartColumn,
   Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, Clock, Coffee, Droplets, Flame, Footprints,
   Gauge, ListChecks, ListPlus, Moon, Mountain, NotebookPen, Pause, Pencil, Play, Plus,
   Repeat, Ruler, Save, Scale, Skull, Sparkles, Star, Sun, Timer, TrendingDown,

@@ -25,6 +25,7 @@ import { Focus } from "./src/screens/Focus";
 import { Stats } from "./src/screens/Stats";
 import { BottomNav } from "./src/components/BottomNav";
 import { LogFab } from "./src/components/LogFab";
+import { FocusAlarm } from "./src/components/FocusAlarm";
 import { Icon } from "./src/components/Icon";
 import { Txt } from "./src/components/ui";
 
@@ -114,6 +115,7 @@ function Root() {
 
       <BottomNav />
       <AccountSheet open={account} onClose={() => setAccount(false)} />
+      <FocusAlarm />
       <Celebration />
     </View>
   );

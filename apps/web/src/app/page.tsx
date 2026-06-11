@@ -8,6 +8,7 @@ import { Nav } from "@/components/Nav";
 import { Views } from "@/components/Views";
 import { Celebration } from "@/components/Celebration";
 import { FocusBanner } from "@/components/FocusBanner";
+import { FocusAlarm } from "@/components/FocusAlarm";
 import { XpHero } from "@/components/XpHero";
 import { Icon } from "@/components/Icon";
 
@@ -74,6 +75,7 @@ function Shell() {
           </main>
         </div>
         <FocusBanner />
+        <FocusAlarm />
         <Celebration />
       </ConfirmProvider>
     </UiProvider>

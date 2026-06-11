@@ -115,17 +115,20 @@ export type WeightUnit = "kg" | "lbs";
 
 /**
  * The (single) running Pomodoro session. Persisted so a refresh or tab close
- * never loses it: on load, a session past its end auto-completes with full XP.
+ * never loses it: on reopen, a phase past its end shows the alarm so the user
+ * decides what to do (the timer never silently auto-completes).
  */
 export interface ActiveFocus {
   id: "active";
   phase: "focus" | "rest";
-  /** When the current phase started. */
+  /** When the current phase started (shifted forward on resume). */
   startedAt: number;
   focusMin: number;
   restMin: number;
   /** Optional focus task this session is dedicated to (e.g. "Learn German"). */
   label?: string;
+  /** When the timer was paused; the countdown is frozen while set. */
+  pausedAt?: number;
 }
 
 /** One Daily Log entry (food eaten, sleep, steps walked, reading session). */
