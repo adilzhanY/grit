@@ -12,6 +12,7 @@ import {
   type FoodItem,
   type DayLog,
   type ActiveFocus,
+  type GaitActivity,
   DEFAULT_SETTINGS,
   DEFAULT_POINTS,
   DEFAULT_SLIP_PENALTY,
@@ -726,16 +727,19 @@ export async function addStepsLog(input: {
   steps?: number;
   meters?: number;
   minutes?: number;
+  activity?: GaitActivity;
 }): Promise<DayLog> {
   const steps = input.steps ?? 0;
   const meters = input.meters ?? 0;
   const minutes = input.minutes ?? 0;
+  const isRun = input.activity === "run";
   const xp = stepsXp(steps, meters);
   if (xp !== 0) {
+    const what = steps > 0 ? `${steps} steps` : `${meters} m`;
     await addLedger({
       type: "steps_log",
       delta: xp,
-      meta: steps > 0 ? `${steps} steps` : `${meters} m`,
+      meta: isRun ? `${what} run` : what,
     });
   }
 
@@ -753,6 +757,7 @@ export async function addStepsLog(input: {
         heightCm: settings.heightCm,
         age: ageFromBirthday(settings.birthday, localDay()),
         sex: settings.sex,
+        mode: input.activity,
       });
       caloriesBurnt = est.calories;
     }
@@ -765,6 +770,7 @@ export async function addStepsLog(input: {
     steps: input.steps,
     meters: input.meters,
     minutes: minutes > 0 ? minutes : undefined,
+    activity: isRun ? "run" : undefined,
     caloriesBurnt,
   });
 }

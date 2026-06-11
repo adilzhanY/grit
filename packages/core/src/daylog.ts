@@ -1,4 +1,4 @@
-import type { ActiveFocus, BodySex, DayLog, WeightUnit } from "./types";
+import type { ActiveFocus, BodySex, DayLog, GaitActivity, WeightUnit } from "./types";
 
 /**
  * Daily Log XP rules — pure functions so the UI can preview exactly what the
@@ -160,6 +160,15 @@ export const STRIDE_FACTOR: Record<BodySex, number> = {
   female: 0.413,
 };
 
+/** A running step is much longer than a walking one — a larger fraction of height. */
+export const RUN_STRIDE_FACTOR: Record<BodySex, number> = {
+  male: 0.78,
+  female: 0.74,
+};
+
+/** Above this pace, a "walk" is really a run — switch to the running VO₂ model. */
+export const WALK_RUN_KMH = 7;
+
 /** Whole years from `birthday` (YYYY-MM-DD) to `today` (YYYY-MM-DD). */
 export function ageFromBirthday(birthday: string, today: string): number {
   const [by, bm, bd] = birthday.split("-").map(Number);
@@ -235,13 +244,16 @@ export type WalkEstimate = {
  * Estimate the calories burnt by a walk from steps + time, personalised to the
  * body profile. Pipeline:
  *
- *   1. Stride length from height & sex → distance from step count.
- *   2. distance / time → walking speed.
- *   3. ACSM gait equations map speed → VO₂ → MET (walking below ~7 km/h,
- *      running model above it).
+ *   1. Stride length from height & sex (longer for a run) → distance from steps.
+ *   2. distance / time → speed.
+ *   3. ACSM gait equations map speed → VO₂ → MET. Running has ~2× the per-speed
+ *      locomotion cost of walking (0.2 vs 0.1 ml/kg/min per m/min), so a run
+ *      burns far more than a walk over the same distance. Run mode always uses
+ *      the running model; walk mode upgrades to it past WALK_RUN_KMH (you can't
+ *      truly walk that fast).
  *   4. Gross burn = MET × 3.5 × kg / 200 per minute.
  *   5. Subtract resting burn (Mifflin–St Jeor BMR / 1440) so the result is the
- *      *active* calories attributable to the walk, not calories you'd burn
+ *      *active* calories attributable to the effort, not calories you'd burn
  *      sitting still.
  */
 export function walkCalories(p: {
@@ -252,11 +264,14 @@ export function walkCalories(p: {
   heightCm: number;
   age: number;
   sex: BodySex;
+  mode?: GaitActivity;
 }): WalkEstimate {
   const zero: WalkEstimate = { calories: 0, speedKmh: 0, distanceKm: 0, met: 0 };
   if (p.minutes <= 0 || p.weightKg <= 0) return zero;
 
-  const stride = STRIDE_FACTOR[p.sex] * (p.heightCm / 100);
+  const isRun = p.mode === "run";
+  const strideFactor = isRun ? RUN_STRIDE_FACTOR[p.sex] : STRIDE_FACTOR[p.sex];
+  const stride = strideFactor * (p.heightCm / 100);
   const distanceM =
     p.meters && p.meters > 0 ? p.meters : (p.steps ?? 0) * stride;
   if (distanceM <= 0) return zero;
@@ -264,9 +279,10 @@ export function walkCalories(p: {
   const speedMmin = distanceM / p.minutes;
   const speedKmh = (speedMmin * 60) / 1000;
 
-  // ACSM VO₂ (ml/kg/min): the running gait kicks in around 7 km/h.
-  const vo2 =
-    speedKmh < 7 ? 3.5 + 0.1 * speedMmin : 3.5 + 0.2 * speedMmin;
+  // ACSM VO₂ (ml/kg/min): running gait (steeper slope) when run mode is chosen
+  // or the pace is past a walkable speed.
+  const running = isRun || speedKmh >= WALK_RUN_KMH;
+  const vo2 = running ? 3.5 + 0.2 * speedMmin : 3.5 + 0.1 * speedMmin;
   const met = vo2 / 3.5;
 
   const grossPerMin = (met * 3.5 * p.weightKg) / 200;

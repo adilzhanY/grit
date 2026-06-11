@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { BodySex, DayLog, DayLogKind, FoodItem, WeightUnit } from "@/lib/types";
+import type { BodySex, DayLog, DayLogKind, FoodItem, GaitActivity, WeightUnit } from "@/lib/types";
 import {
   fmtMinutes,
   fmtWeight,
@@ -786,6 +786,7 @@ function BodyProfileCard() {
 
 function StepsPanel() {
   const { dayLogs, logSteps, settings, today } = useStore();
+  const [activity, setActivity] = useState<GaitActivity>("walk");
   const [mode, setMode] = useState<"steps" | "meters">("steps");
   const [amount, setAmount] = useState("");
   const [hours, setHours] = useState("");
@@ -793,10 +794,17 @@ function StepsPanel() {
   const value = num(amount);
   const minutes = num(hours) * 60 + num(mins);
   const xp = mode === "steps" ? stepsXp(value, 0) : stepsXp(0, value);
+  const isRun = activity === "run";
 
   // Latest weight (dayLogs are newest-first) drives the calorie estimate.
   const weightKg = dayLogs.find((l) => l.kind === "weight")?.weightKg ?? null;
   const age = ageFromBirthday(settings.birthday, today);
+
+  // Runners think in distance — default to meters when switching to Run.
+  const chooseActivity = (a: GaitActivity) => {
+    setActivity(a);
+    if (a === "run") setMode("meters");
+  };
 
   // Live preview of speed + calories for what's currently typed.
   const preview =
@@ -809,6 +817,7 @@ function StepsPanel() {
           heightCm: settings.heightCm,
           age,
           sex: settings.sex,
+          mode: activity,
         })
       : null;
 
@@ -823,7 +832,26 @@ function StepsPanel() {
       <BodyProfileCard />
 
       <div className="clay flex flex-col gap-3 p-5" style={{ background: "var(--surface)" }}>
-        <SectionTitle>Log a walk</SectionTitle>
+        <SectionTitle>Log a walk or run</SectionTitle>
+        {/* Walk vs Run — running burns far more for the same distance */}
+        <div className="flex gap-1 self-start rounded-full p-1" style={{ background: "var(--page-2)" }}>
+          {(["walk", "run"] as const).map((a) => (
+            <button
+              key={a}
+              onClick={() => chooseActivity(a)}
+              aria-pressed={activity === a}
+              className="flex items-center gap-1.5 rounded-full px-4 py-1 text-sm font-bold capitalize"
+              style={{
+                background: activity === a ? "var(--cool-acc)" : "transparent",
+                color: activity === a ? "#fff" : "var(--ink-soft)",
+                cursor: "pointer",
+              }}
+            >
+              <Icon name={a === "walk" ? "Footprints" : "Zap"} className="h-3.5 w-3.5" />
+              {a}
+            </button>
+          ))}
+        </div>
         <div className="flex gap-1 self-start rounded-full p-1" style={{ background: "var(--page-2)" }}>
           {(["steps", "meters"] as const).map((m) => (
             <button
@@ -858,11 +886,11 @@ function StepsPanel() {
           {value > 0 && xpBadge(xp)}
           <LogButton
             onClick={() => {
-              void logSteps(
-                mode === "steps"
-                  ? { steps: value, minutes }
-                  : { meters: value, minutes },
-              );
+              void logSteps({
+                ...(mode === "steps" ? { steps: value } : { meters: value }),
+                minutes,
+                activity,
+              });
               setAmount("");
               setHours("");
               setMins("");
@@ -902,7 +930,7 @@ function StepsPanel() {
 
         <p className="text-xs font-medium text-ink-faint">
           +0.01 XP per step · +0.015 XP per meter. Add the time spent to estimate
-          calories burnt.
+          calories burnt — a run of the same distance burns roughly twice a walk.
         </p>
       </div>
 
@@ -939,11 +967,12 @@ function StepsPanel() {
       <PastLogs
         kind="steps"
         icon="Footprints"
-        title={(l) =>
-          l.steps
+        title={(l) => {
+          const base = l.steps
             ? `${l.steps.toLocaleString()} steps`
-            : `${(l.meters ?? 0).toLocaleString()} m`
-        }
+            : `${(l.meters ?? 0).toLocaleString()} m`;
+          return l.activity === "run" ? `${base} · Run` : base;
+        }}
         detail={(l) =>
           [
             l.minutes ? fmtMinutes(l.minutes) : "",

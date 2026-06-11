@@ -113,6 +113,9 @@ export type DayLogKind =
 
 export type WeightUnit = "kg" | "lbs";
 
+/** Gait for a steps log — running burns more than walking for the same distance. */
+export type GaitActivity = "walk" | "run";
+
 /**
  * The (single) running Pomodoro session. Persisted so a refresh or tab close
  * never loses it: on reopen, a phase past its end shows the alarm so the user
@@ -154,7 +157,9 @@ export interface DayLog {
   // steps
   steps?: number;
   meters?: number;
-  /** Estimated active calories burnt by this walk (steps + time). */
+  /** "walk" (default) or "run" — running burns more for the same distance. */
+  activity?: GaitActivity;
+  /** Estimated active calories burnt by this walk/run (distance + time). */
   caloriesBurnt?: number;
 
   /** Weight, always stored in kg; rendered in the user's chosen unit. */

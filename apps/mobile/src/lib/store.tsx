@@ -31,6 +31,7 @@ import {
   FOCUS_SET_SIZE,
   FOCUS_SET_XP,
   type ActiveFocus,
+  type GaitActivity,
   type DayLog,
   type LedgerEntry,
   type LedgerType,
@@ -246,7 +247,7 @@ interface StoreValue {
   removeFood: (id: string) => Promise<void>;
   setCalorieLimit: (n: number) => Promise<void>;
   logSleep: (minutes: number) => Promise<void>;
-  logSteps: (input: { steps?: number; meters?: number; minutes?: number }) => Promise<void>;
+  logSteps: (input: { steps?: number; meters?: number; minutes?: number; activity?: GaitActivity }) => Promise<void>;
   logReading: (minutes: number) => Promise<void>;
   logWeight: (kg: number) => Promise<void>;
   setWeightUnit: (u: WeightUnit) => Promise<void>;
@@ -685,14 +686,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [commit]);
 
   const logSteps = cb(
-    async (input: { steps?: number; meters?: number; minutes?: number }) => {
+    async (input: { steps?: number; meters?: number; minutes?: number; activity?: GaitActivity }) => {
       unlockAudio();
       const db = dbRef.current;
       const steps = input.steps ?? 0;
       const meters = input.meters ?? 0;
       const minutes = input.minutes ?? 0;
+      const isRun = input.activity === "run";
       const xp = stepsXp(steps, meters);
-      if (xp !== 0) pushLedger(db, { type: "steps_log", delta: xp, meta: steps > 0 ? `${steps} steps` : `${meters} m` });
+      if (xp !== 0) {
+        const what = steps > 0 ? `${steps} steps` : `${meters} m`;
+        pushLedger(db, { type: "steps_log", delta: xp, meta: isRun ? `${what} run` : what });
+      }
       let caloriesBurnt: number | undefined;
       if (minutes > 0) {
         const weightLog = [...db.dayLogs]
@@ -708,6 +713,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             heightCm: db.settings.heightCm,
             age: ageFromBirthday(db.settings.birthday, localDay()),
             sex: db.settings.sex,
+            mode: input.activity,
           }).calories;
         }
       }
@@ -720,6 +726,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         steps: input.steps,
         meters: input.meters,
         minutes: minutes > 0 ? minutes : undefined,
+        activity: isRun ? "run" : undefined,
         caloriesBurnt,
       }));
       if (xp > 0) play("good");

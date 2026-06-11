@@ -269,8 +269,10 @@ function logSummary(l: DayLog, unit: "kg" | "lbs"): string {
       return `${l.name ?? "Food"} · ${l.calories ?? 0} kcal`;
     case "sleep":
       return `Sleep · ${fmtMinutes(l.minutes ?? 0)}`;
-    case "steps":
-      return `${(l.steps ?? 0).toLocaleString()} steps${l.caloriesBurnt ? ` · ${l.caloriesBurnt} kcal` : ""}`;
+    case "steps": {
+      const dist = l.steps ? `${l.steps.toLocaleString()} steps` : `${(l.meters ?? 0).toLocaleString()} m`;
+      return `${l.activity === "run" ? "Run · " : ""}${dist}${l.caloriesBurnt ? ` · ${l.caloriesBurnt} kcal` : ""}`;
+    }
     case "reading":
       return `Reading · ${fmtMinutes(l.minutes ?? 0)}`;
     case "focus":

@@ -18,6 +18,7 @@ import {
   type BodySex,
   type CalorieGoals,
   type DayLog,
+  type GaitActivity,
   type DayLogKind,
   type FoodItem,
   type WeightUnit,
@@ -530,6 +531,7 @@ function SleepPanel() {
 // ---------------- Steps ----------------
 function StepsPanel() {
   const { dayLogs, settings, today, setProfile, logSteps } = useStore();
+  const [activity, setActivity] = useState<GaitActivity>("walk");
   const [mode, setMode] = useState<"steps" | "meters">("steps");
   const [amount, setAmount] = useState("");
   const [h, setH] = useState("");
@@ -539,12 +541,18 @@ function StepsPanel() {
   const weightKg = dayLogs.find((l) => l.kind === "weight")?.weightKg ?? null;
   const age = ageFromBirthday(settings.birthday, today);
 
+  // Runners think in distance — default to meters when switching to Run.
+  const chooseActivity = (a: GaitActivity) => {
+    setActivity(a);
+    if (a === "run") setMode("meters");
+  };
+
   const preview =
     value > 0 && minutes > 0 && weightKg
       ? walkCalories({
           steps: mode === "steps" ? value : undefined,
           meters: mode === "meters" ? value : undefined,
-          minutes, weightKg, heightCm: settings.heightCm, age, sex: settings.sex,
+          minutes, weightKg, heightCm: settings.heightCm, age, sex: settings.sex, mode: activity,
         })
       : null;
 
@@ -578,7 +586,16 @@ function StepsPanel() {
       </Card>
 
       <Card>
-        <SectionTitle>Log a walk</SectionTitle>
+        <SectionTitle>Log a walk or run</SectionTitle>
+        {/* Walk vs Run — running burns far more for the same distance */}
+        <View style={{ flexDirection: "row", gap: 6, marginTop: 8, alignSelf: "flex-start", backgroundColor: C.page2, borderRadius: R.pill, padding: 4 }}>
+          {(["walk", "run"] as GaitActivity[]).map((a) => (
+            <Pressable key={a} onPress={() => chooseActivity(a)} style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 14, paddingVertical: 5, borderRadius: R.pill, backgroundColor: activity === a ? C.coolAcc : "transparent" }}>
+              <Icon name={a === "walk" ? "Footprints" : "Gauge"} size={14} color={activity === a ? "#fff" : C.inkSoft} />
+              <Txt weight="bold" size={13} color={activity === a ? "#fff" : C.inkSoft} style={{ textTransform: "capitalize" }}>{a}</Txt>
+            </Pressable>
+          ))}
+        </View>
         <View style={{ flexDirection: "row", gap: 6, marginTop: 8, alignSelf: "flex-start", backgroundColor: C.page2, borderRadius: R.pill, padding: 4 }}>
           {(["steps", "meters"] as const).map((md) => (
             <Pressable key={md} onPress={() => setMode(md)} style={{ paddingHorizontal: 12, paddingVertical: 5, borderRadius: R.pill, backgroundColor: mode === md ? C.surface : "transparent" }}>
@@ -602,14 +619,17 @@ function StepsPanel() {
           <Txt size={12} weight="semibold" color={C.badAcc} style={{ marginTop: 8 }}>Log your weight once to estimate calories burnt.</Txt>
         ) : null}
         <View style={{ marginTop: 12, alignItems: "flex-end" }}>
-          <PrimaryButton label="Log" onPress={() => { void logSteps(mode === "steps" ? { steps: value, minutes } : { meters: value, minutes }); setAmount(""); setH(""); setM(""); }} disabled={value <= 0} />
+          <PrimaryButton label="Log" onPress={() => { void logSteps({ ...(mode === "steps" ? { steps: value } : { meters: value }), minutes, activity }); setAmount(""); setH(""); setM(""); }} disabled={value <= 0} />
         </View>
       </Card>
 
-      <History kind="steps" render={(l) => ({
-        title: l.steps ? `${l.steps.toLocaleString()} steps` : `${(l.meters ?? 0).toLocaleString()} m`,
-        detail: [l.minutes ? fmtMinutes(l.minutes) : "", l.caloriesBurnt ? `${l.caloriesBurnt} kcal` : ""].filter(Boolean).join(" · "),
-      })} />
+      <History kind="steps" render={(l) => {
+        const base = l.steps ? `${l.steps.toLocaleString()} steps` : `${(l.meters ?? 0).toLocaleString()} m`;
+        return {
+          title: l.activity === "run" ? `${base} · Run` : base,
+          detail: [l.minutes ? fmtMinutes(l.minutes) : "", l.caloriesBurnt ? `${l.caloriesBurnt} kcal` : ""].filter(Boolean).join(" · "),
+        };
+      }} />
     </View>
   );
 }
