@@ -10,6 +10,7 @@
  * build where notifications aren't available it simply no-ops.
  */
 import { Platform } from "react-native";
+import Constants, { ExecutionEnvironment } from "expo-constants";
 import * as Notifications from "expo-notifications";
 
 const ONGOING_ID = "focus-ongoing";
@@ -17,11 +18,16 @@ const ALARM_ID = "focus-alarm";
 const TIMER_CHANNEL = "focus-timer";
 const ALARM_CHANNEL = "focus-alarm";
 
+// expo-notifications isn't supported in Expo Go (SDK 53+). Skip every call
+// there — the in-app alarm overlay + chime still work; the tray notification
+// and background alarm come alive in a dev build / APK.
+const AVAILABLE = Constants.executionEnvironment !== ExecutionEnvironment.StoreClient;
+
 let configured = false;
 
 /** Wire the handler, channels and permissions. Safe to call repeatedly. */
 export async function configureNotifications(): Promise<void> {
-  if (configured) return;
+  if (configured || !AVAILABLE) return;
   configured = true;
   try {
     Notifications.setNotificationHandler({
@@ -66,6 +72,7 @@ export async function configureNotifications(): Promise<void> {
 
 /** Present / update the silent ongoing countdown notification. */
 export async function showOngoing(title: string, body: string): Promise<void> {
+  if (!AVAILABLE) return;
   try {
     await Notifications.scheduleNotificationAsync({
       identifier: ONGOING_ID,
@@ -85,6 +92,7 @@ export async function showOngoing(title: string, body: string): Promise<void> {
 }
 
 export async function clearOngoing(): Promise<void> {
+  if (!AVAILABLE) return;
   try {
     await Notifications.dismissNotificationAsync(ONGOING_ID);
     await Notifications.cancelScheduledNotificationAsync(ONGOING_ID);
@@ -99,6 +107,7 @@ export async function scheduleAlarm(
   title: string,
   body: string,
 ): Promise<void> {
+  if (!AVAILABLE) return;
   try {
     await Notifications.cancelScheduledNotificationAsync(ALARM_ID);
     const secs = Math.max(1, Math.round((when - Date.now()) / 1000));
@@ -122,6 +131,7 @@ export async function scheduleAlarm(
 }
 
 export async function cancelAlarm(): Promise<void> {
+  if (!AVAILABLE) return;
   try {
     await Notifications.cancelScheduledNotificationAsync(ALARM_ID);
     await Notifications.dismissNotificationAsync(ALARM_ID);
