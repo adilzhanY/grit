@@ -56,12 +56,17 @@ export function focusXp(minutes: number): number {
  * Penalty for pushing today's calories from `prevTotal` to `newTotal` against
  * `limit`: -1 XP per calorie past the limit (only the newly-exceeded part).
  */
+/** XP lost per calorie eaten beyond the daily limit. */
+export const XP_PER_OVER_CALORIE = 0.1;
+
 export function foodPenalty(
   prevTotal: number,
   newTotal: number,
   limit: number,
 ): number {
-  return Math.max(0, newTotal - limit) - Math.max(0, prevTotal - limit);
+  const overCalories =
+    Math.max(0, newTotal - limit) - Math.max(0, prevTotal - limit);
+  return Math.round(overCalories * XP_PER_OVER_CALORIE);
 }
 
 // ---- Weight ----

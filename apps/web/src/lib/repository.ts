@@ -670,7 +670,7 @@ async function addDayLog(log: Omit<DayLog, "id" | "loggedAt">): Promise<DayLog> 
 
 /**
  * Log a food eaten today. Only calories newly past the daily limit are
- * penalized (-1 XP each), so each log pays for exactly its own overage.
+ * penalized (-0.1 XP each), so each log pays for exactly its own overage.
  */
 export async function addFoodLog(input: {
   name: string;
