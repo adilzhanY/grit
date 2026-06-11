@@ -17,7 +17,6 @@ import { C } from "./src/theme";
 import { AccountSheet } from "./src/components/AccountSheet";
 import { ConfirmProvider } from "./src/components/ConfirmDialog";
 import { Celebration } from "./src/components/Celebration";
-import { Squish } from "./src/components/anim";
 import { Today } from "./src/screens/Today";
 import { Planned } from "./src/screens/Planned";
 import { Habits } from "./src/screens/Habits";
@@ -25,14 +24,13 @@ import { DailyLog } from "./src/screens/DailyLog";
 import { Focus } from "./src/screens/Focus";
 import { Stats } from "./src/screens/Stats";
 import { BottomNav } from "./src/components/BottomNav";
-import { LogMenu } from "./src/components/LogMenu";
+import { LogFab } from "./src/components/LogFab";
 import { Icon } from "./src/components/Icon";
 import { Txt } from "./src/components/ui";
 
 function Root() {
   const { tab } = useUi();
   const { ready, settings } = useStore();
-  const [menu, setMenu] = useState(false);
   const [account, setAccount] = useState(false);
   const name = settings.name?.trim() || "Adilzhan";
 
@@ -90,32 +88,10 @@ function Root() {
         {tab === "stats" && <Stats />}
       </View>
 
-      {/* FAB — only on the home page */}
-      {tab === "today" ? (
-        <View style={{ position: "absolute", right: 20, bottom: 96 }}>
-          <Squish
-            onPress={() => setMenu(true)}
-            style={{
-              width: 60,
-              height: 60,
-              borderRadius: 30,
-              backgroundColor: C.accent,
-              alignItems: "center",
-              justifyContent: "center",
-              shadowColor: "#141a18",
-              shadowOffset: { width: 0, height: 6 },
-              shadowOpacity: 0.3,
-              shadowRadius: 10,
-              elevation: 6,
-            }}
-          >
-            <Icon name="Plus" color="#fff" size={28} strokeWidth={3} />
-          </Squish>
-        </View>
-      ) : null}
+      {/* FAB + jelly log menu — only on the home page */}
+      {tab === "today" ? <LogFab /> : null}
 
       <BottomNav />
-      <LogMenu open={menu} onClose={() => setMenu(false)} />
       <AccountSheet open={account} onClose={() => setAccount(false)} />
       <Celebration />
     </View>
