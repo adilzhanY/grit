@@ -340,6 +340,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   const prevLevel = useRef<number | null>(null);
+  // Latest syncNow + the realtime channel, for the instant cross-device
+  // "stop the alarm" poke (see flushFocus).
+  const syncNowRef = useRef<(() => Promise<void> | void) | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const channelRef = useRef<any>(null);
 
   // useCallback isn't exported as useCallback in some React builds re-export;
   // alias to the real hook here.
@@ -829,6 +834,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [commit],
   );
 
+  // A focus phase changed — push it now and poke the other device so its alarm
+  // stops near-instantly instead of waiting on the change-feed round-trip.
+  const flushFocus = cb(() => {
+    void (async () => {
+      try {
+        await syncNowRef.current?.();
+        await channelRef.current?.send({ type: "broadcast", event: "focus", payload: {} });
+      } catch {
+        // Broadcast is a best-effort speed-up; normal sync is the fallback.
+      }
+    })();
+  }, []);
+
   // ---------- focus ----------
   const completeFocusBlock = (db: DB, a: ActiveFocus, endTs: number) => {
     const date = localDay(endTs);
@@ -872,7 +890,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     tomb(db, "focus", "active");
     if (wasRest) play("restEnd");
     commit();
-  }, [commit]);
+    flushFocus();
+  }, [commit, flushFocus]);
 
   const saveFocusSession = cb(async () => {
     const db = dbRef.current;
@@ -929,7 +948,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     play("good");
     commit();
-  }, [commit]);
+    flushFocus();
+  }, [commit, flushFocus]);
 
   // Rest alarm answered with "keep going": start a fresh focus phase.
   const continueFocusSession = cb(async () => {
@@ -940,7 +960,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     db.activeFocus = stamp<ActiveFocus>({ ...rest, phase: "focus", startedAt: Date.now() });
     play("focusStart");
     commit();
-  }, [commit]);
+    flushFocus();
+  }, [commit, flushFocus]);
 
   const addFocusTask = cb(async (name: string) => {
     const db = dbRef.current;
@@ -1028,13 +1049,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(id);
   }, [version, user, ready, syncNow]);
 
-  // Realtime: pull the instant a row changes for this user on the server.
+  // Keep the ref pointing at the latest syncNow for flushFocus.
+  useEffect(() => {
+    syncNowRef.current = syncNow;
+  }, [syncNow]);
+
+  // Realtime: pull the instant a row changes for this user on the server, plus
+  // a low-latency "focus" broadcast so a phase change stops the other device's
+  // alarm immediately (the change-feed can lag several seconds).
   useEffect(() => {
     if (!user) return;
     const sb = supabase();
     if (!sb) return;
     const tables = ["tasks", "completions", "ledger", "settings", "lists", "foods", "day_logs", "focus"];
-    const channel = sb.channel(`grit-sync-${user.id}`);
+    const channel = sb.channel(`grit-sync-${user.id}`, {
+      config: { broadcast: { self: false } },
+    });
     for (const table of tables) {
       channel.on(
         "postgres_changes",
@@ -1042,8 +1072,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         () => void syncNow(),
       );
     }
+    channel.on("broadcast", { event: "focus" }, () => void syncNow());
     channel.subscribe();
+    channelRef.current = channel;
     return () => {
+      channelRef.current = null;
       void sb.removeChannel(channel);
     };
   }, [user, syncNow]);

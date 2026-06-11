@@ -71,6 +71,7 @@ import {
 import { downloadBackup, importData } from "./backup";
 import { sync } from "./sync";
 import { supabase } from "./supabase";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useAuth } from "./auth";
 import { computeLevel, type LevelInfo } from "./leveling";
 import { play, setSoundEnabled, unlockAudio } from "./sounds";
@@ -220,6 +221,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [changeSeq, setChangeSeq] = useState(0);
 
   const prevLevel = useRef(0);
+  // Latest runSync + the realtime channel, for the instant cross-device
+  // "stop the alarm" poke (see flushFocus).
+  const runSyncRef = useRef<(() => Promise<void>) | null>(null);
+  const channelRef = useRef<RealtimeChannel | null>(null);
 
   const refresh = useCallback(async (announceLevelUp = true) => {
     const s = await getSettings();
@@ -352,10 +357,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     await refresh(!!log && log.awardedXp > 0);
   }, [refresh]);
 
+  // A focus phase changed — push it now and poke the other device so its alarm
+  // stops near-instantly instead of waiting on the change-feed round-trip.
+  const flushFocus = useCallback(async () => {
+    await runSyncRef.current?.();
+    try {
+      await channelRef.current?.send({ type: "broadcast", event: "focus", payload: {} });
+    } catch {
+      // Broadcast is a best-effort speed-up; normal sync is the fallback.
+    }
+  }, []);
+
   const cancelFocusSession = useCallback(async () => {
     await repoCancelFocus();
     await refresh(false);
-  }, [refresh]);
+    void flushFocus();
+  }, [refresh, flushFocus]);
 
   const pauseFocusSession = useCallback(async () => {
     await repoPauseFocus();
@@ -372,15 +389,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       await repoFinishFocus(startRest);
       play("good");
       await refresh(true);
+      void flushFocus();
     },
-    [refresh],
+    [refresh, flushFocus],
   );
 
   const continueFocusSession = useCallback(async () => {
     await repoContinueFocus();
     play("focusStart");
     await refresh(false);
-  }, [refresh]);
+    void flushFocus();
+  }, [refresh, flushFocus]);
 
   // Periodic milestone + day-rollover check.
   useEffect(() => {
@@ -717,13 +736,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(id);
   }, [changeSeq, user, runSync]);
 
-  // Realtime: pull the instant a row changes for this user on the server.
+  // Keep the ref pointing at the latest runSync for flushFocus.
+  useEffect(() => {
+    runSyncRef.current = runSync;
+  }, [runSync]);
+
+  // Realtime: pull the instant a row changes for this user on the server, plus
+  // a low-latency "focus" broadcast so a phase change stops the other device's
+  // alarm immediately (the change-feed can lag several seconds).
   useEffect(() => {
     if (!user) return;
     const sb = supabase();
     if (!sb) return;
     const tables = ["tasks", "completions", "ledger", "settings", "lists", "foods", "day_logs", "focus"];
-    const channel = sb.channel(`grit-sync-${user.id}`);
+    const channel = sb.channel(`grit-sync-${user.id}`, {
+      config: { broadcast: { self: false } },
+    });
     for (const table of tables) {
       channel.on(
         "postgres_changes",
@@ -731,8 +759,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         () => void runSync(),
       );
     }
+    channel.on("broadcast", { event: "focus" }, () => void runSync());
     channel.subscribe();
+    channelRef.current = channel;
     return () => {
+      channelRef.current = null;
       void sb.removeChannel(channel);
     };
   }, [user, runSync]);
