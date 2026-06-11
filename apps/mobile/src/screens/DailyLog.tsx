@@ -197,10 +197,12 @@ function FoodPanel() {
       <Card>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
           <View>
-            <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
-              <Icon name="Flame" size={22} />
-              <Txt size={32} weight="extrabold">{eaten}</Txt>
-              <Txt size={15} weight="bold" color={C.inkFaint}>/ {limit} kcal</Txt>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Icon name="Flame" size={28} color={C.mustAcc} />
+              <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
+                <Txt size={32} weight="extrabold">{eaten}</Txt>
+                <Txt size={15} weight="bold" color={C.inkFaint}>/ {limit} kcal</Txt>
+              </View>
             </View>
             <Txt size={12} weight={over > 0 ? "extrabold" : "semibold"} color={over > 0 ? C.badAcc : C.inkFaint} style={{ marginTop: 2 }}>
               {over > 0 ? `${over} kcal over · −${over} XP` : `${limit - eaten} kcal left`}
