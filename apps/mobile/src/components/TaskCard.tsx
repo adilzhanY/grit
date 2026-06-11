@@ -1,13 +1,13 @@
 import { useRef, useState } from "react";
-import { Pressable, TextInput, View } from "react-native";
+import { Modal, Pressable, TextInput, View } from "react-native";
 import type { Subtask, Task } from "@grit/core";
 import { recurrenceLabel } from "@grit/core";
 import { subtaskDone, subtaskShares, useStore } from "../lib/store";
-import { C, FONT, LIST_TINT, R, claySm } from "../theme";
-import { Txt } from "./ui";
+import { C, FONT, LIST_TINT, R, clay, claySm } from "../theme";
+import { NumberField, PrimaryButton, TextField, Txt } from "./ui";
 import { Icon } from "./Icon";
 import { useConfirm } from "./ConfirmDialog";
-import { Collapsible, FloatUp, Squish } from "./anim";
+import { Collapsible, FloatUp, PopIn, Squish } from "./anim";
 
 /** A positive task (Must / Cool / Impossible / custom), with subtasks. */
 export function TaskCard({
@@ -224,8 +224,9 @@ function SubtaskRow({
   parentDone: boolean;
   isLast: boolean;
 }) {
-  const { toggleSubtask, removeSubtask } = useStore();
+  const { toggleSubtask } = useStore();
   const tint = LIST_TINT[task.listType];
+  const [editOpen, setEditOpen] = useState(false);
   return (
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
       {/* connector rail */}
@@ -235,11 +236,11 @@ function SubtaskRow({
       <Squish
         onPress={() => toggleSubtask(task, sub.id)}
         style={[
-          { width: 30, height: 30, borderRadius: R.sm, alignItems: "center", justifyContent: "center", backgroundColor: done ? tint.acc : C.surface },
+          { width: 32, height: 32, borderRadius: R.sm, alignItems: "center", justifyContent: "center", backgroundColor: done ? tint.acc : C.surface },
           claySm(),
         ]}
       >
-        <Icon name="Check" color={done ? "#fff" : "rgba(20,26,24,0.22)"} size={15} strokeWidth={3.2} />
+        <Icon name="Check" color={done ? "#fff" : "rgba(20,26,24,0.22)"} size={16} strokeWidth={3.2} />
       </Squish>
       <Txt
         weight="medium"
@@ -250,15 +251,118 @@ function SubtaskRow({
       >
         {sub.title}
       </Txt>
-      <View style={{ backgroundColor: C.surface, borderRadius: R.pill, paddingHorizontal: 8, paddingVertical: 2 }}>
+      <View style={{ backgroundColor: C.surface, borderRadius: R.pill, paddingHorizontal: 9, paddingVertical: 3 }}>
         <Txt size={11} weight="extrabold" color={tint.acc}>+{share}</Txt>
       </View>
+      {/* One roomy touch target (name/XP/delete live in the sheet) */}
       {!parentDone ? (
-        <Pressable onPress={() => removeSubtask(task, sub.id)} style={{ padding: 4 }}>
-          <Icon name="Trash2" size={14} color={C.inkFaint} />
+        <Pressable
+          onPress={() => setEditOpen(true)}
+          hitSlop={10}
+          style={{ width: 34, height: 34, borderRadius: R.pill, alignItems: "center", justifyContent: "center" }}
+        >
+          <Icon name="Pencil" size={16} color={C.inkFaint} />
         </Pressable>
       ) : null}
+      <EditSubtaskSheet task={task} sub={sub} share={share} done={done} open={editOpen} onClose={() => setEditOpen(false)} />
     </View>
+  );
+}
+
+/** Bottom-anchored sheet to rename a subtask, set its XP, or delete it. */
+function EditSubtaskSheet({
+  task,
+  sub,
+  share,
+  done,
+  open,
+  onClose,
+}: {
+  task: Task;
+  sub: Subtask;
+  share: number;
+  done: boolean;
+  open: boolean;
+  onClose: () => void;
+}) {
+  return (
+    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+      {open ? <EditSubtaskForm task={task} sub={sub} share={share} done={done} onClose={onClose} /> : null}
+    </Modal>
+  );
+}
+
+function EditSubtaskForm({
+  task,
+  sub,
+  share,
+  done,
+  onClose,
+}: {
+  task: Task;
+  sub: Subtask;
+  share: number;
+  done: boolean;
+  onClose: () => void;
+}) {
+  const { editSubtask, removeSubtask } = useStore();
+  const confirm = useConfirm();
+  const tint = LIST_TINT[task.listType];
+  const [title, setTitle] = useState(sub.title);
+  const [xp, setXp] = useState(String(share));
+
+  const save = () => {
+    const t = title.trim();
+    if (!t) return;
+    const xpVal = Math.max(0, Math.round(Number(xp) || 0));
+    // Only pin the XP if it changed (and the subtask is still open) — a plain
+    // rename leaves an auto-split subtask auto.
+    void editSubtask(task, sub.id, { title: t, ...(!done && xpVal !== share ? { xp: xpVal } : {}) });
+    onClose();
+  };
+
+  return (
+    <Pressable
+      onPress={onClose}
+      style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center", padding: 24 }}
+    >
+      <PopIn>
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          style={[{ width: "100%", maxWidth: 360, backgroundColor: C.surface, borderRadius: R.md, padding: 22, gap: 14 }, clay()]}
+        >
+          <Txt size={18} weight="extrabold">Edit subtask</Txt>
+          <View style={{ gap: 6 }}>
+            <Txt size={12} weight="bold" color={C.inkSoft}>Name</Txt>
+            <TextField value={title} onChange={setTitle} placeholder="Subtask name" onSubmit={save} />
+          </View>
+          {!done ? (
+            <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 12 }}>
+              <NumberField label="XP" value={xp} onChange={setXp} suffix="XP" width={120} />
+              <Txt size={12} weight="medium" color={C.inkFaint} style={{ flex: 1, paddingBottom: 8 }}>
+                of {task.points} — the rest rebalances.
+              </Txt>
+            </View>
+          ) : (
+            <Txt size={12} weight="medium" color={C.inkFaint}>This subtask is done — its {share} XP is locked.</Txt>
+          )}
+          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
+            <Pressable
+              onPress={async () => {
+                onClose();
+                if (await confirm({ title: `Delete "${sub.title}"?`, confirmLabel: "Delete" })) void removeSubtask(task, sub.id);
+              }}
+              hitSlop={8}
+              style={{ flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 9, paddingHorizontal: 12, borderRadius: R.sm, backgroundColor: C.page2 }}
+            >
+              <Icon name="Trash2" size={16} color={C.badAcc} />
+              <Txt weight="bold" size={13} color={C.badAcc}>Delete</Txt>
+            </Pressable>
+            <PrimaryButton label="Save" background={tint.acc} onPress={save} disabled={!title.trim()} />
+          </View>
+        </Pressable>
+      </PopIn>
+    </Pressable>
   );
 }
 

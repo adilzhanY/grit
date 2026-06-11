@@ -25,6 +25,13 @@ export interface Subtask {
   doneAt?: number;
   /** XP actually awarded on completion, so undo reverses the exact amount. */
   awardedXp?: number;
+  /**
+   * Manual XP "pin" for an undone subtask. Pinned subtasks take exactly this;
+   * the unpinned ones split whatever's left of the parent's points — so the
+   * total across subtasks always equals the parent, and editing one rebalances
+   * the rest. Unset = auto (even split).
+   */
+  xp?: number;
 }
 
 export interface Task {

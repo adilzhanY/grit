@@ -25,6 +25,7 @@ import {
   addTask as repoAddTask,
   addSubtask as repoAddSubtask,
   deleteSubtask as repoDeleteSubtask,
+  editSubtask as repoEditSubtask,
   toggleSubtask as repoToggleSubtask,
   setAllSubtasks as repoSetAllSubtasks,
   addCustomList as repoAddCustomList,
@@ -105,6 +106,7 @@ interface StoreValue {
   toggleImportant: (task: Task) => Promise<void>;
   addSubtask: (task: Task, title: string) => Promise<void>;
   removeSubtask: (task: Task, subId: string) => Promise<void>;
+  editSubtask: (task: Task, subId: string, patch: { title?: string; xp?: number }) => Promise<void>;
   toggleSubtask: (task: Task, subId: string) => Promise<void>;
   /** Parent-check shortcut: complete or un-check every subtask. */
   setAllSubtasks: (task: Task, done: boolean) => Promise<void>;
@@ -499,6 +501,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [refresh],
   );
 
+  const editSubtask = useCallback(
+    async (task: Task, subId: string, patch: { title?: string; xp?: number }) => {
+      await repoEditSubtask(task, subId, patch);
+      await refresh(false);
+    },
+    [refresh],
+  );
+
   const toggleSubtask = useCallback(
     async (task: Task, subId: string) => {
       unlockAudio();
@@ -751,6 +761,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     toggleImportant,
     addSubtask,
     removeSubtask,
+    editSubtask,
     toggleSubtask,
     setAllSubtasks,
     addList,

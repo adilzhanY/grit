@@ -398,24 +398,68 @@ export function subtaskShares(
 ): Map<string, number> {
   const subs = task.subtasks ?? [];
   const shares = new Map<string, number>();
-  const undone: Subtask[] = [];
+  const auto: Subtask[] = []; // undone, unpinned
   let pool = task.points;
   for (const s of subs) {
     if (subtaskDone(task, s, date)) {
       shares.set(s.id, s.awardedXp ?? 0);
       pool -= s.awardedXp ?? 0;
+    } else if (s.xp != null) {
+      shares.set(s.id, s.xp);
+      pool -= s.xp;
     } else {
-      undone.push(s);
+      auto.push(s);
     }
   }
   pool = Math.max(0, pool);
-  undone.forEach((s, i) => {
+  auto.forEach((s, i) => {
     shares.set(
       s.id,
-      Math.floor(pool / undone.length) + (i < pool % undone.length ? 1 : 0),
+      Math.floor(pool / auto.length) + (i < pool % auto.length ? 1 : 0),
     );
   });
   return shares;
+}
+
+/**
+ * Edit an undone subtask's title and/or its XP pin. Setting XP clamps it to
+ * what's available (parent points minus already-awarded and other pins) so the
+ * total never exceeds the parent; the unpinned subtasks absorb the rest.
+ */
+export async function editSubtask(
+  task: Task,
+  subId: string,
+  patch: { title?: string; xp?: number },
+): Promise<void> {
+  const fresh = (await db().tasks.get(task.id)) ?? task;
+  const date = localDay();
+  let subs = fresh.subtasks ?? [];
+  const target = subs.find((s) => s.id === subId);
+  if (!target) return;
+
+  if (patch.title !== undefined) {
+    const t = patch.title.trim();
+    if (t) subs = subs.map((s) => (s.id === subId ? { ...s, title: t } : s));
+  }
+
+  if (patch.xp !== undefined && !subtaskDone(fresh, target, date)) {
+    const doneAwarded = subs.reduce(
+      (sum, s) => sum + (subtaskDone(fresh, s, date) ? s.awardedXp ?? 0 : 0),
+      0,
+    );
+    const otherPins = subs.reduce(
+      (sum, s) =>
+        s.id !== subId && !subtaskDone(fresh, s, date) && s.xp != null
+          ? sum + s.xp
+          : sum,
+      0,
+    );
+    const maxXp = Math.max(0, fresh.points - doneAwarded - otherPins);
+    const xp = Math.min(maxXp, Math.max(0, Math.round(patch.xp)));
+    subs = subs.map((s) => (s.id === subId ? { ...s, xp } : s));
+  }
+
+  await updateTask(task.id, { subtasks: subs });
 }
 
 /** Ledger type for completing (a share of) a task of this list type. */

@@ -122,23 +122,29 @@ export function subtaskDone(task: Task, sub: Subtask, date: string): boolean {
   return task.recurrence ? localDay(sub.doneAt) === date : true;
 }
 
-/** XP each subtask awards: done ones keep their award; the rest split the pool. */
+/**
+ * XP each subtask awards: done ones keep their award; pinned (manual xp) ones
+ * take exactly that; the rest split the remaining pool. Total always = points.
+ */
 export function subtaskShares(task: Task, date: string): Map<string, number> {
   const subs = task.subtasks ?? [];
   const shares = new Map<string, number>();
-  const undone: Subtask[] = [];
+  const auto: Subtask[] = []; // undone, unpinned
   let pool = task.points;
   for (const s of subs) {
     if (subtaskDone(task, s, date)) {
       shares.set(s.id, s.awardedXp ?? 0);
       pool -= s.awardedXp ?? 0;
+    } else if (s.xp != null) {
+      shares.set(s.id, s.xp);
+      pool -= s.xp;
     } else {
-      undone.push(s);
+      auto.push(s);
     }
   }
   pool = Math.max(0, pool);
-  undone.forEach((s, i) =>
-    shares.set(s.id, Math.floor(pool / undone.length) + (i < pool % undone.length ? 1 : 0)),
+  auto.forEach((s, i) =>
+    shares.set(s.id, Math.floor(pool / auto.length) + (i < pool % auto.length ? 1 : 0)),
   );
   return shares;
 }
@@ -227,6 +233,7 @@ interface StoreValue {
   // subtasks
   addSubtask: (task: Task, title: string) => Promise<void>;
   removeSubtask: (task: Task, subId: string) => Promise<void>;
+  editSubtask: (task: Task, subId: string, patch: { title?: string; xp?: number }) => Promise<void>;
   toggleSubtask: (task: Task, subId: string) => Promise<void>;
   setAllSubtasks: (task: Task, done: boolean) => Promise<void>;
 
@@ -476,6 +483,34 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
     db.tasks[i] = stamp({ ...task, subtasks: subs.filter((s) => s.id !== subId) });
     maybeCompleteParent(db, db.tasks[i], date);
+    commit();
+  }, [commit]);
+
+  const editSubtask = cb(async (taskArg: Task, subId: string, patch: { title?: string; xp?: number }) => {
+    const db = dbRef.current;
+    const date = localDay();
+    const i = db.tasks.findIndex((t) => t.id === taskArg.id);
+    if (i < 0) return;
+    const task = db.tasks[i];
+    let subs = task.subtasks ?? [];
+    const target = subs.find((s) => s.id === subId);
+    if (!target) return;
+
+    if (patch.title !== undefined) {
+      const t = patch.title.trim();
+      if (t) subs = subs.map((s) => (s.id === subId ? { ...s, title: t } : s));
+    }
+    if (patch.xp !== undefined && !subtaskDone(task, target, date)) {
+      const doneAwarded = subs.reduce((sum, s) => sum + (subtaskDone(task, s, date) ? s.awardedXp ?? 0 : 0), 0);
+      const otherPins = subs.reduce(
+        (sum, s) => (s.id !== subId && !subtaskDone(task, s, date) && s.xp != null ? sum + s.xp : sum),
+        0,
+      );
+      const maxXp = Math.max(0, task.points - doneAwarded - otherPins);
+      const xp = Math.min(maxXp, Math.max(0, Math.round(patch.xp)));
+      subs = subs.map((s) => (s.id === subId ? { ...s, xp } : s));
+    }
+    db.tasks[i] = stamp({ ...task, subtasks: subs });
     commit();
   }, [commit]);
 
@@ -1077,6 +1112,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       recordSlip,
       addSubtask,
       removeSubtask,
+      editSubtask,
       toggleSubtask,
       setAllSubtasks,
       addList,

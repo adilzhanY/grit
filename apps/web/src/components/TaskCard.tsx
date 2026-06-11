@@ -50,8 +50,27 @@ function SubtaskRow({
   parentDone: boolean;
   isLast: boolean;
 }) {
-  const { toggleSubtask, removeSubtask } = useStore();
+  const { toggleSubtask, removeSubtask, editSubtask } = useStore();
   const tint = LIST_TINT[task.listType];
+  const [editing, setEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(sub.title);
+  const [xpDraft, setXpDraft] = useState(String(share));
+
+  const startEdit = () => {
+    setTitleDraft(sub.title);
+    setXpDraft(String(share));
+    setEditing(true);
+  };
+  const commitEdit = () => {
+    const title = titleDraft.trim();
+    if (title) {
+      const xpVal = Math.max(0, Math.round(Number(xpDraft) || 0));
+      // Only pin the XP if it actually changed — a plain rename leaves an
+      // auto-split subtask auto.
+      void editSubtask(task, sub.id, { title, ...(xpVal !== share ? { xp: xpVal } : {}) });
+    }
+    setEditing(false);
+  };
 
   return (
     <div className="group/sub relative flex items-center gap-3">
@@ -69,31 +88,85 @@ function SubtaskRow({
       >
         <Icon name="Check" className="h-4 w-4" strokeWidth={3.2} />
       </button>
-      <p
-        className="min-w-0 flex-1 break-words text-sm font-medium"
-        style={{
-          color: "var(--ink)",
-          textDecoration: done ? "line-through" : "none",
-          opacity: done ? 0.55 : 1,
-        }}
-      >
-        {sub.title}
-      </p>
-      <span
-        className="shrink-0 rounded-full px-2 py-0.5 text-xs font-extrabold"
-        style={{ background: "var(--surface)", color: tint.acc }}
-      >
-        +{share}
-      </span>
-      {!parentDone && (
-        <button
-          onClick={() => removeSubtask(task, sub.id)}
-          aria-label={`Delete subtask ${sub.title}`}
-          className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-faint opacity-0 transition-opacity hover:bg-black/5 focus-visible:opacity-100 group-hover/sub:opacity-100"
-          style={{ cursor: "pointer" }}
-        >
-          <Icon name="Trash2" className="h-3.5 w-3.5" />
-        </button>
+
+      {editing ? (
+        <>
+          <input
+            autoFocus
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitEdit();
+              if (e.key === "Escape") setEditing(false);
+            }}
+            className="min-w-0 flex-1 rounded-lg bg-page-2 px-2 py-1 text-sm font-medium text-ink outline-none"
+            aria-label="Subtask name"
+          />
+          {!done && (
+            <span className="flex shrink-0 items-center gap-1 rounded-lg bg-page-2 px-2 py-1">
+              <input
+                type="number"
+                min={0}
+                value={xpDraft}
+                onChange={(e) => setXpDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitEdit();
+                  if (e.key === "Escape") setEditing(false);
+                }}
+                className="w-12 bg-transparent text-right text-sm font-extrabold text-ink outline-none"
+                aria-label="Subtask XP"
+              />
+              <span className="text-xs font-bold text-ink-faint">XP</span>
+            </span>
+          )}
+          <button
+            onClick={commitEdit}
+            aria-label="Save subtask"
+            className="clay-press grid h-7 w-7 shrink-0 place-items-center rounded-full text-white"
+            style={{ background: tint.acc, cursor: "pointer" }}
+          >
+            <Icon name="Check" className="h-3.5 w-3.5" strokeWidth={3} />
+          </button>
+        </>
+      ) : (
+        <>
+          <p
+            className="min-w-0 flex-1 break-words text-sm font-medium"
+            style={{
+              color: "var(--ink)",
+              textDecoration: done ? "line-through" : "none",
+              opacity: done ? 0.55 : 1,
+            }}
+          >
+            {sub.title}
+          </p>
+          <span
+            className="shrink-0 rounded-full px-2 py-0.5 text-xs font-extrabold"
+            style={{ background: "var(--surface)", color: tint.acc }}
+          >
+            +{share}
+          </span>
+          {!parentDone && (
+            <button
+              onClick={startEdit}
+              aria-label={`Edit subtask ${sub.title}`}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-faint opacity-0 transition-opacity hover:bg-black/5 focus-visible:opacity-100 group-hover/sub:opacity-100"
+              style={{ cursor: "pointer" }}
+            >
+              <Icon name="Pencil" className="h-3.5 w-3.5" />
+            </button>
+          )}
+          {!parentDone && (
+            <button
+              onClick={() => removeSubtask(task, sub.id)}
+              aria-label={`Delete subtask ${sub.title}`}
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-faint opacity-0 transition-opacity hover:bg-black/5 focus-visible:opacity-100 group-hover/sub:opacity-100"
+              style={{ cursor: "pointer" }}
+            >
+              <Icon name="Trash2" className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </>
       )}
     </div>
   );
