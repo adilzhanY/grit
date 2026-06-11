@@ -151,6 +151,45 @@ export function mifflinBmr(p: {
   return base + (p.sex === "male" ? 5 : -161);
 }
 
+/** Energy in 1 kg of body mass — the classic "7700 kcal per kg" rule. */
+export const KCAL_PER_KG = 7700;
+
+export interface CalorieGoals {
+  /** Eat this to hold your current weight. */
+  maintain: number;
+  /** Surplus for +1 kg per week. */
+  gain: number;
+  /** Deficit for −0.5 kg per week. */
+  lose: number;
+  /** Aggressive deficit for ~−1.1 kg per week. */
+  extremeLose: number;
+}
+
+/**
+ * Daily calorie targets for each goal, from the Mifflin–St Jeor BMR scaled by a
+ * sedentary 1.2 activity factor. Logged steps/walks are tracked separately and
+ * subtracted from intake, so the baseline deliberately excludes exercise to
+ * avoid double-counting. A weekly weight delta is turned into a daily surplus or
+ * deficit via 7700 kcal/kg. Deficit goals are floored at a safe minimum.
+ */
+export function calorieGoals(p: {
+  weightKg: number;
+  heightCm: number;
+  age: number;
+  sex: BodySex;
+}): CalorieGoals {
+  const maintain = mifflinBmr(p) * 1.2;
+  const perDay = (kgPerWeek: number) => (kgPerWeek * KCAL_PER_KG) / 7;
+  const floor = p.sex === "male" ? 1500 : 1200;
+  const r = Math.round;
+  return {
+    maintain: r(maintain),
+    gain: r(maintain + perDay(1)),
+    lose: Math.max(floor, r(maintain - perDay(0.5))),
+    extremeLose: Math.max(floor, r(maintain - perDay(1.1))),
+  };
+}
+
 export type WalkEstimate = {
   /** Net active calories burnt by the walk (gross minus resting). */
   calories: number;

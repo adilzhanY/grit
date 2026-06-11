@@ -8,6 +8,8 @@ import {
   fmtXp,
   focusXp,
   foodTotal,
+  calorieGoals,
+  type CalorieGoals,
   kgToUnit,
   unitToKg,
   weightLossXp,
@@ -50,6 +52,50 @@ const MACROS: { field: "protein" | "carbs" | "fat"; label: string; icon: string 
   { field: "carbs", label: "Carbs", icon: "Wheat" },
   { field: "fat", label: "Fat", icon: "Droplets" },
 ];
+
+const GOAL_TILES: {
+  key: keyof CalorieGoals;
+  label: string;
+  rate: string;
+  icon: string;
+  color: string;
+}[] = [
+  { key: "maintain", label: "Maintain", rate: "Keep weight", icon: "Scale", color: "var(--ink-soft)" },
+  { key: "gain", label: "Gain", rate: "+1 kg / week", icon: "TrendingUp", color: "var(--cool-acc)" },
+  { key: "lose", label: "Lose", rate: "−0.5 kg / week", icon: "TrendingDown", color: "var(--primary)" },
+  { key: "extremeLose", label: "Extreme", rate: "−1.1 kg / week", icon: "Flame", color: "var(--bad-acc)" },
+];
+
+/** Daily calorie targets per goal, from the latest weight + body profile. */
+function GoalsCard({ goals }: { goals: CalorieGoals | null }) {
+  return (
+    <div className="clay flex flex-col gap-3 p-5" style={{ background: "var(--surface)" }}>
+      <SectionTitle>Daily calorie targets</SectionTitle>
+      {goals ? (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {GOAL_TILES.map((g) => (
+            <div
+              key={g.key}
+              className="flex flex-col gap-0.5 rounded-2xl p-3"
+              style={{ background: "var(--page-2)" }}
+            >
+              <span style={{ color: g.color }}>
+                <Icon name={g.icon} className="h-4 w-4" />
+              </span>
+              <span className="text-xl font-extrabold tabular-nums">{goals[g.key]}</span>
+              <span className="text-xs font-bold">{g.label}</span>
+              <span className="text-[11px] font-medium text-ink-faint">{g.rate}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm font-medium text-ink-faint">
+          Log your weight in the Weight tracker to see your calorie targets.
+        </p>
+      )}
+    </div>
+  );
+}
 
 function xpBadge(xp: number) {
   return (
@@ -209,9 +255,25 @@ function FoodPanel() {
 
   const todays = dayLogs.filter((l) => l.kind === "food" && l.date === today);
   const eaten = foodTotal(todays, "calories");
+  // Calories burnt from today's walks reduce the effective (net) intake.
+  const burnt = dayLogs
+    .filter((l) => l.kind === "steps" && l.date === today)
+    .reduce((s, l) => s + (l.caloriesBurnt ?? 0), 0);
+  const net = eaten - burnt;
   const limit = settings.calorieLimit;
-  const over = Math.max(0, eaten - limit);
-  const pct = limit > 0 ? Math.min(100, (eaten / limit) * 100) : 100;
+  const over = Math.max(0, net - limit);
+  const pct = limit > 0 ? Math.min(100, Math.max(0, (net / limit) * 100)) : 100;
+
+  // Calorie goals from the latest weight log + body profile (recomputed daily).
+  const weightKg = dayLogs.find((l) => l.kind === "weight")?.weightKg ?? null;
+  const goals = weightKg
+    ? calorieGoals({
+        weightKg,
+        heightCm: settings.heightCm,
+        age: ageFromBirthday(settings.birthday, today),
+        sex: settings.sex,
+      })
+    : null;
 
   const submit = () => {
     const n = name.trim();
@@ -242,8 +304,9 @@ function FoodPanel() {
 
   return (
     <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
-      {/* LEFT: budget, saved foods, today's list, history */}
+      {/* LEFT: goals, budget, saved foods, today's list, history */}
       <div className="flex flex-col gap-4">
+      <GoalsCard goals={goals} />
       {/* Budget gauge */}
       <div className="clay flex flex-col gap-4 p-5" style={{ background: "var(--surface)" }}>
         <div className="flex items-start justify-between gap-2">
@@ -251,19 +314,22 @@ function FoodPanel() {
             <p className="flex items-baseline gap-2 leading-none">
               <Icon name="Flame" className="h-7 w-7 self-center" />
               <span className="text-4xl font-extrabold tracking-tight tabular-nums">
-                {eaten}
+                {net}
               </span>
               <span className="text-base font-bold text-ink-faint">
                 / {limit} kcal
               </span>
             </p>
+            <p className="mt-1 text-xs font-semibold text-ink-faint">
+              {eaten} eaten{burnt > 0 ? ` − ${burnt} burnt` : ""}
+            </p>
             {over > 0 ? (
-              <p className="mt-1 text-xs font-extrabold" style={{ color: "var(--bad-acc)" }}>
-                {over} kcal over · −{over} XP
+              <p className="mt-0.5 text-xs font-extrabold" style={{ color: "var(--bad-acc)" }}>
+                {over} kcal over
               </p>
             ) : (
-              <p className="mt-1 text-xs font-semibold text-ink-faint">
-                {limit - eaten} kcal left
+              <p className="mt-0.5 text-xs font-semibold text-ink-faint">
+                {limit - net} kcal left
               </p>
             )}
           </div>

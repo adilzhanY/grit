@@ -3,6 +3,7 @@ import { Modal, Pressable, ScrollView, TextInput, View } from "react-native";
 import {
   addDays,
   ageFromBirthday,
+  calorieGoals,
   fmtMinutes,
   fmtWeight,
   foodTotal,
@@ -15,6 +16,7 @@ import {
   walkCalories,
   weightLossXp,
   type BodySex,
+  type CalorieGoals,
   type DayLog,
   type DayLogKind,
   type FoodItem,
@@ -42,6 +44,38 @@ const FOOD_MACROS: { field: "calories" | "protein" | "carbs" | "fat"; icon: stri
   { field: "carbs", icon: "Wheat", suffix: "g" },
   { field: "fat", icon: "Droplets", suffix: "g" },
 ];
+
+const GOAL_TILES: { key: keyof CalorieGoals; label: string; rate: string; icon: string; color: string }[] = [
+  { key: "maintain", label: "Maintain", rate: "Keep weight", icon: "Scale", color: C.inkSoft },
+  { key: "gain", label: "Gain", rate: "+1 kg / wk", icon: "TrendingUp", color: C.coolAcc },
+  { key: "lose", label: "Lose", rate: "−0.5 kg / wk", icon: "TrendingDown", color: C.primary },
+  { key: "extremeLose", label: "Extreme", rate: "−1.1 kg / wk", icon: "Flame", color: C.badAcc },
+];
+
+/** Daily calorie targets per goal, from the latest weight + body profile. */
+function GoalsCard({ goals }: { goals: CalorieGoals | null }) {
+  return (
+    <Card>
+      <SectionTitle>Daily calorie targets</SectionTitle>
+      {goals ? (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+          {GOAL_TILES.map((g) => (
+            <View key={g.key} style={{ width: "48%", backgroundColor: C.page2, borderRadius: R.sm, padding: 12, gap: 2 }}>
+              <Icon name={g.icon} size={16} color={g.color} />
+              <Txt size={20} weight="extrabold">{goals[g.key]}</Txt>
+              <Txt size={12} weight="bold">{g.label}</Txt>
+              <Txt size={11} weight="medium" color={C.inkFaint}>{g.rate}</Txt>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <Txt size={13} weight="medium" color={C.inkFaint} style={{ marginTop: 6 }}>
+          Log your weight in the Weight tracker to see your calorie targets.
+        </Txt>
+      )}
+    </Card>
+  );
+}
 
 const TRACKERS: { kind: DayLogKind; label: string; icon: string; acc: string }[] = [
   { kind: "food", label: "Food", icon: "Flame", acc: C.mustAcc },
@@ -241,9 +275,25 @@ function FoodPanel() {
 
   const todays = dayLogs.filter((l) => l.kind === "food" && l.date === today);
   const eaten = foodTotal(todays, "calories");
+  // Calories burnt from today's walks reduce the effective (net) intake.
+  const burnt = dayLogs
+    .filter((l) => l.kind === "steps" && l.date === today)
+    .reduce((s, l) => s + (l.caloriesBurnt ?? 0), 0);
+  const net = eaten - burnt;
   const limit = settings.calorieLimit;
-  const over = Math.max(0, eaten - limit);
-  const pct = limit > 0 ? Math.min(100, (eaten / limit) * 100) : 100;
+  const over = Math.max(0, net - limit);
+  const pct = limit > 0 ? Math.min(100, Math.max(0, (net / limit) * 100)) : 100;
+
+  // Calorie goals from the latest weight log + body profile (recomputed daily).
+  const weightKg = dayLogs.find((l) => l.kind === "weight")?.weightKg ?? null;
+  const goals = weightKg
+    ? calorieGoals({
+        weightKg,
+        heightCm: settings.heightCm,
+        age: ageFromBirthday(settings.birthday, today),
+        sex: settings.sex,
+      })
+    : null;
 
   const submit = () => {
     if (!name.trim() || !calories) return;
@@ -254,18 +304,22 @@ function FoodPanel() {
   return (
     <View style={{ gap: 12 }}>
       <StreakBadge kind="food" color={C.mustAcc} />
+      <GoalsCard goals={goals} />
       <Card>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
           <View>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
               <Icon name="Flame" size={28} color={C.mustAcc} />
               <View style={{ flexDirection: "row", alignItems: "baseline", gap: 6 }}>
-                <Txt size={32} weight="extrabold">{eaten}</Txt>
+                <Txt size={32} weight="extrabold">{net}</Txt>
                 <Txt size={15} weight="bold" color={C.inkFaint}>/ {limit} kcal</Txt>
               </View>
             </View>
-            <Txt size={12} weight={over > 0 ? "extrabold" : "semibold"} color={over > 0 ? C.badAcc : C.inkFaint} style={{ marginTop: 2 }}>
-              {over > 0 ? `${over} kcal over · −${over} XP` : `${limit - eaten} kcal left`}
+            <Txt size={12} weight="semibold" color={C.inkFaint} style={{ marginTop: 2 }}>
+              {eaten} eaten{burnt > 0 ? ` − ${burnt} burnt` : ""}
+            </Txt>
+            <Txt size={12} weight={over > 0 ? "extrabold" : "semibold"} color={over > 0 ? C.badAcc : C.inkFaint} style={{ marginTop: 1 }}>
+              {over > 0 ? `${over} kcal over` : `${limit - net} kcal left`}
             </Txt>
           </View>
           {editingLimit ? (
