@@ -29,7 +29,7 @@ import { Icon } from "./src/components/Icon";
 import { Txt } from "./src/components/ui";
 
 function Root() {
-  const { tab } = useUi();
+  const { tab, setTab } = useUi();
   const { ready, settings } = useStore();
   const [account, setAccount] = useState(false);
   const name = settings.name?.trim() || "Adilzhan";
@@ -58,25 +58,46 @@ function Root() {
         <Txt size={16} weight="extrabold">
           Hello, {name}.
         </Txt>
-        <Pressable
-          onPress={() => setAccount(true)}
-          hitSlop={8}
-          style={{
-            width: 30,
-            height: 30,
-            borderRadius: 15,
-            backgroundColor: C.surface,
-            alignItems: "center",
-            justifyContent: "center",
-            shadowColor: "#141a18",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.12,
-            shadowRadius: 5,
-            elevation: 3,
-          }}
-        >
-          <Icon name="UserCircle" size={18} color={C.primary} />
-        </Pressable>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Pressable
+            onPress={() => setTab(tab === "stats" ? "today" : "stats")}
+            hitSlop={8}
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 15,
+              backgroundColor: tab === "stats" ? C.primary : C.surface,
+              alignItems: "center",
+              justifyContent: "center",
+              shadowColor: "#141a18",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.12,
+              shadowRadius: 5,
+              elevation: 3,
+            }}
+          >
+            <Icon name="ChartColumn" size={17} color={tab === "stats" ? "#fff" : C.primary} />
+          </Pressable>
+          <Pressable
+            onPress={() => setAccount(true)}
+            hitSlop={8}
+            style={{
+              width: 30,
+              height: 30,
+              borderRadius: 15,
+              backgroundColor: C.surface,
+              alignItems: "center",
+              justifyContent: "center",
+              shadowColor: "#141a18",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.12,
+              shadowRadius: 5,
+              elevation: 3,
+            }}
+          >
+            <Icon name="UserCircle" size={18} color={C.primary} />
+          </Pressable>
+        </View>
       </View>
 
       <View style={{ flex: 1 }}>

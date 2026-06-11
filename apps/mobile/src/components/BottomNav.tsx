@@ -11,7 +11,6 @@ const ITEMS: { tab: Tab; label: string; icon: string }[] = [
   { tab: "habits", label: "Habits", icon: "Flame" },
   { tab: "log", label: "Log", icon: "NotebookPen" },
   { tab: "focus", label: "Focus", icon: "Timer" },
-  { tab: "stats", label: "Stats", icon: "ChartColumn" },
 ];
 
 export function BottomNav() {

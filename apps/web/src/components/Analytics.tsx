@@ -249,6 +249,124 @@ const LEDGER_LABELS: Record<LedgerType, string> = {
   adjust: "Adjustments",
 };
 
+// ---------------- Day activity (logs + XP events) ----------------
+
+/** "Today" / "Yesterday" / "Thu, June 17". */
+function dayHeading(date: string, today: string): string {
+  if (date === today) return "Today";
+  if (date === addDays(today, -1)) return "Yesterday";
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+function logSummary(l: DayLog, unit: "kg" | "lbs"): string {
+  switch (l.kind) {
+    case "food":
+      return `${l.name ?? "Food"} · ${l.calories ?? 0} kcal`;
+    case "sleep":
+      return `Sleep · ${fmtMinutes(l.minutes ?? 0)}`;
+    case "steps":
+      return `${(l.steps ?? 0).toLocaleString()} steps${l.caloriesBurnt ? ` · ${l.caloriesBurnt} kcal` : ""}`;
+    case "reading":
+      return `Reading · ${fmtMinutes(l.minutes ?? 0)}`;
+    case "focus":
+      return `${l.name ?? "Focus"} · ${fmtMinutes(l.minutes ?? 0)}`;
+    case "weight":
+      return `Weight · ${fmtWeight(l.weightKg ?? 0, unit)}`;
+  }
+}
+
+function ActivityRow({ text, xp }: { text: string; xp: number }) {
+  return (
+    <div
+      className="flex items-center justify-between gap-2 rounded-xl px-3 py-2"
+      style={{ background: "var(--surface)" }}
+    >
+      <span className="min-w-0 flex-1 truncate text-sm font-semibold">{text}</span>
+      {xp !== 0 && (
+        <span
+          className="shrink-0 text-xs font-bold tabular-nums"
+          style={{ color: xp > 0 ? "var(--primary)" : "var(--bad-acc)" }}
+        >
+          {xp > 0 ? "+" : ""}
+          {xp}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** One day's daily-logs + XP events, side by side. */
+function DayPanel({
+  date,
+  heading,
+  dayLogs,
+  ledger,
+  unit,
+}: {
+  date: string;
+  heading?: string;
+  dayLogs: DayLog[];
+  ledger: LedgerEntry[];
+  unit: "kg" | "lbs";
+}) {
+  const logs = dayLogs
+    .filter((l) => l.date === date)
+    .sort((a, b) => b.loggedAt - a.loggedAt);
+  const events = ledger
+    .filter((e) => localDay(e.timestamp) === date)
+    .sort((a, b) => b.timestamp - a.timestamp);
+  const net = events.reduce((s, e) => s + e.delta, 0);
+  const empty = logs.length === 0 && events.length === 0;
+
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl p-4" style={{ background: "var(--page-2)" }}>
+      {heading && (
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-extrabold">{heading}</span>
+          {events.length > 0 && (
+            <span
+              className="text-xs font-bold tabular-nums"
+              style={{ color: net >= 0 ? "var(--primary)" : "var(--bad-acc)" }}
+            >
+              {net > 0 ? "+" : ""}
+              {net.toLocaleString()} XP
+            </span>
+          )}
+        </div>
+      )}
+      {empty ? (
+        <p className="text-sm font-medium text-ink-faint">Nothing logged on this day.</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-faint">Logs</p>
+            {logs.length === 0 ? (
+              <p className="text-sm font-medium text-ink-faint">No daily-log entries.</p>
+            ) : (
+              logs.map((l) => <ActivityRow key={l.id} text={logSummary(l, unit)} xp={l.awardedXp} />)
+            )}
+          </div>
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-ink-faint">XP events</p>
+            {events.length === 0 ? (
+              <p className="text-sm font-medium text-ink-faint">No XP events.</p>
+            ) : (
+              events.map((e) => (
+                <ActivityRow key={e.id} text={e.meta ?? LEDGER_LABELS[e.type]} xp={e.delta} />
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ---------------- The view ----------------
 
 export function Analytics() {
@@ -358,30 +476,8 @@ export function Analytics() {
     return vals.length ? Math.round(sum(s) / vals.length) : 0;
   };
 
-  // ---- Day explorer ----
-  const logsOnDate = dayLogs
-    .filter((l) => l.date === pickDate)
-    .sort((a, b) => b.loggedAt - a.loggedAt);
-  const eventsOnDate = ledger
-    .filter((e) => localDay(e.timestamp) === pickDate)
-    .sort((a, b) => b.timestamp - a.timestamp);
-
-  const logSummary = (l: DayLog): string => {
-    switch (l.kind) {
-      case "food":
-        return `${l.name ?? "Food"} · ${l.calories ?? 0} kcal`;
-      case "sleep":
-        return `Sleep · ${fmtMinutes(l.minutes ?? 0)}`;
-      case "steps":
-        return `${(l.steps ?? 0).toLocaleString()} steps${l.caloriesBurnt ? ` · ${l.caloriesBurnt} kcal` : ""}`;
-      case "reading":
-        return `Reading · ${fmtMinutes(l.minutes ?? 0)}`;
-      case "focus":
-        return `${l.name ?? "Focus"} · ${fmtMinutes(l.minutes ?? 0)}`;
-      case "weight":
-        return `Weight · ${fmtWeight(l.weightKg ?? 0, settings.weightUnit)}`;
-    }
-  };
+  // Recent activity: Today, Yesterday, and the 3 days before.
+  const recentDays = [0, 1, 2, 3, 4].map((i) => addDays(today, -i));
 
   const taskCount = tasks.length;
 
@@ -447,6 +543,26 @@ export function Analytics() {
         <Tile label="Total XP" value={level.totalXp.toLocaleString()} />
         <Tile label="XP this period" value={sum(xpSeries).toLocaleString()} />
         <Tile label="Active tasks" value={String(taskCount)} />
+      </div>
+
+      {/* Recent activity — Today, Yesterday, and the 3 days before */}
+      <div className="clay flex flex-col gap-3 p-5" style={{ background: "var(--surface)" }}>
+        <span className="flex items-center gap-2 text-sm font-bold">
+          <Icon name="CalendarClock" className="h-4.5 w-4.5 text-ink-soft" />
+          Recent activity
+        </span>
+        <div className="flex flex-col gap-3">
+          {recentDays.map((d) => (
+            <DayPanel
+              key={d}
+              date={d}
+              heading={dayHeading(d, today)}
+              dayLogs={dayLogs}
+              ledger={ledger}
+              unit={settings.weightUnit}
+            />
+          ))}
+        </div>
       </div>
 
       {/* Charts */}
@@ -544,62 +660,12 @@ export function Analytics() {
           />
         </div>
 
-        {logsOnDate.length === 0 && eventsOnDate.length === 0 ? (
-          <p className="text-sm font-medium text-ink-faint">Nothing logged on this day.</p>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div className="flex flex-col gap-2">
-              <p className="text-xs font-bold uppercase tracking-wider text-ink-faint">Logs</p>
-              {logsOnDate.length === 0 ? (
-                <p className="text-sm font-medium text-ink-faint">No daily-log entries.</p>
-              ) : (
-                logsOnDate.map((l) => (
-                  <div
-                    key={l.id}
-                    className="flex items-center justify-between gap-2 rounded-xl px-3 py-2"
-                    style={{ background: "var(--page-2)" }}
-                  >
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">{logSummary(l)}</span>
-                    {l.awardedXp !== 0 && (
-                      <span
-                        className="shrink-0 text-xs font-bold tabular-nums"
-                        style={{ color: l.awardedXp > 0 ? "var(--primary)" : "var(--bad-acc)" }}
-                      >
-                        {l.awardedXp > 0 ? "+" : ""}
-                        {l.awardedXp}
-                      </span>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="flex flex-col gap-2">
-              <p className="text-xs font-bold uppercase tracking-wider text-ink-faint">XP events</p>
-              {eventsOnDate.length === 0 ? (
-                <p className="text-sm font-medium text-ink-faint">No XP events.</p>
-              ) : (
-                eventsOnDate.map((e) => (
-                  <div
-                    key={e.id}
-                    className="flex items-center justify-between gap-2 rounded-xl px-3 py-2"
-                    style={{ background: "var(--page-2)" }}
-                  >
-                    <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-                      {e.meta ?? LEDGER_LABELS[e.type]}
-                    </span>
-                    <span
-                      className="shrink-0 text-xs font-bold tabular-nums"
-                      style={{ color: e.delta >= 0 ? "var(--primary)" : "var(--bad-acc)" }}
-                    >
-                      {e.delta > 0 ? "+" : ""}
-                      {e.delta}
-                    </span>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        )}
+        <DayPanel
+          date={pickDate}
+          dayLogs={dayLogs}
+          ledger={ledger}
+          unit={settings.weightUnit}
+        />
       </div>
     </div>
   );
