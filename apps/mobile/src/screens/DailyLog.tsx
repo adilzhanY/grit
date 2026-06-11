@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Modal, Pressable, ScrollView, TextInput, View } from "react-native";
 import {
+  addDays,
   ageFromBirthday,
   fmtMinutes,
   fmtWeight,
@@ -176,6 +177,54 @@ function History({ kind, render }: { kind: DayLogKind; render: (l: DayLog) => { 
   );
 }
 
+/** "Thu, June 17" for a YYYY-MM-DD that isn't today/yesterday. */
+function foodDayHeading(date: string, today: string): string {
+  if (date === today) return "Today";
+  if (date === addDays(today, -1)) return "Yesterday";
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+/** Food log grouped by day, capped to the 5 most recent days. */
+function FoodHistory() {
+  const { dayLogs, today } = useStore();
+  const logs = dayLogs.filter((l) => l.kind === "food");
+
+  const byDate = new Map<string, DayLog[]>();
+  for (const l of logs) {
+    const arr = byDate.get(l.date) ?? [];
+    arr.push(l);
+    byDate.set(l.date, arr);
+  }
+  const dates = [...byDate.keys()].sort().reverse().slice(0, 5);
+  if (dates.length === 0) return null;
+
+  return (
+    <View style={{ gap: 12 }}>
+      {dates.map((date) => {
+        const rows = [...byDate.get(date)!].sort((a, b) => b.loggedAt - a.loggedAt);
+        return (
+          <View key={date} style={{ gap: 8 }}>
+            <SectionTitle>{foodDayHeading(date, today)}</SectionTitle>
+            {rows.map((l) => (
+              <HistoryRow
+                key={l.id}
+                log={l}
+                title={l.name ?? "Food"}
+                detail={`${fmtClock(l.loggedAt)} · ${l.calories ?? 0} kcal · P${l.protein ?? 0} C${l.carbs ?? 0} F${l.fat ?? 0}`}
+              />
+            ))}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 // ---------------- Food ----------------
 function FoodPanel() {
   const { settings, foods, dayLogs, today, logFood, updateFood, removeFood, setCalorieLimit } = useStore();
@@ -315,7 +364,7 @@ function FoodPanel() {
         </View>
       </Card>
 
-      <History kind="food" render={(l) => ({ title: l.name ?? "Food", detail: `${fmtClock(l.loggedAt)} · ${l.calories ?? 0} kcal · P${l.protein ?? 0} C${l.carbs ?? 0} F${l.fat ?? 0}` })} />
+      <FoodHistory />
 
       <EditFoodModal
         food={editing}

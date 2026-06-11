@@ -71,11 +71,14 @@ function LogRow({
   icon,
   title,
   detail,
+  hideDay,
 }: {
   log: DayLog;
   icon: string;
   title: string;
   detail?: string;
+  /** Skip the "Today · " prefix — used when rows are grouped under a day header. */
+  hideDay?: boolean;
 }) {
   const { today, removeDayLog } = useStore();
   const confirm = useConfirm();
@@ -88,8 +91,7 @@ function LogRow({
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">{title}</p>
         <p className="text-xs font-medium text-ink-faint">
-          {dayLabel(log.date, today)}
-          {detail ? ` · ${detail}` : ""}
+          {hideDay ? detail : `${dayLabel(log.date, today)}${detail ? ` · ${detail}` : ""}`}
         </p>
       </div>
       {/* Weight logs only badge actual rewards — a "±0" would just be noise. */}
@@ -403,29 +405,7 @@ function FoodPanel() {
         </div>
       )}
 
-      {/* Today's foods */}
-      {todays.length > 0 && (
-        <div className="flex flex-col gap-2">
-          <SectionTitle>Today</SectionTitle>
-          {todays.map((l) => (
-            <LogRow
-              key={l.id}
-              log={l}
-              icon="Utensils"
-              title={l.name ?? "Food"}
-              detail={`${fmtClock(l.loggedAt)} · ${l.calories ?? 0} kcal · P${l.protein ?? 0} C${l.carbs ?? 0} F${l.fat ?? 0}`}
-            />
-          ))}
-        </div>
-      )}
-
-      <PastLogs
-        kind="food"
-        excludeToday
-        icon="Utensils"
-        title={(l) => l.name ?? "Food"}
-        detail={(l) => `${fmtClock(l.loggedAt)} · ${l.calories ?? 0} kcal`}
-      />
+      <FoodHistory />
       </div>
 
       {/* RIGHT: the log form, sticky so it stays in view while scrolling logs */}
@@ -477,6 +457,56 @@ function FoodPanel() {
           }}
         />
       )}
+    </div>
+  );
+}
+
+/** "Thu, June 17" for a YYYY-MM-DD that isn't today/yesterday. */
+function foodDayHeading(date: string, today: string): string {
+  if (date === today) return "Today";
+  if (date === addDays(today, -1)) return "Yesterday";
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: "short",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+/** Food log grouped by day, capped to the 5 most recent days. */
+function FoodHistory() {
+  const { dayLogs, today } = useStore();
+  const logs = dayLogs.filter((l) => l.kind === "food");
+
+  const byDate = new Map<string, DayLog[]>();
+  for (const l of logs) {
+    const arr = byDate.get(l.date) ?? [];
+    arr.push(l);
+    byDate.set(l.date, arr);
+  }
+  const dates = [...byDate.keys()].sort().reverse().slice(0, 5);
+  if (dates.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {dates.map((date) => {
+        const rows = [...byDate.get(date)!].sort((a, b) => b.loggedAt - a.loggedAt);
+        return (
+          <div key={date} className="flex flex-col gap-2">
+            <SectionTitle>{foodDayHeading(date, today)}</SectionTitle>
+            {rows.map((l) => (
+              <LogRow
+                key={l.id}
+                log={l}
+                icon="Utensils"
+                hideDay
+                title={l.name ?? "Food"}
+                detail={`${fmtClock(l.loggedAt)} · ${l.calories ?? 0} kcal · P${l.protein ?? 0} C${l.carbs ?? 0} F${l.fat ?? 0}`}
+              />
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
