@@ -51,7 +51,6 @@ const TRACKERS: { kind: DayLogKind; label: string; icon: string; acc: string }[]
 ];
 
 export function DailyLog() {
-  const { dayLogs, today } = useStore();
   const { logTab, setLogTab } = useUi();
 
   return (
@@ -60,49 +59,18 @@ export function DailyLog() {
         Daily Log
       </Txt>
 
-      {/* Tracker chooser */}
+      {/* Tracker chooser — compact chips, like the Habits page */}
       <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-        {TRACKERS.map((t) => {
-          const on = logTab === t.kind;
-          const { current, best } = logStreak(
-            dayLogs.filter((l) => l.kind === t.kind).map((l) => l.date),
-            today,
-          );
-          return (
-            <Pressable
-              key={t.kind}
-              onPress={() => setLogTab(t.kind)}
-              style={[
-                {
-                  width: "31%",
-                  borderRadius: R.md,
-                  padding: 12,
-                  backgroundColor: C.surface,
-                  borderWidth: on ? 2 : 0,
-                  borderColor: t.acc,
-                },
-                claySm(),
-              ]}
-            >
-              <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <View style={{ width: 34, height: 34, borderRadius: 12, backgroundColor: t.acc, alignItems: "center", justifyContent: "center" }}>
-                  <Icon name={t.icon} color="#fff" size={18} />
-                </View>
-                {best > 0 ? (
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 2, backgroundColor: current > 0 ? t.acc : C.page2, borderRadius: R.pill, paddingHorizontal: 7, paddingVertical: 3 }}>
-                    <Icon name="Flame" size={12} color={current > 0 ? "#fff" : C.inkFaint} />
-                    <Txt size={12} weight="extrabold" color={current > 0 ? "#fff" : C.inkFaint}>
-                      {current}
-                    </Txt>
-                  </View>
-                ) : null}
-              </View>
-              <Txt weight="extrabold" size={13} style={{ marginTop: 8 }}>
-                {t.label}
-              </Txt>
-            </Pressable>
-          );
-        })}
+        {TRACKERS.map((t) => (
+          <TrackerChip
+            key={t.kind}
+            icon={t.icon}
+            label={t.label}
+            on={logTab === t.kind}
+            color={t.acc}
+            onPress={() => setLogTab(t.kind)}
+          />
+        ))}
       </View>
 
       {logTab === "food" && <FoodPanel />}
@@ -111,6 +79,48 @@ export function DailyLog() {
       {logTab === "reading" && <ReadingPanel />}
       {logTab === "weight" && <WeightPanel />}
     </ScrollView>
+  );
+}
+
+/** Pill selector for a Daily Log tracker (matches the Habits chips). */
+function TrackerChip({ icon, label, on, color, onPress }: { icon: string; label: string; on: boolean; color: string; onPress: () => void }) {
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: R.pill, backgroundColor: on ? color : C.surface },
+        claySm(),
+      ]}
+    >
+      <Icon name={icon} size={16} color={on ? "#fff" : color} />
+      <Txt weight="bold" size={13} color={on ? "#fff" : C.inkSoft}>
+        {label}
+      </Txt>
+    </Pressable>
+  );
+}
+
+/** Current + best logging streak for a tracker, shown inside its panel. */
+function StreakBadge({ kind, color }: { kind: DayLogKind; color: string }) {
+  const { dayLogs, today } = useStore();
+  const { current, best } = logStreak(
+    dayLogs.filter((l) => l.kind === kind).map((l) => l.date),
+    today,
+  );
+  if (best === 0) return null;
+  const live = current > 0;
+  return (
+    <View style={{ flexDirection: "row", alignSelf: "flex-start", alignItems: "center", gap: 8, backgroundColor: C.surface, borderRadius: R.pill, paddingHorizontal: 12, paddingVertical: 7 }}>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+        <Icon name="Flame" size={15} color={live ? color : C.inkFaint} />
+        <Txt size={13} weight="extrabold" color={live ? color : C.inkFaint}>
+          {current} day{current === 1 ? "" : "s"}
+        </Txt>
+      </View>
+      <Txt size={12} weight="semibold" color={C.inkFaint}>
+        best {best}
+      </Txt>
+    </View>
   );
 }
 
@@ -194,6 +204,7 @@ function FoodPanel() {
 
   return (
     <View style={{ gap: 12 }}>
+      <StreakBadge kind="food" color={C.mustAcc} />
       <Card>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
           <View>
@@ -395,6 +406,7 @@ function SleepPanel() {
   const xp = minutes > 0 ? sleepXp(minutes) : 0;
   return (
     <View style={{ gap: 12 }}>
+      <StreakBadge kind="sleep" color={C.impAcc} />
       <Card>
         <SectionTitle>Log last night&apos;s sleep</SectionTitle>
         <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10, marginTop: 8 }}>
@@ -435,6 +447,7 @@ function StepsPanel() {
 
   return (
     <View style={{ gap: 12 }}>
+      <StreakBadge kind="steps" color={C.coolAcc} />
       <Card>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <SectionTitle>Body profile</SectionTitle>
@@ -505,6 +518,7 @@ function ReadingPanel() {
   const minutes = num(m);
   return (
     <View style={{ gap: 12 }}>
+      <StreakBadge kind="reading" color={C.primary} />
       <Card>
         <SectionTitle>Log a reading session</SectionTitle>
         <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10, marginTop: 8 }}>
@@ -545,6 +559,7 @@ function WeightPanel() {
 
   return (
     <View style={{ gap: 12 }}>
+      <StreakBadge kind="weight" color={C.impAcc} />
       <Card>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
           <SectionTitle>Log your weight</SectionTitle>
