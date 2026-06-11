@@ -11,6 +11,8 @@ interface UiValue {
   setLogTab: (k: DayLogKind) => void;
   /** Open the Log tab focused on a given tracker. */
   openLog: (k: DayLogKind) => void;
+  /** Bumps whenever openLog runs, so a panel can auto-focus its input. */
+  logFocusSignal: number;
 }
 
 const Ctx = createContext<UiValue | null>(null);
@@ -18,12 +20,14 @@ const Ctx = createContext<UiValue | null>(null);
 export function UiProvider({ children }: { children: React.ReactNode }) {
   const [tab, setTab] = useState<Tab>("today");
   const [logTab, setLogTab] = useState<DayLogKind>("food");
+  const [logFocusSignal, setLogFocusSignal] = useState(0);
   const openLog = (k: DayLogKind) => {
     setLogTab(k);
     setTab("log");
+    setLogFocusSignal((n) => n + 1);
   };
   return (
-    <Ctx.Provider value={{ tab, setTab, logTab, setLogTab, openLog }}>
+    <Ctx.Provider value={{ tab, setTab, logTab, setLogTab, openLog, logFocusSignal }}>
       {children}
     </Ctx.Provider>
   );

@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Modal, Pressable, ScrollView, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Modal, Pressable, ScrollView, TextInput, View } from "react-native";
 import {
   ageFromBirthday,
   fmtMinutes,
@@ -524,8 +524,16 @@ function ReadingPanel() {
 // ---------------- Weight ----------------
 function WeightPanel() {
   const { settings, dayLogs, today, logWeight, setWeightUnit } = useStore();
+  const { logFocusSignal } = useUi();
   const unit = settings.weightUnit;
   const [value, setValue] = useState("");
+  const inputRef = useRef<TextInput>(null);
+
+  // When opened via the + menu, drop the cursor straight into the field.
+  useEffect(() => {
+    const t = setTimeout(() => inputRef.current?.focus(), 350);
+    return () => clearTimeout(t);
+  }, [logFocusSignal]);
   const logs = dayLogs.filter((l) => l.kind === "weight");
   const latest = logs[0];
   const todays = logs.find((l) => l.date === today);
@@ -549,7 +557,7 @@ function WeightPanel() {
           </View>
         </View>
         <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10, marginTop: 10 }}>
-          <NumberField label="Weight" value={value} onChange={setValue} suffix={unit} width={130} />
+          <NumberField ref={inputRef} label="Weight" value={value} onChange={setValue} suffix={unit} width={130} />
           <View style={{ flex: 1 }} />
           {previewXp > 0 ? <Pill {...xpPillProps(previewXp)} /> : null}
         </View>

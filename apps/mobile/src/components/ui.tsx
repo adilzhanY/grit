@@ -133,21 +133,17 @@ export function PrimaryButton({
   );
 }
 
-export function NumberField({
-  label,
-  value,
-  onChange,
-  suffix,
-  width,
-  placeholder = "0",
-}: {
-  label?: string;
-  value: string;
-  onChange: (v: string) => void;
-  suffix?: string;
-  width?: number;
-  placeholder?: string;
-}) {
+export const NumberField = React.forwardRef<
+  TextInput,
+  {
+    label?: string;
+    value: string;
+    onChange: (v: string) => void;
+    suffix?: string;
+    width?: number;
+    placeholder?: string;
+  }
+>(function NumberField({ label, value, onChange, suffix, width, placeholder = "0" }, ref) {
   return (
     <View style={{ gap: 4, width }}>
       {label ? (
@@ -167,6 +163,7 @@ export function NumberField({
         }}
       >
         <TextInput
+          ref={ref}
           value={value}
           onChangeText={onChange}
           keyboardType="numeric"
@@ -182,7 +179,7 @@ export function NumberField({
       </View>
     </View>
   );
-}
+});
 
 export function TextField({
   value,
