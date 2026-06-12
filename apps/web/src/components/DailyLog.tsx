@@ -877,6 +877,8 @@ function StepsPanel() {
   const [amount, setAmount] = useState("");
   const [hours, setHours] = useState("");
   const [mins, setMins] = useState("");
+  const [burn, setBurn] = useState("");
+  const burnVal = num(burn);
   const value = num(amount);
   const minutes = num(hours) * 60 + num(mins);
   const xp = mode === "steps" ? stepsXp(value, 0) : stepsXp(0, value);
@@ -1020,6 +1022,34 @@ function StepsPanel() {
         </p>
       </div>
 
+      {/* Manual burnt-calorie entry — for workouts the step model can't cover. */}
+      <div className="clay flex flex-col gap-3 p-5" style={{ background: "var(--surface)" }}>
+        <SectionTitle>Log burnt calories</SectionTitle>
+        <div className="flex flex-wrap items-end gap-3">
+          <NumberField
+            label="Calories burnt"
+            icon="Flame"
+            value={burn}
+            onChange={setBurn}
+            suffix="kcal"
+            width="w-44"
+          />
+          <div className="flex-1" />
+          <LogButton
+            onClick={() => {
+              void logSteps({ caloriesBurnt: burnVal });
+              setBurn("");
+            }}
+            disabled={burnVal <= 0}
+          >
+            Log
+          </LogButton>
+        </div>
+        <p className="text-xs font-medium text-ink-faint">
+          Counts straight toward today&apos;s net calories. No XP — just the burn.
+        </p>
+      </div>
+
       {all.length > 0 && (
         <div
           className="flex items-center justify-around rounded-2xl p-4 text-center"
@@ -1054,6 +1084,8 @@ function StepsPanel() {
         kind="steps"
         icon="Footprints"
         title={(l) => {
+          // A burn-only entry (manual calories) has no steps or meters.
+          if (!l.steps && !l.meters) return "Calories burnt";
           const base = l.steps
             ? `${l.steps.toLocaleString()} steps`
             : `${(l.meters ?? 0).toLocaleString()} m`;

@@ -141,6 +141,7 @@ interface StoreValue {
     meters?: number;
     minutes?: number;
     activity?: GaitActivity;
+    caloriesBurnt?: number;
   }) => Promise<void>;
   logReading: (minutes: number) => Promise<void>;
   removeDayLog: (id: string) => Promise<void>;
@@ -641,7 +642,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   );
 
   const logSteps = useCallback(
-    async (input: { steps?: number; meters?: number; minutes?: number; activity?: GaitActivity }) => {
+    async (input: { steps?: number; meters?: number; minutes?: number; activity?: GaitActivity; caloriesBurnt?: number }) => {
       unlockAudio();
       const log = await repoAddStepsLog(input);
       if (log.awardedXp > 0) play("good");

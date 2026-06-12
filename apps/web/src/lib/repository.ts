@@ -772,6 +772,8 @@ export async function addStepsLog(input: {
   meters?: number;
   minutes?: number;
   activity?: GaitActivity;
+  /** Directly logged burnt calories — overrides the body-model estimate. */
+  caloriesBurnt?: number;
 }): Promise<DayLog> {
   const steps = input.steps ?? 0;
   const meters = input.meters ?? 0;
@@ -815,7 +817,8 @@ export async function addStepsLog(input: {
     meters: input.meters,
     minutes: minutes > 0 ? minutes : undefined,
     activity: isRun ? "run" : undefined,
-    caloriesBurnt,
+    // A directly entered burn wins over the estimate.
+    caloriesBurnt: input.caloriesBurnt ?? caloriesBurnt,
   });
 }
 

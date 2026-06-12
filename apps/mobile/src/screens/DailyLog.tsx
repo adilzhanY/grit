@@ -643,8 +643,10 @@ function StepsPanel() {
   const [amount, setAmount] = useState("");
   const [h, setH] = useState("");
   const [m, setM] = useState("");
+  const [burn, setBurn] = useState("");
   const value = num(amount);
   const minutes = num(h) * 60 + num(m);
+  const burnVal = num(burn);
   const weightKg = dayLogs.find((l) => l.kind === "weight")?.weightKg ?? null;
   const age = ageFromBirthday(settings.birthday, today);
 
@@ -730,10 +732,23 @@ function StepsPanel() {
         </View>
       </Card>
 
+      {/* Manual burnt-calorie entry — for workouts the step model can't cover. */}
+      <Card>
+        <SectionTitle>Log burnt calories</SectionTitle>
+        <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 8 }}>
+          <NumberField label="Calories burnt" value={burn} onChange={setBurn} suffix="kcal" width={150} />
+          <PrimaryButton label="Log" onPress={() => { void logSteps({ caloriesBurnt: burnVal }); setBurn(""); }} disabled={burnVal <= 0} />
+        </View>
+        <Txt size={12} weight="medium" color={C.inkFaint} style={{ marginTop: 10 }}>
+          Counts straight toward today&apos;s net calories. No XP — just the burn.
+        </Txt>
+      </Card>
+
       <History kind="steps" render={(l) => {
+        const burnOnly = !l.steps && !l.meters;
         const base = l.steps ? `${l.steps.toLocaleString()} steps` : `${(l.meters ?? 0).toLocaleString()} m`;
         return {
-          title: l.activity === "run" ? `${base} · Run` : base,
+          title: burnOnly ? "Calories burnt" : l.activity === "run" ? `${base} · Run` : base,
           detail: [l.minutes ? fmtMinutes(l.minutes) : "", l.caloriesBurnt ? `${l.caloriesBurnt} kcal` : ""].filter(Boolean).join(" · "),
         };
       }} />

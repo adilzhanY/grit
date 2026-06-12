@@ -262,7 +262,7 @@ interface StoreValue {
   removeFood: (id: string) => Promise<void>;
   setCalorieLimit: (n: number) => Promise<void>;
   logSleep: (minutes: number) => Promise<void>;
-  logSteps: (input: { steps?: number; meters?: number; minutes?: number; activity?: GaitActivity }) => Promise<void>;
+  logSteps: (input: { steps?: number; meters?: number; minutes?: number; activity?: GaitActivity; caloriesBurnt?: number }) => Promise<void>;
   logReading: (minutes: number) => Promise<void>;
   logWeight: (kg: number) => Promise<void>;
   setWeightUnit: (u: WeightUnit) => Promise<void>;
@@ -750,7 +750,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [commit]);
 
   const logSteps = cb(
-    async (input: { steps?: number; meters?: number; minutes?: number; activity?: GaitActivity }) => {
+    async (input: { steps?: number; meters?: number; minutes?: number; activity?: GaitActivity; caloriesBurnt?: number }) => {
       unlockAudio();
       const db = dbRef.current;
       const steps = input.steps ?? 0;
@@ -791,7 +791,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         meters: input.meters,
         minutes: minutes > 0 ? minutes : undefined,
         activity: isRun ? "run" : undefined,
-        caloriesBurnt,
+        // A directly entered burn wins over the estimate.
+        caloriesBurnt: input.caloriesBurnt ?? caloriesBurnt,
       }));
       if (xp > 0) play("good");
       commit();
