@@ -543,22 +543,38 @@ function foodDayHeading(date: string, today: string): string {
   });
 }
 
+/** Net-calorie green — signals "under budget after the burn", a good thing. */
+const GOOD_GREEN = "#1f9d55";
+
 /** A day's macro totals as a compact horizontal badge of icons + numbers. */
-function DayMacroTotals({ rows }: { rows: DayLog[] }) {
+function DayMacroTotals({ rows, burnt }: { rows: DayLog[]; burnt: number }) {
   const sum = (k: "calories" | "protein" | "carbs" | "fat") =>
     rows.reduce((n, l) => n + (l[k] ?? 0), 0);
-  const segs: { icon: string; value: string; color: string }[] = [
-    { icon: "Flame", value: `${sum("calories")}`, color: "var(--must-acc)" },
+  const eaten = sum("calories");
+  const macros: { icon: string; value: string; color: string }[] = [
     { icon: "Beef", value: `${sum("protein")}g`, color: "var(--bad-acc)" },
     { icon: "Wheat", value: `${sum("carbs")}g`, color: "var(--cool-acc)" },
     { icon: "Droplets", value: `${sum("fat")}g`, color: "var(--imp-acc)" },
   ];
   return (
     <div
-      className="flex shrink-0 items-center gap-2.5 rounded-full px-3 py-1"
+      className="flex shrink-0 flex-wrap items-center justify-end gap-x-2.5 gap-y-1 rounded-full px-3 py-1"
       style={{ background: "var(--page-2)" }}
     >
-      {segs.map((s) => (
+      <span className="flex items-center gap-1" style={{ color: "var(--must-acc)" }}>
+        <Icon name="Flame" className="h-3.5 w-3.5" />
+        <span className="text-xs font-extrabold tabular-nums text-ink">
+          {burnt > 0 ? (
+            <>
+              {eaten} − {burnt} ={" "}
+              <span style={{ color: GOOD_GREEN }}>{eaten - burnt}</span>
+            </>
+          ) : (
+            eaten
+          )}
+        </span>
+      </span>
+      {macros.map((s) => (
         <span key={s.icon} className="flex items-center gap-1" style={{ color: s.color }}>
           <Icon name={s.icon} className="h-3.5 w-3.5" />
           <span className="text-xs font-extrabold tabular-nums text-ink">{s.value}</span>
@@ -579,6 +595,12 @@ function FoodHistory() {
     arr.push(l);
     byDate.set(l.date, arr);
   }
+  // Calories burnt that day (from steps logs) net out of the day's intake.
+  const burntByDate = new Map<string, number>();
+  for (const l of dayLogs) {
+    if (l.kind !== "steps") continue;
+    burntByDate.set(l.date, (burntByDate.get(l.date) ?? 0) + (l.caloriesBurnt ?? 0));
+  }
   const dates = [...byDate.keys()].sort().reverse().slice(0, 5);
   if (dates.length === 0) return null;
 
@@ -590,7 +612,7 @@ function FoodHistory() {
           <div key={date} className="flex flex-col gap-2">
             <div className="flex items-center justify-between gap-2">
               <SectionTitle>{foodDayHeading(date, today)}</SectionTitle>
-              <DayMacroTotals rows={rows} />
+              <DayMacroTotals rows={rows} burnt={burntByDate.get(date) ?? 0} />
             </div>
             {rows.map((l) => (
               <LogRow

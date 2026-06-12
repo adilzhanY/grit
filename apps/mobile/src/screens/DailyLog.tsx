@@ -224,12 +224,15 @@ function foodDayHeading(date: string, today: string): string {
   });
 }
 
+/** Net-calorie green — signals "under budget after the burn", a good thing. */
+const GOOD_GREEN = "#1f9d55";
+
 /** A day's macro totals as a compact horizontal badge of icons + numbers. */
-function DayMacroTotals({ rows }: { rows: DayLog[] }) {
+function DayMacroTotals({ rows, burnt }: { rows: DayLog[]; burnt: number }) {
   const sum = (k: "calories" | "protein" | "carbs" | "fat") =>
     rows.reduce((n, l) => n + (l[k] ?? 0), 0);
-  const segs: { icon: string; value: string; color: string }[] = [
-    { icon: "Flame", value: `${sum("calories")}`, color: C.mustAcc },
+  const eaten = sum("calories");
+  const macros: { icon: string; value: string; color: string }[] = [
     { icon: "Beef", value: `${sum("protein")}g`, color: C.badAcc },
     { icon: "Wheat", value: `${sum("carbs")}g`, color: C.coolAcc },
     { icon: "Droplets", value: `${sum("fat")}g`, color: C.impAcc },
@@ -239,14 +242,28 @@ function DayMacroTotals({ rows }: { rows: DayLog[] }) {
       style={{
         flexDirection: "row",
         alignItems: "center",
-        gap: 9,
+        flexWrap: "wrap",
+        justifyContent: "flex-end",
+        flexShrink: 1,
+        rowGap: 4,
+        columnGap: 9,
         backgroundColor: C.page2,
         borderRadius: R.pill,
         paddingHorizontal: 11,
         paddingVertical: 5,
       }}
     >
-      {segs.map((s) => (
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+        <Icon name="Flame" size={13} color={C.mustAcc} />
+        {burnt > 0 ? (
+          <Txt size={12} weight="extrabold">
+            {eaten} − {burnt} = <Txt size={12} weight="extrabold" color={GOOD_GREEN}>{eaten - burnt}</Txt>
+          </Txt>
+        ) : (
+          <Txt size={12} weight="extrabold">{eaten}</Txt>
+        )}
+      </View>
+      {macros.map((s) => (
         <View key={s.icon} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
           <Icon name={s.icon} size={13} color={s.color} />
           <Txt size={12} weight="extrabold">{s.value}</Txt>
@@ -267,6 +284,12 @@ function FoodHistory() {
     arr.push(l);
     byDate.set(l.date, arr);
   }
+  // Calories burnt that day (from steps logs) net out of the day's intake.
+  const burntByDate = new Map<string, number>();
+  for (const l of dayLogs) {
+    if (l.kind !== "steps") continue;
+    burntByDate.set(l.date, (burntByDate.get(l.date) ?? 0) + (l.caloriesBurnt ?? 0));
+  }
   const dates = [...byDate.keys()].sort().reverse().slice(0, 5);
   if (dates.length === 0) return null;
 
@@ -285,7 +308,7 @@ function FoodHistory() {
               }}
             >
               <SectionTitle>{foodDayHeading(date, today)}</SectionTitle>
-              <DayMacroTotals rows={rows} />
+              <DayMacroTotals rows={rows} burnt={burntByDate.get(date) ?? 0} />
             </View>
             {rows.map((l) => (
               <HistoryRow
