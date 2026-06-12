@@ -122,6 +122,14 @@ interface StoreValue {
     input: { name: string; calories: number; protein: number; carbs: number; fat: number },
     save?: boolean,
   ) => Promise<void>;
+  /** Add a food to the saved-foods library (no log entry). */
+  saveFood: (input: {
+    name: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  }) => Promise<void>;
   updateFood: (
     id: string,
     patch: { name: string; calories: number; protein: number; carbs: number; fat: number },
@@ -589,6 +597,20 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [refresh],
   );
 
+  const saveFood = useCallback(
+    async (input: {
+      name: string;
+      calories: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+    }) => {
+      await repoSaveFood(input);
+      await refresh(false);
+    },
+    [refresh],
+  );
+
   const updateFood = useCallback(
     async (
       id: string,
@@ -801,6 +823,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     foods,
     dayLogs,
     logFood,
+    saveFood,
     updateFood,
     removeFood,
     logSleep,

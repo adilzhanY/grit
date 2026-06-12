@@ -247,6 +247,14 @@ interface StoreValue {
     input: { name: string; calories: number; protein: number; carbs: number; fat: number },
     save?: boolean,
   ) => Promise<void>;
+  /** Add a food to the saved-foods library (no log entry). */
+  saveFood: (input: {
+    name: string;
+    calories: number;
+    protein: number;
+    carbs: number;
+    fat: number;
+  }) => Promise<void>;
   updateFood: (
     id: string,
     patch: { name: string; calories: number; protein: number; carbs: number; fat: number },
@@ -684,6 +692,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (save && !db.foods.some((f) => f.name.toLowerCase() === input.name.toLowerCase())) {
         db.foods.push(stamp({ id: uid(), createdAt: Date.now(), ...input }));
       }
+      commit();
+    },
+    [commit],
+  );
+
+  const saveFood = cb(
+    async (input: {
+      name: string;
+      calories: number;
+      protein: number;
+      carbs: number;
+      fat: number;
+    }) => {
+      const db = dbRef.current;
+      if (db.foods.some((f) => f.name.toLowerCase() === input.name.toLowerCase())) return;
+      db.foods.push(stamp({ id: uid(), createdAt: Date.now(), ...input }));
       commit();
     },
     [commit],
@@ -1152,6 +1176,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       renameList,
       removeList,
       logFood,
+      saveFood,
       updateFood,
       removeFood,
       setCalorieLimit,

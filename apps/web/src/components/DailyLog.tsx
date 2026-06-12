@@ -122,6 +122,8 @@ function LogRow({
   title,
   detail,
   hideDay,
+  onSave,
+  saved,
 }: {
   log: DayLog;
   icon: string;
@@ -129,6 +131,10 @@ function LogRow({
   detail?: string;
   /** Skip the "Today · " prefix — used when rows are grouped under a day header. */
   hideDay?: boolean;
+  /** Food rows only: save this entry to the saved-foods library. */
+  onSave?: () => void;
+  /** Whether a saved food with this name already exists. */
+  saved?: boolean;
 }) {
   const { today, removeDayLog } = useStore();
   const confirm = useConfirm();
@@ -146,6 +152,22 @@ function LogRow({
       </div>
       {/* Weight logs only badge actual rewards — a "±0" would just be noise. */}
       {(log.kind !== "weight" || log.awardedXp !== 0) && xpBadge(log.awardedXp)}
+      {onSave && (
+        <button
+          onClick={() => !saved && onSave()}
+          disabled={saved}
+          aria-label={saved ? "Already in saved foods" : "Save to saved foods"}
+          title={saved ? "Already in saved foods" : "Save to saved foods"}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-full transition-opacity focus-visible:opacity-100 group-hover:opacity-100 disabled:cursor-default"
+          style={{
+            color: saved ? "var(--cool-acc)" : "var(--ink-faint)",
+            opacity: saved ? 1 : 0,
+            cursor: saved ? "default" : "pointer",
+          }}
+        >
+          <Icon name={saved ? "BookmarkCheck" : "BookmarkPlus"} className="h-4 w-4" />
+        </button>
+      )}
       <button
         onClick={async () => {
           if (
@@ -586,8 +608,9 @@ function DayMacroTotals({ rows, burnt }: { rows: DayLog[]; burnt: number }) {
 
 /** Food log grouped by day, capped to the 5 most recent days. */
 function FoodHistory() {
-  const { dayLogs, today } = useStore();
+  const { dayLogs, today, foods, saveFood } = useStore();
   const logs = dayLogs.filter((l) => l.kind === "food");
+  const savedNames = new Set(foods.map((f) => f.name.trim().toLowerCase()));
 
   const byDate = new Map<string, DayLog[]>();
   for (const l of logs) {
@@ -614,16 +637,29 @@ function FoodHistory() {
               <SectionTitle>{foodDayHeading(date, today)}</SectionTitle>
               <DayMacroTotals rows={rows} burnt={burntByDate.get(date) ?? 0} />
             </div>
-            {rows.map((l) => (
-              <LogRow
-                key={l.id}
-                log={l}
-                icon="Utensils"
-                hideDay
-                title={l.name ?? "Food"}
-                detail={`${fmtClock(l.loggedAt)} · ${l.calories ?? 0} kcal · P${l.protein ?? 0} C${l.carbs ?? 0} F${l.fat ?? 0}`}
-              />
-            ))}
+            {rows.map((l) => {
+              const name = l.name ?? "Food";
+              return (
+                <LogRow
+                  key={l.id}
+                  log={l}
+                  icon="Utensils"
+                  hideDay
+                  title={name}
+                  detail={`${fmtClock(l.loggedAt)} · ${l.calories ?? 0} kcal · P${l.protein ?? 0} C${l.carbs ?? 0} F${l.fat ?? 0}`}
+                  saved={savedNames.has(name.trim().toLowerCase())}
+                  onSave={() =>
+                    saveFood({
+                      name,
+                      calories: l.calories ?? 0,
+                      protein: l.protein ?? 0,
+                      carbs: l.carbs ?? 0,
+                      fat: l.fat ?? 0,
+                    })
+                  }
+                />
+              );
+            })}
           </div>
         );
       })}

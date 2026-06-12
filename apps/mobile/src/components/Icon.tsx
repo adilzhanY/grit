@@ -2,6 +2,8 @@
 import {
   BellRing,
   BookOpen,
+  BookmarkCheck,
+  BookmarkPlus,
   Beef,
   Cake,
   CalendarCheck,
@@ -49,7 +51,7 @@ import {
 import { C } from "../theme";
 
 const MAP: Record<string, LucideIcon> = {
-  BellRing, BookOpen, Beef, Cake, CalendarCheck, CalendarClock, CalendarDays, ChartColumn,
+  BellRing, BookOpen, BookmarkCheck, BookmarkPlus, Beef, Cake, CalendarCheck, CalendarClock, CalendarDays, ChartColumn,
   Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, Clock, Coffee, Droplets, Flame, Footprints,
   Gauge, ListChecks, ListPlus, Moon, Mountain, NotebookPen, Pause, Pencil, Play, Plus,
   Repeat, Ruler, Save, Scale, Skull, Sparkles, Star, Sun, Timer, TrendingDown,

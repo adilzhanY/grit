@@ -168,7 +168,21 @@ function xpPillProps(xp: number) {
   };
 }
 
-function HistoryRow({ log, title, detail }: { log: DayLog; title: string; detail?: string }) {
+function HistoryRow({
+  log,
+  title,
+  detail,
+  onSave,
+  saved,
+}: {
+  log: DayLog;
+  title: string;
+  detail?: string;
+  /** Food rows only: save this entry to the saved-foods library. */
+  onSave?: () => void;
+  /** Whether a saved food with this name already exists. */
+  saved?: boolean;
+}) {
   const { removeDayLog } = useStore();
   const confirm = useConfirm();
   return (
@@ -184,6 +198,20 @@ function HistoryRow({ log, title, detail }: { log: DayLog; title: string; detail
         ) : null}
       </View>
       {log.awardedXp !== 0 ? <Pill {...xpPillProps(log.awardedXp)} /> : null}
+      {onSave ? (
+        <Pressable
+          onPress={() => !saved && onSave()}
+          disabled={saved}
+          hitSlop={8}
+          style={{ padding: 4 }}
+        >
+          <Icon
+            name={saved ? "BookmarkCheck" : "BookmarkPlus"}
+            size={16}
+            color={saved ? C.coolAcc : C.inkFaint}
+          />
+        </Pressable>
+      ) : null}
       <Pressable
         onPress={async () => {
           if (await confirm({ title: "Delete this log?", message: "Its XP will be reversed.", confirmLabel: "Delete" }))
@@ -275,8 +303,9 @@ function DayMacroTotals({ rows, burnt }: { rows: DayLog[]; burnt: number }) {
 
 /** Food log grouped by day, capped to the 5 most recent days. */
 function FoodHistory() {
-  const { dayLogs, today } = useStore();
+  const { dayLogs, today, foods, saveFood } = useStore();
   const logs = dayLogs.filter((l) => l.kind === "food");
+  const savedNames = new Set(foods.map((f) => f.name.trim().toLowerCase()));
 
   const byDate = new Map<string, DayLog[]>();
   for (const l of logs) {
@@ -310,14 +339,27 @@ function FoodHistory() {
               <SectionTitle>{foodDayHeading(date, today)}</SectionTitle>
               <DayMacroTotals rows={rows} burnt={burntByDate.get(date) ?? 0} />
             </View>
-            {rows.map((l) => (
-              <HistoryRow
-                key={l.id}
-                log={l}
-                title={l.name ?? "Food"}
-                detail={`${fmtClock(l.loggedAt)} · ${l.calories ?? 0} kcal · P${l.protein ?? 0} C${l.carbs ?? 0} F${l.fat ?? 0}`}
-              />
-            ))}
+            {rows.map((l) => {
+              const name = l.name ?? "Food";
+              return (
+                <HistoryRow
+                  key={l.id}
+                  log={l}
+                  title={name}
+                  detail={`${fmtClock(l.loggedAt)} · ${l.calories ?? 0} kcal · P${l.protein ?? 0} C${l.carbs ?? 0} F${l.fat ?? 0}`}
+                  saved={savedNames.has(name.trim().toLowerCase())}
+                  onSave={() =>
+                    saveFood({
+                      name,
+                      calories: l.calories ?? 0,
+                      protein: l.protein ?? 0,
+                      carbs: l.carbs ?? 0,
+                      fat: l.fat ?? 0,
+                    })
+                  }
+                />
+              );
+            })}
           </View>
         );
       })}
