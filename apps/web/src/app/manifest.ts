@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "grit",
-    short_name: "grit",
+    name: "Grit - Life Tracker",
+    short_name: "Grit",
     description:
       "Gamified habit tracker. Do good, gain XP, level up. Avoid the bad.",
     start_url: "/",

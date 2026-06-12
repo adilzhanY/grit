@@ -12,13 +12,13 @@ const onest = Onest({
 });
 
 export const metadata: Metadata = {
-  title: "grit",
+  title: "Grit - Life Tracker",
   description: "Gamified habit tracker. Do good, gain XP, level up. Avoid the bad.",
-  applicationName: "grit",
+  applicationName: "Grit",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "grit",
+    title: "Grit",
   },
 };
 
