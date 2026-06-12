@@ -101,15 +101,18 @@ export function byXp(tasks: Task[]): Task[] {
 
 /**
  * My Day's priority ladder (lower rank = nearer the top):
- *   0. Important (starred)   1. Repeated (recurring)   2. Must   3. anything else
- * A task is ranked by the first rung it matches, so an important recurring Must
- * lands in Important. Within a rung, higher XP wins, then manual `order`.
+ *   0. Added here ("Add a task for today…" — a pinned/planned one-shot)
+ *   1. Important (starred)   2. Repeated (recurring)   3. Must   4. anything else
+ * A task is ranked by the first rung it matches. Within a rung, higher XP wins,
+ * then manual `order`.
  */
 function myDayRank(t: Task): number {
-  if (t.important) return 0;
-  if (t.recurrence) return 1;
-  if (t.listType === "must") return 2;
-  return 3;
+  // One-shots dropped straight into My Day live at the top.
+  if (!t.recurrence && (t.starredMyDay || t.plannedFor)) return 0;
+  if (t.important) return 1;
+  if (t.recurrence) return 2;
+  if (t.listType === "must") return 3;
+  return 4;
 }
 
 /** Order My Day tasks by the priority ladder, then XP within each rung. Pure. */
