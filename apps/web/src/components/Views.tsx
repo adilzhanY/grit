@@ -4,7 +4,7 @@ import { Children, useEffect, useState } from "react";
 import type { ListType, Task } from "@/lib/types";
 import { LIST_META } from "@/lib/types";
 import { LIST_TINT } from "@/lib/tint";
-import { dayLabel, importantTasks, myDayTasks, plannedDays } from "@/lib/schedule";
+import { byMyDayPriority, byXp, dayLabel, importantTasks, myDayTasks, plannedDays } from "@/lib/schedule";
 import { useStore } from "@/lib/store";
 import { parseListView, useUi } from "@/lib/ui";
 import { XpHero } from "./XpHero";
@@ -120,7 +120,8 @@ function CardColumns({ children }: { children: React.ReactNode }) {
 
 function MyDay() {
   const { tasks, today, completedToday } = useStore();
-  const all = myDayTasks(tasks, today);
+  // My Day orders by its own priority ladder (Important → Repeated → Must → rest).
+  const all = byMyDayPriority(myDayTasks(tasks, today));
   // Recurring tasks are "done" when completed today; one-shots when archived.
   const isDone = (t: Task) =>
     t.recurrence ? completedToday.has(t.id) : t.archived;
@@ -168,7 +169,7 @@ function MyDay() {
 
 function ImportantList() {
   const { tasks } = useStore();
-  const important = importantTasks(tasks);
+  const important = byXp(importantTasks(tasks));
 
   return (
     <div className={grid}>
@@ -273,7 +274,7 @@ function PlannedList() {
         <EmptyHint text="Nothing planned. Add a task in My Day with a future date, or set up recurring Must tasks." />
       )}
       {days.map((d) => (
-        <PlannedDay key={d.day} day={d.day} today={today} tasks={d.tasks} />
+        <PlannedDay key={d.day} day={d.day} today={today} tasks={byXp(d.tasks)} />
       ))}
     </div>
   );
@@ -302,8 +303,8 @@ function PositiveList({ listType }: { listType: ListType }) {
   const { tasks } = useStore();
   const [heatmap, setHeatmap] = useState(false);
   const all = tasks.filter((t) => t.listType === listType);
-  const active = all.filter((t) => !t.archived);
-  const achieved = all.filter((t) => t.archived);
+  const active = byXp(all.filter((t) => !t.archived));
+  const achieved = byXp(all.filter((t) => t.archived));
 
   if (listType === "must" && heatmap) {
     return (
@@ -404,8 +405,8 @@ function CustomListView({ listId }: { listId: string }) {
   }
 
   const all = tasks.filter((t) => t.listId === listId);
-  const active = all.filter((t) => !t.archived);
-  const done = all.filter((t) => t.archived);
+  const active = byXp(all.filter((t) => !t.archived));
+  const done = byXp(all.filter((t) => t.archived));
 
   const startEdit = () => {
     setDraft(list.name);

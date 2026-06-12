@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
-import { dayLabel, plannedDays, type Task } from "@grit/core";
+import { byXp, dayLabel, plannedDays, type Task } from "@grit/core";
 import { useStore } from "../lib/store";
 import { C } from "../theme";
 import { TaskCard } from "../components/TaskCard";
@@ -25,7 +25,7 @@ export function Planned() {
       ) : null}
 
       {days.map((d) => (
-        <PlannedDay key={d.day} day={d.day} today={today} tasks={d.tasks} />
+        <PlannedDay key={d.day} day={d.day} today={today} tasks={byXp(d.tasks)} />
       ))}
     </ScrollView>
   );

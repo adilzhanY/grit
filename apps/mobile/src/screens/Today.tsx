@@ -1,5 +1,5 @@
 import { ScrollView, View } from "react-native";
-import { myDayTasks, type Task } from "@grit/core";
+import { byMyDayPriority, myDayTasks, type Task } from "@grit/core";
 import { useStore } from "../lib/store";
 import { C } from "../theme";
 import { XpHero } from "../components/XpHero";
@@ -10,7 +10,8 @@ import { SectionTitle, Txt } from "../components/ui";
 export function Today() {
   const { tasks, today, completedToday } = useStore();
 
-  const all = myDayTasks(tasks, today);
+  // My Day orders by its own priority ladder (Important → Repeated → Must → rest).
+  const all = byMyDayPriority(myDayTasks(tasks, today));
   const isDone = (t: Task) => (t.recurrence ? completedToday.has(t.id) : t.archived);
   const active = all.filter((t) => !isDone(t));
   const done = all.filter(isDone);

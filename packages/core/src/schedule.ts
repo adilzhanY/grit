@@ -86,6 +86,42 @@ export function importantTasks(tasks: Task[]): Task[] {
   return tasks.filter((t) => !t.archived && t.important);
 }
 
+/** XP weight used for ordering. (Subtasks roll their value up into points.) */
+function taskXp(t: Task): number {
+  return t.points ?? 0;
+}
+
+/**
+ * Order tasks by XP, highest first; ties fall back to their manual `order`.
+ * Pure — returns a new array, never mutates the input.
+ */
+export function byXp(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => taskXp(b) - taskXp(a) || a.order - b.order);
+}
+
+/**
+ * My Day's priority ladder (lower rank = nearer the top):
+ *   0. Important (starred)   1. Repeated (recurring)   2. Must   3. anything else
+ * A task is ranked by the first rung it matches, so an important recurring Must
+ * lands in Important. Within a rung, higher XP wins, then manual `order`.
+ */
+function myDayRank(t: Task): number {
+  if (t.important) return 0;
+  if (t.recurrence) return 1;
+  if (t.listType === "must") return 2;
+  return 3;
+}
+
+/** Order My Day tasks by the priority ladder, then XP within each rung. Pure. */
+export function byMyDayPriority(tasks: Task[]): Task[] {
+  return [...tasks].sort(
+    (a, b) =>
+      myDayRank(a) - myDayRank(b) ||
+      taskXp(b) - taskXp(a) ||
+      a.order - b.order,
+  );
+}
+
 /** A YYYY-MM-DD local day string offset by n days. */
 export function addDays(day: string, n: number): string {
   const [y, m, d] = day.split("-").map(Number);

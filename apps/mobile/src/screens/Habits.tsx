@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
-import { formatStreak, streakMs, type ListType, type Task } from "@grit/core";
+import { byXp, formatStreak, streakMs, type ListType, type Task } from "@grit/core";
 import { useStore } from "../lib/store";
 import { C, FONT, LIST_TINT, R, claySm } from "../theme";
 import { TaskCard } from "../components/TaskCard";
@@ -45,8 +45,11 @@ export function Habits() {
   // Recurring tasks are "done" when completed today; one-shots when archived.
   const isDone = (t: Task) =>
     t.recurrence ? completedOn.has(`${t.id}:${today}`) : t.archived;
-  const active = type === "bad" ? all.filter((t) => !t.archived) : all.filter((t) => !isDone(t));
-  const achieved = type === "bad" ? [] : all.filter(isDone);
+  // Bad habits have no XP, so they keep their natural order; everything else
+  // sorts by XP, highest first.
+  const active =
+    type === "bad" ? all.filter((t) => !t.archived) : byXp(all.filter((t) => !isDone(t)));
+  const achieved = type === "bad" ? [] : byXp(all.filter(isDone));
 
   const submit = () => {
     const n = draft.trim();
