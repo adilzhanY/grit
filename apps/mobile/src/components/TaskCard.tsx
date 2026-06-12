@@ -34,6 +34,7 @@ export function TaskCard({
   const tint = LIST_TINT[task.listType];
   const confirm = useConfirm();
   const [actionsOpen, setActionsOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
@@ -154,6 +155,7 @@ export function TaskCard({
       {actionsOpen ? (
         <View style={{ flexDirection: "row", gap: 8, marginTop: 10, justifyContent: "flex-end" }}>
           {!done && !future ? <ActionBtn name="ListPlus" color={C.inkFaint} onPress={startAdd} /> : null}
+          <ActionBtn name="Pencil" color={C.inkFaint} onPress={() => { setEditOpen(true); setActionsOpen(false); }} />
           <ActionBtn name="Star" active={!!task.important} color={tint.acc} onPress={() => toggleImportant(task)} />
           <ActionBtn name="Sun" active={!!task.starredMyDay} color={tint.acc} onPress={() => toggleMyDay(task)} />
           <ActionBtn
@@ -165,6 +167,8 @@ export function TaskCard({
           />
         </View>
       ) : null}
+
+      <EditTaskSheet task={task} open={editOpen} onClose={() => setEditOpen(false)} />
 
       {/* Subtask thread — animated expand/collapse */}
       {(hasSubs || adding) && !future ? (
@@ -206,6 +210,62 @@ export function TaskCard({
         </Collapsible>
       ) : null}
     </View>
+  );
+}
+
+/** Bottom-anchored sheet to rename a task and set its XP. */
+function EditTaskSheet({ task, open, onClose }: { task: Task; open: boolean; onClose: () => void }) {
+  return (
+    <Modal visible={open} transparent animationType="fade" onRequestClose={onClose}>
+      {open ? <EditTaskForm task={task} onClose={onClose} /> : null}
+    </Modal>
+  );
+}
+
+function EditTaskForm({ task, onClose }: { task: Task; onClose: () => void }) {
+  const { updateTask } = useStore();
+  const tint = LIST_TINT[task.listType];
+  const hasSubs = (task.subtasks ?? []).length > 0;
+  const [title, setTitle] = useState(task.title);
+  const [xp, setXp] = useState(String(task.points));
+
+  const save = () => {
+    const t = title.trim();
+    if (!t) return;
+    const xpVal = Math.max(0, Math.round(Number(xp) || 0));
+    void updateTask(task.id, { title: t, points: xpVal });
+    onClose();
+  };
+
+  return (
+    <Pressable
+      onPress={onClose}
+      style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center", padding: 24 }}
+    >
+      <PopIn>
+        <Pressable
+          onPress={(e) => e.stopPropagation()}
+          style={[{ width: "100%", maxWidth: 360, backgroundColor: C.surface, borderRadius: R.md, padding: 22, gap: 14 }, clay()]}
+        >
+          <Txt size={18} weight="extrabold">Edit task</Txt>
+          <View style={{ gap: 6 }}>
+            <Txt size={12} weight="bold" color={C.inkSoft}>Name</Txt>
+            <TextField value={title} onChange={setTitle} placeholder="Task name" onSubmit={save} />
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 12 }}>
+            <NumberField label="XP" value={xp} onChange={setXp} suffix="XP" width={120} />
+            {hasSubs ? (
+              <Txt size={12} weight="medium" color={C.inkFaint} style={{ flex: 1, paddingBottom: 8 }}>
+                Splits across its subtasks.
+              </Txt>
+            ) : null}
+          </View>
+          <View style={{ flexDirection: "row", justifyContent: "flex-end", marginTop: 4 }}>
+            <PrimaryButton label="Save" background={tint.acc} onPress={save} disabled={!title.trim()} />
+          </View>
+        </Pressable>
+      </PopIn>
+    </Pressable>
   );
 }
 
