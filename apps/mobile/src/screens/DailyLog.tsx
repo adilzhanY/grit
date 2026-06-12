@@ -224,6 +224,38 @@ function foodDayHeading(date: string, today: string): string {
   });
 }
 
+/** A day's macro totals as a compact horizontal badge of icons + numbers. */
+function DayMacroTotals({ rows }: { rows: DayLog[] }) {
+  const sum = (k: "calories" | "protein" | "carbs" | "fat") =>
+    rows.reduce((n, l) => n + (l[k] ?? 0), 0);
+  const segs: { icon: string; value: string; color: string }[] = [
+    { icon: "Flame", value: `${sum("calories")}`, color: C.mustAcc },
+    { icon: "Beef", value: `${sum("protein")}g`, color: C.badAcc },
+    { icon: "Wheat", value: `${sum("carbs")}g`, color: C.coolAcc },
+    { icon: "Droplets", value: `${sum("fat")}g`, color: C.impAcc },
+  ];
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 9,
+        backgroundColor: C.page2,
+        borderRadius: R.pill,
+        paddingHorizontal: 11,
+        paddingVertical: 5,
+      }}
+    >
+      {segs.map((s) => (
+        <View key={s.icon} style={{ flexDirection: "row", alignItems: "center", gap: 3 }}>
+          <Icon name={s.icon} size={13} color={s.color} />
+          <Txt size={12} weight="extrabold">{s.value}</Txt>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 /** Food log grouped by day, capped to the 5 most recent days. */
 function FoodHistory() {
   const { dayLogs, today } = useStore();
@@ -244,7 +276,17 @@ function FoodHistory() {
         const rows = [...byDate.get(date)!].sort((a, b) => b.loggedAt - a.loggedAt);
         return (
           <View key={date} style={{ gap: 8 }}>
-            <SectionTitle>{foodDayHeading(date, today)}</SectionTitle>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 8,
+              }}
+            >
+              <SectionTitle>{foodDayHeading(date, today)}</SectionTitle>
+              <DayMacroTotals rows={rows} />
+            </View>
             {rows.map((l) => (
               <HistoryRow
                 key={l.id}

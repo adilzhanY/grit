@@ -543,6 +543,31 @@ function foodDayHeading(date: string, today: string): string {
   });
 }
 
+/** A day's macro totals as a compact horizontal badge of icons + numbers. */
+function DayMacroTotals({ rows }: { rows: DayLog[] }) {
+  const sum = (k: "calories" | "protein" | "carbs" | "fat") =>
+    rows.reduce((n, l) => n + (l[k] ?? 0), 0);
+  const segs: { icon: string; value: string; color: string }[] = [
+    { icon: "Flame", value: `${sum("calories")}`, color: "var(--must-acc)" },
+    { icon: "Beef", value: `${sum("protein")}g`, color: "var(--bad-acc)" },
+    { icon: "Wheat", value: `${sum("carbs")}g`, color: "var(--cool-acc)" },
+    { icon: "Droplets", value: `${sum("fat")}g`, color: "var(--imp-acc)" },
+  ];
+  return (
+    <div
+      className="flex shrink-0 items-center gap-2.5 rounded-full px-3 py-1"
+      style={{ background: "var(--page-2)" }}
+    >
+      {segs.map((s) => (
+        <span key={s.icon} className="flex items-center gap-1" style={{ color: s.color }}>
+          <Icon name={s.icon} className="h-3.5 w-3.5" />
+          <span className="text-xs font-extrabold tabular-nums text-ink">{s.value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
 /** Food log grouped by day, capped to the 5 most recent days. */
 function FoodHistory() {
   const { dayLogs, today } = useStore();
@@ -563,7 +588,10 @@ function FoodHistory() {
         const rows = [...byDate.get(date)!].sort((a, b) => b.loggedAt - a.loggedAt);
         return (
           <div key={date} className="flex flex-col gap-2">
-            <SectionTitle>{foodDayHeading(date, today)}</SectionTitle>
+            <div className="flex items-center justify-between gap-2">
+              <SectionTitle>{foodDayHeading(date, today)}</SectionTitle>
+              <DayMacroTotals rows={rows} />
+            </div>
             {rows.map((l) => (
               <LogRow
                 key={l.id}
