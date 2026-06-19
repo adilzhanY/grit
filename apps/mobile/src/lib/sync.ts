@@ -50,17 +50,22 @@ function collection(db: DB, name: SyncedTable): {
   }
 }
 
-const cursorKey = (userId: string) => `grit.sync.${userId}.at`;
+// Push cursor (this device's clock) selects our own dirty rows. Pull cursor
+// tracks the max *server* updated_at seen, so pulling is immune to clock skew
+// between devices (the server stamps updated_at via a trigger — see
+// supabase/schema.sql).
+const pushKey = (userId: string) => `grit.sync.${userId}.at`;
+const pullKey = (userId: string) => `grit.sync.${userId}.pull`;
 
-async function getCursor(userId: string): Promise<number> {
-  return Number((await AsyncStorage.getItem(cursorKey(userId))) ?? 0);
+async function getNum(key: string): Promise<number> {
+  return Number((await AsyncStorage.getItem(key)) ?? 0);
 }
-async function setCursor(userId: string, ms: number): Promise<void> {
-  await AsyncStorage.setItem(cursorKey(userId), String(ms));
+async function setNum(key: string, ms: number): Promise<void> {
+  await AsyncStorage.setItem(key, String(ms));
 }
 
 export async function resetSyncCursor(userId: string): Promise<void> {
-  await AsyncStorage.removeItem(cursorKey(userId));
+  await AsyncStorage.multiRemove([pushKey(userId), pullKey(userId)]);
 }
 
 let running = false;
@@ -72,8 +77,10 @@ export async function sync(db: DB, userId: string): Promise<SyncResult | null> {
   if (!sb || running) return null;
   running = true;
   try {
-    const since = await getCursor(userId);
+    const pushSince = await getNum(pushKey(userId));
+    const pullSince = await getNum(pullKey(userId));
     const startedAt = Date.now();
+    let maxSeen = pullSince;
     let pushed = 0;
     let pulled = 0;
 
@@ -81,7 +88,7 @@ export async function sync(db: DB, userId: string): Promise<SyncResult | null> {
     for (const name of NAMES) {
       const dirty = collection(db, name)
         .rows()
-        .filter((r) => (r.updatedAt ?? 0) > since);
+        .filter((r) => (r.updatedAt ?? 0) > pushSince);
       if (!dirty.length) continue;
       const payload = dirty.map((r) => ({
         id: String(r.id),
@@ -96,7 +103,7 @@ export async function sync(db: DB, userId: string): Promise<SyncResult | null> {
     }
 
     // ---- push tombstones ----
-    const tombs = db.tombstones.filter((t) => t.updatedAt > since);
+    const tombs = db.tombstones.filter((t) => t.updatedAt > pushSince);
     for (const name of NAMES) {
       const list = tombs.filter((t) => t.table === name);
       if (!list.length) continue;
@@ -113,7 +120,7 @@ export async function sync(db: DB, userId: string): Promise<SyncResult | null> {
     }
 
     // ---- pull ----
-    const sinceIso = new Date(since).toISOString();
+    const sinceIso = new Date(pullSince).toISOString();
     for (const name of NAMES) {
       const { data, error } = await sb
         .from(REMOTE_TABLE[name])
@@ -126,14 +133,27 @@ export async function sync(db: DB, userId: string): Promise<SyncResult | null> {
       const existing = new Map(coll.rows().map((r) => [String(r.id), r.updatedAt ?? 0]));
       for (const row of data) {
         const remoteMs = new Date(row.updated_at).getTime();
+        if (remoteMs > maxSeen) maxSeen = remoteMs;
         const id = String(row.id);
         if (row.deleted) {
           coll.del(id);
           pulled += 1;
           continue;
         }
-        if ((existing.get(id) ?? 0) <= remoteMs) {
-          coll.upsert({ ...row.data, updatedAt: remoteMs });
+        // Apply the remote row UNLESS we hold an unpushed local edit to it.
+        // "Locally dirty" = updatedAt > pushSince — this device's own clock
+        // measured against its own push cursor, so it is immune to clock skew
+        // between devices. (The old `existing <= remoteMs` compared a device
+        // clock against the server clock; a device whose clock ran ahead stamped
+        // its edits with inflated times and then rejected every remote edit to
+        // rows it had touched — bad-task edits never crossed devices.)
+        const local = existing.get(id);
+        const locallyDirty = local !== undefined && local > pushSince;
+        if (!locallyDirty) {
+          // Stamp pulled rows with OUR cycle-start time (device domain), never
+          // the server clock — otherwise next cycle this row would look newer
+          // than our push cursor and be misread as a pending local edit.
+          coll.upsert({ ...row.data, updatedAt: startedAt });
           pulled += 1;
         }
       }
@@ -142,7 +162,8 @@ export async function sync(db: DB, userId: string): Promise<SyncResult | null> {
     // Drop tombstones we've pushed (avoid re-sending forever).
     db.tombstones = db.tombstones.filter((t) => t.updatedAt > startedAt);
 
-    await setCursor(userId, startedAt);
+    await setNum(pushKey(userId), startedAt);
+    await setNum(pullKey(userId), Math.max(pullSince, maxSeen));
     return { pushed, pulled };
   } finally {
     running = false;
