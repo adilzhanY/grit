@@ -27,13 +27,18 @@ const REMOTE: Record<(typeof SYNCED_TABLES)[number], string> = {
   focus: "focus",
 };
 
-const cursorKey = (userId: string) => `grit.sync.${userId}.at`;
+// Two cursors. The PUSH cursor (this device's clock) selects our own dirty rows
+// to upload. The PULL cursor tracks the max *server* updated_at we've actually
+// seen — so pulling is immune to clock skew between devices (the server stamps
+// updated_at via a trigger; see supabase/schema.sql).
+const pushKey = (userId: string) => `grit.sync.${userId}.at`;
+const pullKey = (userId: string) => `grit.sync.${userId}.pull`;
 
-function getCursor(userId: string): number {
-  return Number(localStorage.getItem(cursorKey(userId)) ?? 0);
+function getNum(key: string): number {
+  return Number(localStorage.getItem(key) ?? 0);
 }
-function setCursor(userId: string, ms: number): void {
-  localStorage.setItem(cursorKey(userId), String(ms));
+function setNum(key: string, ms: number): void {
+  localStorage.setItem(key, String(ms));
 }
 
 let running = false;
@@ -53,17 +58,20 @@ export async function sync(userId: string): Promise<SyncResult | null> {
   if (!sb || running) return null;
   running = true;
   try {
-    const since = getCursor(userId);
+    const pushSince = getNum(pushKey(userId));
     const startedAt = Date.now();
     // Backfill `updatedAt` on legacy rows (created before sync existed) so the
-    // first sync actually uploads them instead of skipping them. Stamped with
-    // `startedAt` so they push this cycle (> since) but not the next (cursor
-    // becomes startedAt).
+    // first sync actually uploads them instead of skipping them.
     await backfillUpdatedAt(startedAt);
-    const pushed = await push(sb, userId, since);
-    const pulled = await pull(sb, userId, since);
-    // Cursor = when this cycle began, so changes made during it sync next time.
-    setCursor(userId, startedAt);
+    const pushed = await push(sb, userId, pushSince);
+    // Push cursor = cycle start; our own writes are timed by our own clock.
+    setNum(pushKey(userId), startedAt);
+
+    const pullSince = getNum(pullKey(userId));
+    const { pulled, maxSeen } = await pull(sb, userId, pullSince, pushSince, startedAt);
+    // Pull cursor = newest server updated_at actually seen; it never advances
+    // past data we haven't pulled, so skew can't make us skip a remote change.
+    setNum(pullKey(userId), Math.max(pullSince, maxSeen));
     return { pushed, pulled };
   } finally {
     running = false;
@@ -151,10 +159,13 @@ async function push(
 async function pull(
   sb: SupabaseClient,
   userId: string,
-  since: number,
-): Promise<number> {
+  pullSince: number,
+  pushSince: number,
+  stampAt: number,
+): Promise<{ pulled: number; maxSeen: number }> {
   let n = 0;
-  const sinceIso = new Date(since).toISOString();
+  let maxSeen = pullSince;
+  const sinceIso = new Date(pullSince).toISOString();
   for (const name of SYNCED_TABLES) {
     const { data, error } = await sb
       .from(REMOTE[name])
@@ -171,6 +182,7 @@ async function pull(
         const table = db().table(name);
         for (const row of data) {
           const remoteMs = new Date(row.updated_at).getTime();
+          if (remoteMs > maxSeen) maxSeen = remoteMs;
           if (row.deleted) {
             await table.delete(row.id);
             n += 1;
@@ -179,8 +191,19 @@ async function pull(
           const existing = (await table.get(row.id)) as
             | { updatedAt?: number }
             | undefined;
-          if (!existing || (existing.updatedAt ?? 0) <= remoteMs) {
-            await table.put({ ...row.data, updatedAt: remoteMs });
+          // Apply the remote row UNLESS we hold an unpushed local edit to it.
+          // "Locally dirty" = updatedAt > pushSince — this device's own clock
+          // measured against its own push cursor, so it is immune to clock skew
+          // between devices. (The old `existing.updatedAt <= remoteMs` compared a
+          // device clock against the server clock; a device whose clock ran ahead
+          // stamped its edits with inflated times and then rejected every remote
+          // edit to rows it had touched — bad-task edits never crossed devices.)
+          const locallyDirty = !!existing && (existing.updatedAt ?? 0) > pushSince;
+          if (!locallyDirty) {
+            // Stamp pulled rows with OUR cycle-start time (device domain), never
+            // the server clock — otherwise next cycle this row would look newer
+            // than our push cursor and be misread as a pending local edit.
+            await table.put({ ...row.data, updatedAt: stampAt });
             n += 1;
           }
         }
@@ -189,10 +212,11 @@ async function pull(
       syncControl.suppress = false;
     }
   }
-  return n;
+  return { pulled: n, maxSeen };
 }
 
-/** Forget a user's sync cursor (e.g. on sign-out) so the next sign-in re-syncs fully. */
+/** Forget a user's sync cursors (e.g. on sign-out) so the next sign-in re-syncs fully. */
 export function resetSyncCursor(userId: string): void {
-  localStorage.removeItem(cursorKey(userId));
+  localStorage.removeItem(pushKey(userId));
+  localStorage.removeItem(pullKey(userId));
 }
