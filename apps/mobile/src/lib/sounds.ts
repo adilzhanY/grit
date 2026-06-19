@@ -33,15 +33,35 @@ let modeSet = false;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const players = new Map<SoundKind, any>();
 
+/**
+ * Configure the shared audio session ONCE so our short effects play *alongside*
+ * whatever else is going (music, a podcast) instead of grabbing audio focus and
+ * pausing it. Without an interruption mode the chime takes full focus and stops
+ * the user's media — the bug this fixes.
+ */
+function configureAudio() {
+  if (modeSet) return;
+  modeSet = true;
+  void setAudioModeAsync({
+    // Let short effects play even when the ringer is on silent (iOS).
+    playsInSilentMode: true,
+    // iOS: overlay our chimes without pausing or ducking other audio.
+    interruptionMode: "mixWithOthers",
+    // Android: the lightest non-interrupting option — briefly duck other audio
+    // for the chime, then restore it. ('doNotMix' would pause the music.)
+    interruptionModeAndroid: "duckOthers",
+  }).catch(() => {});
+}
+
 export function setSoundEnabled(on: boolean) {
   enabled = on;
+  // Set the mixing session at startup (settings load before the first tap), so
+  // even the very first sound never interrupts already-playing media.
+  if (on) configureAudio();
 }
 
 export function unlockAudio() {
-  if (modeSet) return;
-  modeSet = true;
-  // Let short effects play even when the ringer is on silent.
-  void setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
+  configureAudio();
 }
 
 export function play(kind: SoundKind) {
