@@ -978,16 +978,17 @@ export async function resumeFocus(now = Date.now()): Promise<void> {
  * The focus phase's alarm was answered: bank the finished pomodoro (full XP),
  * then either roll into the rest phase or end the session.
  */
-export async function finishFocus(startRest: boolean, now = Date.now()): Promise<void> {
+export async function finishFocus(startRest: boolean, now = Date.now()): Promise<number> {
   const a = await getActiveFocus();
-  if (!a || a.phase !== "focus") return;
-  await completeFocusBlock(a, focusPhaseEnd(a));
+  if (!a || a.phase !== "focus") return 0;
+  const xp = await completeFocusBlock(a, focusPhaseEnd(a));
   if (startRest && a.restMin > 0) {
     const { pausedAt, ...rest } = a;
     await db().focus.put({ ...rest, phase: "rest", startedAt: now });
   } else {
     await db().focus.delete("active");
   }
+  return xp;
 }
 
 /** The rest alarm was answered with "keep going": start a fresh focus phase. */
@@ -1033,7 +1034,7 @@ export async function saveFocusEarly(now = Date.now()): Promise<DayLog | null> {
 }
 
 /** Award a finished focus block: base XP + set bonus every 4th of the day. */
-async function completeFocusBlock(a: ActiveFocus, endTs: number): Promise<void> {
+async function completeFocusBlock(a: ActiveFocus, endTs: number): Promise<number> {
   const date = localDay(endTs);
   const base = focusXp(a.focusMin);
   await addLedger({
@@ -1062,5 +1063,6 @@ async function completeFocusBlock(a: ActiveFocus, endTs: number): Promise<void> 
     minutes: a.focusMin,
     ...(a.label ? { name: a.label } : {}),
   });
+  return base + bonus;
 }
 

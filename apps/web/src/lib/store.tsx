@@ -75,6 +75,7 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { useAuth } from "./auth";
 import { computeLevel, type LevelInfo } from "./leveling";
 import { play, setSoundEnabled, unlockAudio } from "./sounds";
+import { logToast } from "./toast";
 import { seedIfEmpty } from "./seed";
 
 export type Celebration =
@@ -324,6 +325,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       unlockAudio();
       const log = await repoAddWeightLog(weightKg);
       if (log.awardedXp > 0) play("good");
+      logToast("weight", log.awardedXp);
       await refresh(log.awardedXp > 0);
     },
     [refresh],
@@ -367,6 +369,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const saveFocusSession = useCallback(async () => {
     const log = await repoSaveFocusEarly();
     if (log && log.awardedXp > 0) play("good");
+    if (log) logToast("focus", log.awardedXp);
     await refresh(!!log && log.awardedXp > 0);
   }, [refresh]);
 
@@ -399,8 +402,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const finishFocusSession = useCallback(
     async (startRest: boolean) => {
-      await repoFinishFocus(startRest);
+      const xp = await repoFinishFocus(startRest);
       play("good");
+      logToast("focus", xp);
       await refresh(true);
       void flushFocus();
     },
@@ -597,6 +601,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (save) await repoSaveFood(input);
       const log = await repoAddFoodLog(input);
       play(log.awardedXp < 0 ? "bad" : "good");
+      logToast("food", log.awardedXp, input.name);
       await refresh(false);
     },
     [refresh],
@@ -640,6 +645,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       unlockAudio();
       const log = await repoAddSleepLog(minutes);
       play(log.awardedXp > 0 ? "good" : log.awardedXp < 0 ? "bad" : "good");
+      logToast("sleep", log.awardedXp);
       await refresh(log.awardedXp > 0);
     },
     [refresh],
@@ -650,6 +656,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       unlockAudio();
       const log = await repoAddStepsLog(input);
       if (log.awardedXp > 0) play("good");
+      logToast("steps", log.awardedXp);
       await refresh(true);
     },
     [refresh],
@@ -660,6 +667,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       unlockAudio();
       const log = await repoAddReadingLog(minutes);
       if (log.awardedXp > 0) play("good");
+      logToast("reading", log.awardedXp);
       await refresh(true);
     },
     [refresh],

@@ -7,6 +7,7 @@ import { ConfirmProvider } from "@/components/ConfirmDialog";
 import { Nav } from "@/components/Nav";
 import { Views } from "@/components/Views";
 import { Celebration } from "@/components/Celebration";
+import { Toast } from "@/components/Toast";
 import { FocusBanner } from "@/components/FocusBanner";
 import { FocusAlarm } from "@/components/FocusAlarm";
 import { XpHero } from "@/components/XpHero";
@@ -77,6 +78,7 @@ function Shell() {
         <FocusBanner />
         <FocusAlarm />
         <Celebration />
+        <Toast />
       </ConfirmProvider>
     </UiProvider>
   );

@@ -47,6 +47,7 @@ import {
 import { AppState } from "react-native";
 import { emptyDB, loadDB, saveDB, uid, type DB } from "./db";
 import { play, setSoundEnabled, unlockAudio, type SoundKind } from "./sounds";
+import { logToast } from "./toast";
 import { useAuth } from "./auth";
 import { supabase } from "./supabase";
 import { sync as runSyncCycle, resetSyncCursor } from "./sync";
@@ -716,6 +717,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (save && !db.foods.some((f) => f.name.toLowerCase() === input.name.toLowerCase())) {
         db.foods.push(stamp({ id: uid(), createdAt: Date.now(), ...input }));
       }
+      logToast("food", -penalty, input.name);
       commit();
     },
     [commit],
@@ -770,6 +772,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (xp !== 0) pushLedger(db, { type: "sleep_log", delta: xp, meta: `sleep ${minutes}m` });
     db.dayLogs.push(stamp({ id: uid(), kind: "sleep", date: localDay(), loggedAt: Date.now(), awardedXp: xp, minutes }));
     if (xp > 0) play("good");
+    logToast("sleep", xp);
     commit();
   }, [commit]);
 
@@ -819,6 +822,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         caloriesBurnt: input.caloriesBurnt ?? caloriesBurnt,
       }));
       if (xp > 0) play("good");
+      logToast("steps", xp);
       commit();
     },
     [commit],
@@ -831,6 +835,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (xp !== 0) pushLedger(db, { type: "reading_log", delta: xp, meta: `reading ${minutes}m` });
     db.dayLogs.push(stamp({ id: uid(), kind: "reading", date: localDay(), loggedAt: Date.now(), awardedXp: xp, minutes }));
     if (xp > 0) play("good");
+    logToast("reading", xp);
     commit();
   }, [commit]);
 
@@ -855,6 +860,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } else {
       db.dayLogs.push(stamp({ id: uid(), kind: "weight", date, loggedAt: Date.now(), awardedXp: xp, weightKg: kg }));
     }
+    logToast("weight", xp);
     commit();
   }, [commit]);
 
@@ -897,7 +903,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // ---------- focus ----------
-  const completeFocusBlock = (db: DB, a: ActiveFocus, endTs: number) => {
+  const completeFocusBlock = (db: DB, a: ActiveFocus, endTs: number): number => {
     const date = localDay(endTs);
     const base = focusXp(a.focusMin);
     pushLedger(db, { type: "focus_log", delta: base, meta: `focus ${a.focusMin}m`, timestamp: endTs });
@@ -916,6 +922,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       minutes: a.focusMin,
       ...(a.label ? { name: a.label } : {}),
     }));
+    return base + bonus;
   };
 
   const startFocusSession = cb(async (focusMin: number, restMin: number, label?: string) => {
@@ -962,6 +969,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     db.activeFocus = null;
     tomb(db, "focus", "active");
     if (xp > 0) play("good");
+    logToast("focus", xp);
     commit();
   }, [commit]);
 
@@ -987,7 +995,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     const db = dbRef.current;
     const a = db.activeFocus;
     if (!a || a.phase !== "focus") return;
-    completeFocusBlock(db, a, focusPhaseEnd(a));
+    const xp = completeFocusBlock(db, a, focusPhaseEnd(a));
+    logToast("focus", xp);
     if (startRest && a.restMin > 0) {
       const { pausedAt, ...rest } = a;
       db.activeFocus = stamp<ActiveFocus>({ ...rest, phase: "rest", startedAt: Date.now() });
