@@ -17,6 +17,8 @@ import { C } from "./src/theme";
 import { AccountSheet } from "./src/components/AccountSheet";
 import { ConfirmProvider } from "./src/components/ConfirmDialog";
 import { Celebration } from "./src/components/Celebration";
+import { Toast } from "./src/components/Toast";
+import { Logo } from "./src/components/Logo";
 import { Today } from "./src/screens/Today";
 import { Planned } from "./src/screens/Planned";
 import { Habits } from "./src/screens/Habits";
@@ -37,7 +39,8 @@ function Root() {
 
   if (!ready) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: C.page }}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 24, backgroundColor: C.page }}>
+        <Logo size={96} color={C.primary} />
         <ActivityIndicator color={C.primary} />
       </View>
     );
@@ -56,9 +59,12 @@ function Root() {
           paddingBottom: 4,
         }}
       >
-        <Txt size={16} weight="extrabold">
-          Hello, {name}.
-        </Txt>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Logo size={26} color={C.primary} />
+          <Txt size={16} weight="extrabold">
+            Hello, {name}.
+          </Txt>
+        </View>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
           <Pressable
             onPress={() => setTab(tab === "stats" ? "today" : "stats")}
@@ -117,6 +123,7 @@ function Root() {
       <AccountSheet open={account} onClose={() => setAccount(false)} />
       <FocusAlarm />
       <Celebration />
+      <Toast />
     </View>
   );
 }
@@ -132,7 +139,8 @@ export default function App() {
 
   if (!loaded) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: C.primary }}>
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 24, backgroundColor: C.primary }}>
+        <Logo size={96} color="#fff" />
         <ActivityIndicator color="#fff" />
       </View>
     );
