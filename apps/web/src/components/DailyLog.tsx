@@ -12,6 +12,8 @@ import {
   focusPhaseEnd,
   focusElapsed,
   foodTotal,
+  lastFoodLoggedAt,
+  fmtElapsed,
   calorieGoals,
   type CalorieGoals,
   kgToUnit,
@@ -71,32 +73,68 @@ const GOAL_TILES: {
 ];
 
 /** Daily calorie targets per goal, from the latest weight + body profile. */
-function GoalsCard({ goals }: { goals: CalorieGoals | null }) {
+function GoalsModal({
+  goals,
+  onClose,
+}: {
+  goals: CalorieGoals | null;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
-    <div className="clay flex flex-col gap-3 p-5" style={{ background: "var(--surface)" }}>
-      <SectionTitle>Daily calorie targets</SectionTitle>
-      {goals ? (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          {GOAL_TILES.map((g) => (
-            <div
-              key={g.key}
-              className="flex flex-col gap-0.5 rounded-2xl p-3"
-              style={{ background: "var(--page-2)" }}
-            >
-              <span style={{ color: g.color }}>
-                <Icon name={g.icon} className="h-4 w-4" />
-              </span>
-              <span className="text-xl font-extrabold tabular-nums">{goals[g.key]}</span>
-              <span className="text-xs font-bold">{g.label}</span>
-              <span className="text-[11px] font-medium text-ink-faint">{g.rate}</span>
-            </div>
-          ))}
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Daily calorie targets"
+      onClick={onClose}
+    >
+      <div
+        className="animate-pop flex w-full max-w-md flex-col gap-3 p-6 clay"
+        style={{ background: "var(--surface)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <SectionTitle>Daily calorie targets</SectionTitle>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-full p-1 text-ink-faint hover:bg-black/5"
+            style={{ cursor: "pointer" }}
+          >
+            <Icon name="X" className="h-4 w-4" />
+          </button>
         </div>
-      ) : (
-        <p className="text-sm font-medium text-ink-faint">
-          Log your weight in the Weight tracker to see your calorie targets.
-        </p>
-      )}
+        {goals ? (
+          <div className="grid grid-cols-2 gap-3">
+            {GOAL_TILES.map((g) => (
+              <div
+                key={g.key}
+                className="flex flex-col gap-0.5 rounded-2xl p-3"
+                style={{ background: "var(--page-2)" }}
+              >
+                <span style={{ color: g.color }}>
+                  <Icon name={g.icon} className="h-4 w-4" />
+                </span>
+                <span className="text-xl font-extrabold tabular-nums">{goals[g.key]}</span>
+                <span className="text-xs font-bold">{g.label}</span>
+                <span className="text-[11px] font-medium text-ink-faint">{g.rate}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm font-medium text-ink-faint">
+            Log your weight in the Weight tracker to see your calorie targets.
+          </p>
+        )}
+      </div>
     </div>
   );
 }
@@ -265,6 +303,23 @@ const num = (s: string) => Math.max(0, Math.round(Number(s) || 0));
 
 // ---------------- Food ----------------
 
+/**
+ * Fasting clock — time since the most recent food log, ticking every second.
+ * A leaf component so the 1 s tick re-renders only this line, never the panel.
+ * Hidden until a first food is ever logged.
+ */
+function FastingTimer({ since }: { since: number | null }) {
+  const now = useNow(1000);
+  if (since == null) return null;
+  return (
+    <p className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-ink-faint">
+      <Icon name="Timer" className="h-3 w-3" />
+      Fasting
+      <span className="tabular-nums">{fmtElapsed(now - since)}</span>
+    </p>
+  );
+}
+
 function FoodPanel() {
   const { settings, foods, dayLogs, today, logFood, updateFood, removeFood, setCalorieLimit } =
     useStore();
@@ -278,6 +333,7 @@ function FoodPanel() {
   const [save, setSave] = useState(false);
   const [editingLimit, setEditingLimit] = useState(false);
   const [limitDraft, setLimitDraft] = useState("");
+  const [goalsOpen, setGoalsOpen] = useState(false);
 
   const todays = dayLogs.filter((l) => l.kind === "food" && l.date === today);
   const eaten = foodTotal(todays, "calories");
@@ -332,7 +388,7 @@ function FoodPanel() {
     <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
       {/* LEFT: goals, budget, saved foods, today's list, history */}
       <div className="flex flex-col gap-4">
-      <GoalsCard goals={goals} />
+      {goalsOpen && <GoalsModal goals={goals} onClose={() => setGoalsOpen(false)} />}
       {/* Budget gauge */}
       <div className="clay flex flex-col gap-4 p-5" style={{ background: "var(--surface)" }}>
         <div className="flex items-start justify-between gap-2">
@@ -358,38 +414,50 @@ function FoodPanel() {
                 {limit - net} kcal left
               </p>
             )}
+            <FastingTimer since={lastFoodLoggedAt(dayLogs)} />
           </div>
-          {editingLimit ? (
-            <span className="flex items-center gap-1">
-              <input
-                autoFocus
-                type="number"
-                min={1}
-                value={limitDraft}
-                onChange={(e) => setLimitDraft(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") commitLimit();
-                  if (e.key === "Escape") setEditingLimit(false);
-                }}
-                onBlur={commitLimit}
-                aria-label="Daily calorie limit"
-                className="w-24 rounded-lg bg-page-2 px-2 py-1 text-sm font-semibold text-ink outline-none"
-              />
-              <span className="text-xs font-medium text-ink-faint">kcal</span>
-            </span>
-          ) : (
+          <div className="flex shrink-0 flex-col items-end gap-2">
             <button
-              onClick={() => {
-                setLimitDraft(String(limit));
-                setEditingLimit(true);
-              }}
-              className="flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-bold text-ink-soft hover:bg-black/5"
-              style={{ cursor: "pointer" }}
+              onClick={() => setGoalsOpen(true)}
+              aria-label="Daily calorie targets"
+              title="Daily calorie targets"
+              className="grid h-9 w-9 place-items-center rounded-full hover:brightness-95"
+              style={{ background: "var(--page-2)", cursor: "pointer" }}
             >
-              <Icon name="Pencil" className="h-3 w-3" />
-              Edit limit
+              <Icon name="Target" className="h-5 w-5" />
             </button>
-          )}
+            {editingLimit ? (
+              <span className="flex items-center gap-1">
+                <input
+                  autoFocus
+                  type="number"
+                  min={1}
+                  value={limitDraft}
+                  onChange={(e) => setLimitDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitLimit();
+                    if (e.key === "Escape") setEditingLimit(false);
+                  }}
+                  onBlur={commitLimit}
+                  aria-label="Daily calorie limit"
+                  className="w-24 rounded-lg bg-page-2 px-2 py-1 text-sm font-semibold text-ink outline-none"
+                />
+                <span className="text-xs font-medium text-ink-faint">kcal</span>
+              </span>
+            ) : (
+              <button
+                onClick={() => {
+                  setLimitDraft(String(limit));
+                  setEditingLimit(true);
+                }}
+                className="flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-bold text-ink-soft hover:bg-black/5"
+                style={{ cursor: "pointer" }}
+              >
+                <Icon name="Pencil" className="h-3 w-3" />
+                Edit limit
+              </button>
+            )}
+          </div>
         </div>
         <div className="h-3 overflow-hidden rounded-full" style={{ background: "var(--page-2)" }}>
           <div

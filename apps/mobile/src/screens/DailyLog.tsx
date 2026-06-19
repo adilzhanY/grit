@@ -4,9 +4,11 @@ import {
   addDays,
   ageFromBirthday,
   calorieGoals,
+  fmtElapsed,
   fmtMinutes,
   fmtWeight,
   foodTotal,
+  lastFoodLoggedAt,
   kgToUnit,
   logStreak,
   readingXp,
@@ -54,27 +56,52 @@ const GOAL_TILES: { key: keyof CalorieGoals; label: string; rate: string; icon: 
 ];
 
 /** Daily calorie targets per goal, from the latest weight + body profile. */
-function GoalsCard({ goals }: { goals: CalorieGoals | null }) {
+function GoalsModal({
+  goals,
+  visible,
+  onClose,
+}: {
+  goals: CalorieGoals | null;
+  visible: boolean;
+  onClose: () => void;
+}) {
   return (
-    <Card>
-      <SectionTitle>Daily calorie targets</SectionTitle>
-      {goals ? (
-        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
-          {GOAL_TILES.map((g) => (
-            <View key={g.key} style={{ width: "48%", backgroundColor: C.page2, borderRadius: R.sm, padding: 12, gap: 2 }}>
-              <Icon name={g.icon} size={16} color={g.color} />
-              <Txt size={20} weight="extrabold">{goals[g.key]}</Txt>
-              <Txt size={12} weight="bold">{g.label}</Txt>
-              <Txt size={11} weight="medium" color={C.inkFaint}>{g.rate}</Txt>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <Pressable
+        onPress={onClose}
+        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center", padding: 24 }}
+      >
+        <PopIn>
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={[{ width: "100%", maxWidth: 380, backgroundColor: C.surface, borderRadius: R.md, padding: 22, gap: 12 }, claySm()]}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
+              <SectionTitle>Daily calorie targets</SectionTitle>
+              <Pressable onPress={onClose} hitSlop={8}>
+                <Icon name="X" size={18} color={C.inkFaint} />
+              </Pressable>
             </View>
-          ))}
-        </View>
-      ) : (
-        <Txt size={13} weight="medium" color={C.inkFaint} style={{ marginTop: 6 }}>
-          Log your weight in the Weight tracker to see your calorie targets.
-        </Txt>
-      )}
-    </Card>
+            {goals ? (
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                {GOAL_TILES.map((g) => (
+                  <View key={g.key} style={{ width: "48%", backgroundColor: C.page2, borderRadius: R.sm, padding: 12, gap: 2 }}>
+                    <Icon name={g.icon} size={16} color={g.color} />
+                    <Txt size={20} weight="extrabold">{goals[g.key]}</Txt>
+                    <Txt size={12} weight="bold">{g.label}</Txt>
+                    <Txt size={11} weight="medium" color={C.inkFaint}>{g.rate}</Txt>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Txt size={13} weight="medium" color={C.inkFaint}>
+                Log your weight in the Weight tracker to see your calorie targets.
+              </Txt>
+            )}
+          </Pressable>
+        </PopIn>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -368,6 +395,28 @@ function FoodHistory() {
 }
 
 // ---------------- Food ----------------
+
+/**
+ * Fasting clock — time since the most recent food log, riding the store's
+ * existing 1 s heartbeat (`now`). Hidden until a first food is ever logged.
+ */
+function FastingTimer() {
+  const { dayLogs, now } = useStore();
+  const since = lastFoodLoggedAt(dayLogs);
+  if (since == null) return null;
+  return (
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
+      <Icon name="Timer" size={12} color={C.inkFaint} />
+      <Txt size={12} weight="semibold" color={C.inkFaint}>
+        Fasting{" "}
+        <Txt size={12} weight="bold" color={C.inkFaint} style={{ fontVariant: ["tabular-nums"] }}>
+          {fmtElapsed(now - since)}
+        </Txt>
+      </Txt>
+    </View>
+  );
+}
+
 function FoodPanel() {
   const { settings, foods, dayLogs, today, logFood, updateFood, removeFood, setCalorieLimit } = useStore();
   const confirm = useConfirm();
@@ -380,6 +429,7 @@ function FoodPanel() {
   const [save, setSave] = useState(false);
   const [editingLimit, setEditingLimit] = useState(false);
   const [limitDraft, setLimitDraft] = useState("");
+  const [goalsOpen, setGoalsOpen] = useState(false);
 
   const todays = dayLogs.filter((l) => l.kind === "food" && l.date === today);
   const eaten = foodTotal(todays, "calories");
@@ -412,7 +462,7 @@ function FoodPanel() {
   return (
     <View style={{ gap: 12 }}>
       <StreakBadge kind="food" color={C.mustAcc} />
-      <GoalsCard goals={goals} />
+      <GoalsModal goals={goals} visible={goalsOpen} onClose={() => setGoalsOpen(false)} />
       <Card>
         <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start" }}>
           <View>
@@ -429,20 +479,31 @@ function FoodPanel() {
             <Txt size={12} weight={over > 0 ? "extrabold" : "semibold"} color={over > 0 ? C.badAcc : C.inkFaint} style={{ marginTop: 1 }}>
               {over > 0 ? `${over} kcal over` : `${limit - net} kcal left`}
             </Txt>
+            <FastingTimer />
           </View>
-          {editingLimit ? (
-            <View style={{ width: 90 }}>
-              <NumberField value={limitDraft} onChange={setLimitDraft} suffix="kcal" />
-              <Pressable onPress={() => { if (num(limitDraft) > 0) void setCalorieLimit(num(limitDraft)); setEditingLimit(false); }}>
-                <Txt size={12} weight="bold" color={C.primary} style={{ marginTop: 4 }}>Save</Txt>
-              </Pressable>
-            </View>
-          ) : (
-            <Pressable onPress={() => { setLimitDraft(String(limit)); setEditingLimit(true); }} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-              <Icon name="Pencil" size={12} color={C.inkSoft} />
-              <Txt size={12} weight="bold" color={C.inkSoft}>Edit limit</Txt>
+          <View style={{ alignItems: "flex-end", gap: 10 }}>
+            <Pressable
+              onPress={() => setGoalsOpen(true)}
+              hitSlop={6}
+              accessibilityLabel="Daily calorie targets"
+              style={{ width: 34, height: 34, borderRadius: R.pill, backgroundColor: C.page2, alignItems: "center", justifyContent: "center" }}
+            >
+              <Icon name="Target" size={17} color={C.mustAcc} />
             </Pressable>
-          )}
+            {editingLimit ? (
+              <View style={{ width: 90 }}>
+                <NumberField value={limitDraft} onChange={setLimitDraft} suffix="kcal" />
+                <Pressable onPress={() => { if (num(limitDraft) > 0) void setCalorieLimit(num(limitDraft)); setEditingLimit(false); }}>
+                  <Txt size={12} weight="bold" color={C.primary} style={{ marginTop: 4 }}>Save</Txt>
+                </Pressable>
+              </View>
+            ) : (
+              <Pressable onPress={() => { setLimitDraft(String(limit)); setEditingLimit(true); }} style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                <Icon name="Pencil" size={12} color={C.inkSoft} />
+                <Txt size={12} weight="bold" color={C.inkSoft}>Edit limit</Txt>
+              </Pressable>
+            )}
+          </View>
         </View>
         <View style={{ height: 12, borderRadius: R.pill, backgroundColor: C.page2, overflow: "hidden", marginTop: 12 }}>
           <View style={{ height: "100%", width: `${pct}%`, backgroundColor: over > 0 ? C.badAcc : C.primary, borderRadius: R.pill }} />

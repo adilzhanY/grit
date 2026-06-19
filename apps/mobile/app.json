@@ -20,7 +20,7 @@
       "package": "com.grit.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#0B143B"
       },
       "permissions": [
         "android.permission.POST_NOTIFICATIONS",

@@ -230,6 +230,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [changeSeq, setChangeSeq] = useState(0);
 
   const prevLevel = useRef(0);
+  // Milestones are only swept after the first sync completes, so awards are
+  // computed on merged data (never a stale pre-slip copy).
+  const syncedOnce = useRef(false);
   // Latest runSync + the realtime channel, for the instant cross-device
   // "stop the alarm" poke (see flushFocus).
   const runSyncRef = useRef<(() => Promise<void>) | null>(null);
@@ -277,6 +280,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Check bad-task milestones; award + announce the most valuable new one.
   const checkMilestones = useCallback(async () => {
+    if (!syncedOnce.current) return; // act only on merged data
     const bad = (await listTasks("bad")).filter((t) => !t.archived);
     let best: { label: string; xp: number; title: string } | null = null;
     for (const t of bad) {
@@ -729,12 +733,17 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const res = await sync(user.id);
       // Pulled changes touch the DB directly — reload state to reflect them.
       if (res && res.pulled > 0) await refresh(false);
+      // First successful sync: data is now merged, so milestone sweeps are safe.
+      if (res && !syncedOnce.current) {
+        syncedOnce.current = true;
+        await checkMilestones();
+      }
     } catch (err) {
       setSyncError(err instanceof Error ? err.message : "Sync failed.");
     } finally {
       setSyncing(false);
     }
-  }, [user, refresh]);
+  }, [user, refresh, checkMilestones]);
 
   // Sync on sign-in, periodically as a fallback, and when the tab regains focus.
   useEffect(() => {

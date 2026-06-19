@@ -12,6 +12,17 @@
 
 create extension if not exists "pgcrypto";
 
+-- The server owns updated_at: this trigger stamps it on every insert AND update
+-- so delta sync is immune to client clock skew (clients no longer decide the
+-- row version — Postgres does, monotonically, via now()).
+create or replace function public.set_updated_at()
+returns trigger language plpgsql as $fn$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$fn$;
+
 do $$
 declare
   t text;
@@ -49,5 +60,13 @@ begin
         using (auth.uid() = user_id)
         with check (auth.uid() = user_id);
     $p$, t);
+
+    -- Server-authoritative updated_at (skew-proof delta sync).
+    execute format('drop trigger if exists set_updated_at on public.%I;', t);
+    execute format(
+      'create trigger set_updated_at before insert or update on public.%I
+         for each row execute function public.set_updated_at();',
+      t
+    );
   end loop;
 end $$;

@@ -69,7 +69,7 @@ export async function updateSettings(patch: Partial<Settings>): Promise<void> {
 // ---------- Ledger ----------
 
 async function addLedger(
-  entry: Omit<LedgerEntry, "id" | "timestamp"> & { timestamp?: number },
+  entry: Omit<LedgerEntry, "id" | "timestamp"> & { id?: string; timestamp?: number },
 ): Promise<void> {
   let delta = entry.delta;
   // XP floors at 0: never deduct more than the user currently has, so the
@@ -79,12 +79,13 @@ async function addLedger(
     delta = -Math.min(-delta, current);
   }
   await db().ledger.add({
-    id: uid(),
+    id: entry.id ?? uid(),
     timestamp: entry.timestamp ?? Date.now(),
     type: entry.type,
     delta,
     taskId: entry.taskId,
     meta: entry.meta,
+    ...(entry.milestoneId ? { milestoneId: entry.milestoneId } : {}),
   });
 }
 
@@ -279,32 +280,55 @@ export async function recordSlip(task: Task): Promise<number> {
 
 /**
  * Award any clean-streak milestones a bad task has crossed but not yet collected.
- * Idempotent — safe to call on every load/tick. Returns awarded {label, xp} list.
+ *
+ * Conflict-free across devices: dedup is derived from the append-only ledger
+ * scoped to the *current* clean run (entries since the last slip), and each
+ * award uses a deterministic id so two devices awarding the same milestone
+ * collapse to one row on upsert. Crucially this NEVER writes the task row, so a
+ * milestone sweep on a device with a stale (pre-slip) copy can no longer clobber
+ * a slip via last-write-wins. Idempotent — safe to call on every load/tick.
  */
 export async function awardMilestones(
   task: Task,
   now = Date.now(),
 ): Promise<{ label: string; xp: number }[]> {
+  if (task.listType !== "bad") return [];
+  const runStart = task.lastSlipAt ?? task.createdAt;
   const streak = streakMs(now, task.lastSlipAt, task.createdAt);
-  const awarded = task.awardedMilestoneIds ?? [];
-  const pending = pendingMilestones(streak, awarded);
+  const ledger = await getLedger();
+  // Dedup = milestones already paid this run (from the ledger) ∪ any pre-marked
+  // at creation for a backdated "clean since". We only READ the task here, never
+  // write it, so awarding still can't clobber a slip.
+  const awarded = new Set<string>(task.awardedMilestoneIds ?? []);
+  for (const e of ledger) {
+    if (
+      e.type === "streak_milestone" &&
+      e.taskId === task.id &&
+      e.timestamp >= runStart &&
+      e.milestoneId
+    ) {
+      awarded.add(e.milestoneId);
+    }
+  }
+  const pending = pendingMilestones(streak, [...awarded]);
   if (pending.length === 0) return [];
 
   const mult = task.rewardMultiplier ?? 1;
   const granted: { label: string; xp: number }[] = [];
   for (const m of pending) {
+    const id = `m:${task.id}:${m.id}:${runStart}`;
+    if (ledger.some((e) => e.id === id)) continue; // already awarded this run
     const xp = Math.round(m.baseXp * mult);
     await addLedger({
+      id,
       type: "streak_milestone",
       delta: xp,
       taskId: task.id,
+      milestoneId: m.id,
       meta: `${task.title} · ${m.label} clean`,
     });
     granted.push({ label: m.label, xp });
   }
-  await updateTask(task.id, {
-    awardedMilestoneIds: [...awarded, ...pending.map((m) => m.id)],
-  });
   return granted;
 }
 

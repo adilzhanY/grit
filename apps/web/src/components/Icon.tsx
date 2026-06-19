@@ -58,6 +58,7 @@ import {
   Gauge,
   Route,
   ChartColumn,
+  Target,
   type LucideIcon,
 } from "lucide-react";
 
@@ -121,6 +122,7 @@ const MAP: Record<string, LucideIcon> = {
   Gauge,
   Route,
   ChartColumn,
+  Target,
 };
 
 export function Icon({

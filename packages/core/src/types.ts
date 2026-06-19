@@ -198,6 +198,12 @@ export interface LedgerEntry {
   taskId?: string;
   /** Free-form label, e.g. task title or milestone name. */
   meta?: string;
+  /**
+   * For `streak_milestone` entries: which milestone this awarded. Lets award
+   * dedup be derived from the (append-only, merge-safe) ledger instead of a
+   * mutable task field, so awarding can never clobber a concurrent slip.
+   */
+  milestoneId?: string;
 }
 
 export interface Settings {

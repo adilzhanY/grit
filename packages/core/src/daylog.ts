@@ -96,6 +96,26 @@ export function foodPenalty(
   return Math.round(overCalories * XP_PER_OVER_CALORIE);
 }
 
+// ---- Fasting ----
+/**
+ * Wall-clock instant of the most recent food log (any day), or null if food
+ * was never logged. The fasting clock runs from this moment.
+ */
+export function lastFoodLoggedAt(logs: DayLog[]): number | null {
+  let last: number | null = null;
+  for (const l of logs) {
+    if (l.kind === "food" && (last === null || l.loggedAt > last)) last = l.loggedAt;
+  }
+  return last;
+}
+
+/** Elapsed ms → "HH:MM:SS"; hours keep counting past 24 rather than wrapping. */
+export function fmtElapsed(ms: number): string {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${pad(Math.floor(s / 3600))}:${pad(Math.floor((s % 3600) / 60))}:${pad(s % 60)}`;
+}
+
 // ---- Weight ----
 export const KG_PER_LB = 0.45359237;
 

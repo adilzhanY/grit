@@ -38,6 +38,7 @@ import {
   Sparkles,
   Star,
   Sun,
+  Target,
   Timer,
   TrendingDown,
   TrendingUp,
@@ -54,7 +55,7 @@ const MAP: Record<string, LucideIcon> = {
   BellRing, BookOpen, BookmarkCheck, BookmarkPlus, Beef, Cake, CalendarCheck, CalendarClock, CalendarDays, ChartColumn,
   Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, Clock, Coffee, Droplets, Flame, Footprints,
   Gauge, ListChecks, ListPlus, Moon, Mountain, NotebookPen, Pause, Pencil, Play, Plus,
-  Repeat, Ruler, Save, Scale, Skull, Sparkles, Star, Sun, Timer, TrendingDown,
+  Repeat, Ruler, Save, Scale, Skull, Sparkles, Star, Sun, Target, Timer, TrendingDown,
   TrendingUp, Trash2, Trophy, UserCircle, Wheat, X,
 };
 

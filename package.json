@@ -9,6 +9,7 @@
   "scripts": {
     "web": "npm run dev --workspace @grit/web",
     "web:build": "npm run build --workspace @grit/web",
-    "mobile": "npm run start --workspace @grit/mobile"
+    "mobile": "npm run start --workspace @grit/mobile",
+    "tui": "npm run start --workspace @grit/tui"
   }
 }

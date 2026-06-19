@@ -83,7 +83,7 @@ function totalXp(ledger: LedgerEntry[]): number {
 
 function pushLedger(
   db: DB,
-  entry: Omit<LedgerEntry, "id" | "timestamp"> & { timestamp?: number },
+  entry: Omit<LedgerEntry, "id" | "timestamp"> & { id?: string; timestamp?: number },
 ): void {
   let delta = entry.delta;
   if (delta < 0) {
@@ -92,12 +92,13 @@ function pushLedger(
   }
   db.ledger.push(
     stamp({
-      id: uid(),
+      id: entry.id ?? uid(),
       timestamp: entry.timestamp ?? Date.now(),
       type: entry.type,
       delta,
       taskId: entry.taskId,
       meta: entry.meta,
+      ...(entry.milestoneId ? { milestoneId: entry.milestoneId } : {}),
     }),
   );
 }
@@ -348,6 +349,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const [syncError, setSyncError] = useState<string | null>(null);
   const [celebration, setCelebration] = useState<Celebration | null>(null);
   const prevLevel = useRef<number | null>(null);
+  // Milestones sweep only after the first sync, so awards use merged data
+  // (never a stale pre-slip copy).
+  const syncedOnceRef = useRef(false);
   // Latest syncNow + the realtime channel, for the instant cross-device
   // "stop the alarm" poke (see flushFocus).
   const syncNowRef = useRef<(() => Promise<void> | void) | null>(null);
@@ -636,34 +640,52 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     commit();
   }, [commit]);
 
-  // Award any clean-streak milestones bad tasks have crossed (run on load/tick).
+  // Award any clean-streak milestones bad tasks have crossed (run on tick).
+  // Conflict-free: dedup is derived from the append-only ledger scoped to the
+  // current clean run, each award uses a deterministic id (so concurrent
+  // devices collapse to one row on upsert), and the task row is NEVER written —
+  // so a sweep on a stale, pre-slip copy can't clobber a slip via LWW.
   const sweepMilestones = cb(() => {
+    if (!syncedOnceRef.current) return; // act only on merged data
     const db = dbRef.current;
     let changed = false;
     let party: Celebration | null = null;
     const ts = Date.now();
     for (const task of db.tasks) {
       if (task.listType !== "bad") continue;
+      const runStart = task.lastSlipAt ?? task.createdAt;
       const streak = streakMs(ts, task.lastSlipAt, task.createdAt);
-      const pending = pendingMilestones(streak, task.awardedMilestoneIds ?? []);
+      // Dedup = paid this run (ledger) ∪ pre-marked at creation (backdated clean
+      // since). Read-only — the sweep never writes the task, so it can't clobber.
+      const awarded = new Set<string>(task.awardedMilestoneIds ?? []);
+      for (const e of db.ledger) {
+        if (
+          e.type === "streak_milestone" &&
+          e.taskId === task.id &&
+          e.timestamp >= runStart &&
+          e.milestoneId
+        ) {
+          awarded.add(e.milestoneId);
+        }
+      }
+      const pending = pendingMilestones(streak, [...awarded]);
       if (pending.length === 0) continue;
       const mult = task.rewardMultiplier ?? 1;
       for (const m of pending) {
+        const id = `m:${task.id}:${m.id}:${runStart}`;
+        if (db.ledger.some((e) => e.id === id)) continue;
         const xp = Math.round(m.baseXp * mult);
         pushLedger(db, {
+          id,
           type: "streak_milestone",
           delta: xp,
           taskId: task.id,
+          milestoneId: m.id,
           meta: `${task.title} · ${m.label} clean`,
         });
         party = { kind: "milestone", label: m.label, xp, title: task.title };
+        changed = true;
       }
-      const i = db.tasks.findIndex((t) => t.id === task.id);
-      db.tasks[i] = stamp({
-        ...task,
-        awardedMilestoneIds: [...(task.awardedMilestoneIds ?? []), ...pending.map((m) => m.id)],
-      });
-      changed = true;
     }
     if (changed) {
       play("milestone");
@@ -1016,6 +1038,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     try {
       const res = await runSyncCycle(dbRef.current, user.id);
       if (res) {
+        syncedOnceRef.current = true; // merged: milestone sweeps are now safe
         saveDB(dbRef.current);
         // Re-render only when remote changes actually landed (avoids a loop
         // with the debounced push effect below).
