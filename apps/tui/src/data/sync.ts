@@ -40,6 +40,7 @@ export async function sync(userId: string): Promise<SyncResult | null> {
   try {
     const pushSince = pushCursors.get(userId) ?? 0;
     const startedAt = Date.now();
+    await clampFutureUpdatedAt(startedAt);
     const pushed = await push(sb, userId, pushSince);
     pushCursors.set(userId, startedAt);
 
@@ -55,6 +56,32 @@ export async function sync(userId: string): Promise<SyncResult | null> {
     return { pushed, pulled };
   } finally {
     running = false;
+  }
+}
+
+/**
+ * Repair clock-skew corruption: a row stamped in the FUTURE (this device's
+ * clock was ahead when edited, then corrected) reads as "locally dirty" forever
+ * — updatedAt stays > every future pushSince, so we re-push our copy each cycle
+ * AND reject every incoming remote edit to it, wedging the two devices (worst on
+ * in-place-edited bad tasks). Clamp any future stamp to the cycle clock so the
+ * row pushes once and then settles. Hooks suppressed so it's written verbatim.
+ */
+async function clampFutureUpdatedAt(stamp: number): Promise<void> {
+  for (const name of SYNCED_TABLES) {
+    const rows = await db().table(name).toArray();
+    const future = rows.filter(
+      (r: { updatedAt?: number }) => (r.updatedAt ?? 0) > stamp,
+    );
+    if (!future.length) continue;
+    syncControl.suppress = true;
+    try {
+      for (const r of future as Array<{ id: string }>) {
+        await db().table(name).update(r.id, { updatedAt: stamp });
+      }
+    } finally {
+      syncControl.suppress = false;
+    }
   }
 }
 

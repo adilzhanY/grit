@@ -49,7 +49,7 @@ import { emptyDB, loadDB, saveDB, uid, type DB } from "./db";
 import { play, setSoundEnabled, unlockAudio, type SoundKind } from "./sounds";
 import { useAuth } from "./auth";
 import { supabase } from "./supabase";
-import { sync as runSyncCycle } from "./sync";
+import { sync as runSyncCycle, resetSyncCursor } from "./sync";
 import { bundleToDB, exportBundle, type BackupBundle } from "./backup";
 
 /** Stamp a row's sync clock. */
@@ -291,6 +291,8 @@ interface StoreValue {
   syncing: boolean;
   syncError: string | null;
   syncNow: () => Promise<void>;
+  /** Force every local row to win: re-stamp all rows now, then full re-sync. */
+  forcePush: () => Promise<void>;
   exportBundle: () => BackupBundle;
   importBundle: (raw: string) => Promise<number>;
 }
@@ -1052,6 +1054,32 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  // Make THIS device the source of truth: re-stamp every row with one fresh
+  // timestamp (so it sorts newest), forget the cursors (so everything re-uploads
+  // and re-pulls from scratch), then sync. Combined with the future-stamp clamp
+  // in sync.ts, this resolves a wedged history where edits stopped crossing
+  // devices — the other device adopts this one's data on its next pull.
+  const forcePush = cb(async () => {
+    if (!user) return;
+    const db = dbRef.current;
+    const t = Date.now();
+    const re = <T extends object>(r: T): T => {
+      (r as Record<string, unknown>).updatedAt = t;
+      return r;
+    };
+    db.tasks.forEach(re);
+    db.completions.forEach(re);
+    db.ledger.forEach(re);
+    db.lists.forEach(re);
+    db.foods.forEach(re);
+    db.dayLogs.forEach(re);
+    db.settings = re(db.settings);
+    if (db.activeFocus) db.activeFocus = re(db.activeFocus);
+    saveDB(db);
+    await resetSyncCursor(user.id);
+    await syncNow();
+  }, [user, syncNow]);
+
   const exportBundleAction = cb(() => exportBundle(dbRef.current), []);
 
   const importBundle = cb(async (raw: string) => {
@@ -1226,6 +1254,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       syncing,
       syncError,
       syncNow,
+      forcePush,
       exportBundle: exportBundleAction,
       importBundle,
     };

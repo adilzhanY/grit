@@ -84,6 +84,21 @@ export async function sync(db: DB, userId: string): Promise<SyncResult | null> {
     let pushed = 0;
     let pulled = 0;
 
+    // ---- repair clock-skew corruption ----
+    // A row stamped in the FUTURE (this device's clock was ahead when the edit
+    // was made, then later corrected by NTP) reads as "locally dirty" forever:
+    // updatedAt stays > every future pushSince, so we re-push our copy each
+    // cycle AND reject every incoming remote edit to it — the two devices wedge
+    // and never converge. Bad tasks are hit hardest because they're edited in
+    // place (slip/penalty/streak) rather than appended to the ledger. Clamp any
+    // future stamp down to the cycle clock so the row pushes once this cycle and
+    // then settles (updatedAt <= pushSince next cycle ⇒ remote edits flow again).
+    for (const name of NAMES) {
+      for (const r of collection(db, name).rows()) {
+        if ((r.updatedAt ?? 0) > startedAt) r.updatedAt = startedAt;
+      }
+    }
+
     // ---- push changed rows ----
     for (const name of NAMES) {
       const dirty = collection(db, name)

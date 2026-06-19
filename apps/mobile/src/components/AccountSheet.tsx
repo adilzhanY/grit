@@ -9,7 +9,7 @@ import { useConfirm } from "./ConfirmDialog";
 
 export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { enabled, user, signIn, signUp, signOut } = useAuth();
-  const { syncing, syncError, syncNow, exportBundle, importBundle, settings, setProfile, setSoundsEnabled } = useStore();
+  const { syncing, syncError, syncNow, forcePush, exportBundle, importBundle, settings, setProfile, setSoundsEnabled } = useStore();
   const confirm = useConfirm();
 
   const [email, setEmail] = useState("");
@@ -34,6 +34,17 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
     }
     setEmail("");
     setPassword("");
+  };
+
+  const doForcePush = async () => {
+    if (!(await confirm({ title: "Push this device to the cloud?", message: "This device's data wins. Your other devices will be overwritten with it on their next sync.", confirmLabel: "Push" })))
+      return;
+    try {
+      await forcePush();
+      Alert.alert("Pushed", "This device is now the source of truth. Open your other devices to pull it down.");
+    } catch (e) {
+      Alert.alert("Push failed", e instanceof Error ? e.message : "Could not push.");
+    }
   };
 
   const doExport = async () => {
@@ -102,6 +113,14 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
                   <PrimaryButton label={syncing ? "Syncing…" : "Sync now"} onPress={() => void syncNow()} disabled={syncing} />
                   <PrimaryButton label="Sign out" background={C.page2} color={C.ink} onPress={() => void signOut()} />
                 </View>
+                <Pressable onPress={doForcePush} disabled={syncing}>
+                  <Txt size={12} weight="semibold" color={C.inkSoft} style={{ textAlign: "center" }}>
+                    Push this device → cloud
+                  </Txt>
+                </Pressable>
+                <Txt size={11} weight="medium" color={C.inkFaint} style={{ textAlign: "center" }}>
+                  Make this device win if data diverged. Overwrites your other devices on their next sync.
+                </Txt>
               </View>
             ) : (
               <View style={[{ backgroundColor: C.surface, borderRadius: R.md, padding: 16, gap: 10 }, claySm()]}>

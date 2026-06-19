@@ -63,6 +63,7 @@ export async function sync(userId: string): Promise<SyncResult | null> {
     // Backfill `updatedAt` on legacy rows (created before sync existed) so the
     // first sync actually uploads them instead of skipping them.
     await backfillUpdatedAt(startedAt);
+    await clampFutureUpdatedAt(startedAt);
     const pushed = await push(sb, userId, pushSince);
     // Push cursor = cycle start; our own writes are timed by our own clock.
     setNum(pushKey(userId), startedAt);
@@ -95,6 +96,34 @@ async function backfillUpdatedAt(stamp: number): Promise<void> {
     syncControl.suppress = true;
     try {
       for (const r of missing) {
+        await db().table(name).update(r.id, { updatedAt: stamp });
+      }
+    } finally {
+      syncControl.suppress = false;
+    }
+  }
+}
+
+/**
+ * Repair clock-skew corruption: a row stamped in the FUTURE (this device's
+ * clock was ahead when edited, then corrected) reads as "locally dirty" forever
+ * — updatedAt stays > every future pushSince, so we re-push our copy each cycle
+ * AND reject every incoming remote edit to it. The two devices wedge and never
+ * converge (worst on in-place-edited bad tasks). Clamp any future stamp to the
+ * cycle clock so the row pushes once and then settles. Hooks are suppressed so
+ * the value is written verbatim.
+ */
+async function clampFutureUpdatedAt(stamp: number): Promise<void> {
+  for (const name of SYNCED_TABLES) {
+    const rows = (await db().table(name).toArray()) as Array<{
+      id: string;
+      updatedAt?: number;
+    }>;
+    const future = rows.filter((r) => (r.updatedAt ?? 0) > stamp);
+    if (!future.length) continue;
+    syncControl.suppress = true;
+    try {
+      for (const r of future) {
         await db().table(name).update(r.id, { updatedAt: stamp });
       }
     } finally {
