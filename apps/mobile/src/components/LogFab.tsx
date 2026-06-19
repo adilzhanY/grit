@@ -34,12 +34,15 @@ export function LogFab() {
 
   useEffect(() => {
     if (open) {
-      // Snappy spring: settles fast so the (native-driver) transformed hit area
-      // reaches full size almost instantly — options are tappable right away,
-      // while a touch of overshoot keeps the "jelly" bounce.
+      // JS-driven (not native) on purpose: a native-driven transform only commits
+      // its position back to the touch system once the spring fully *settles*,
+      // and a springy value micro-oscillates for ~1–2s after it looks done — so
+      // the options stayed untappable for those seconds. On the JS driver the
+      // view's real layout (and hit area) updates every frame, so the quick
+      // actions are pressable immediately. Same jelly bounce, just tappable now.
       Animated.spring(p, {
         toValue: 1,
-        useNativeDriver: true,
+        useNativeDriver: false,
         friction: 7,
         tension: 260,
       }).start();
@@ -48,7 +51,7 @@ export function LogFab() {
         toValue: 0,
         duration: 160,
         easing: Easing.in(Easing.cubic),
-        useNativeDriver: true,
+        useNativeDriver: false,
       }).start();
     }
   }, [open, p]);
@@ -68,8 +71,8 @@ export function LogFab() {
   };
 
   // Menu: springs up from the bottom-right corner (scale + slide, overshoot).
-  // Start scale high (0.8, not 0.4) so the native-driven touch area is near
-  // full size from the first frame — taps land immediately, not after settle.
+  // Starts at scale 0.8 (not 0.4) so it reads as a gentle pop rather than a
+  // zoom; the JS driver keeps the hit area in sync, so taps land immediately.
   const menuStyle = {
     opacity: p.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1, 1] }),
     transform: [
