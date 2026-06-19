@@ -9,6 +9,7 @@ import {
   byXp,
   plannedDays,
   dayLabel,
+  showsInMyDayDone,
 } from "@grit/core";
 import { useStore } from "../../store/store";
 import { useUI, type ViewId } from "../ui";
@@ -46,10 +47,17 @@ function MyDayView() {
   const store = useStore();
   const ui = useUI();
   const isActive = !ui.inputCaptured && ui.view === "myday";
+  // Done rows stay only for what the day owns: Musts done today + My-Day-native
+  // one-shots done today. Pinned Important/Impossible/Cool/custom-list tasks (and
+  // yesterday's completions) drop off once done — they live on their own pages.
   const list = activeFirst(
     byMyDayPriority(myDayTasks(store.tasks, store.today)),
     store.today,
     store.completedOn,
+  ).filter(
+    (t) =>
+      !taskDone(t, store.today, store.completedOn) ||
+      showsInMyDayDone(t, store.today),
   );
   const done = list.filter((t) => taskDone(t, store.today, store.completedOn)).length;
   const onAdd = () => {

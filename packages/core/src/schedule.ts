@@ -86,6 +86,31 @@ export function importantTasks(tasks: Task[]): Task[] {
   return tasks.filter((t) => !t.archived && t.important);
 }
 
+/**
+ * A My-Day-native one-shot: a task that lives in My Day in its own right
+ * (created via the "Add a task for today" box → a loose custom task with no
+ * parent list), as opposed to a task pinned into My Day from another list.
+ */
+export function isMyDayOneShot(t: Task): boolean {
+  return !t.recurrence && t.listType === "custom" && !t.listId;
+}
+
+/**
+ * Whether a *done* task belongs in My Day / Today's "Done" section. Keep it to
+ * what the day actually owns, so the list resets daily and other lists' done
+ * tasks stay on their own pages:
+ *   - recurring  → only Must tasks (they reset every day anyway);
+ *   - one-shots  → only My-Day-native tasks completed TODAY (so a task done
+ *                  yesterday drops off, and pinned Important/Impossible/Cool/
+ *                  custom-list tasks never appear here once done).
+ * Call only on tasks already known to be done (recurring = checked off today).
+ */
+export function showsInMyDayDone(t: Task, today: string): boolean {
+  if (t.recurrence) return t.listType === "must";
+  if (!isMyDayOneShot(t)) return false;
+  return t.achievedAt != null && localDay(t.achievedAt) === today;
+}
+
 /** XP weight used for ordering. (Subtasks roll their value up into points.) */
 function taskXp(t: Task): number {
   return t.points ?? 0;

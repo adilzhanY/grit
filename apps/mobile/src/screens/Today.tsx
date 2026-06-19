@@ -1,5 +1,5 @@
 import { ScrollView, View } from "react-native";
-import { byMyDayPriority, myDayTasks, type Task } from "@grit/core";
+import { byMyDayPriority, myDayTasks, showsInMyDayDone, type Task } from "@grit/core";
 import { useStore } from "../lib/store";
 import { C } from "../theme";
 import { XpHero } from "../components/XpHero";
@@ -14,7 +14,10 @@ export function Today() {
   const all = byMyDayPriority(myDayTasks(tasks, today));
   const isDone = (t: Task) => (t.recurrence ? completedToday.has(t.id) : t.archived);
   const active = all.filter((t) => !isDone(t));
-  const done = all.filter(isDone);
+  // Done lists only what the day owns: Musts done today + My-Day-native one-shots
+  // done today. Pinned Important/Impossible/Cool/custom-list tasks leave My Day
+  // when done (they show on their own page), and yesterday's completions drop off.
+  const done = all.filter((t) => isDone(t) && showsInMyDayDone(t, today));
 
   return (
     <ScrollView

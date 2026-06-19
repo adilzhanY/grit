@@ -4,7 +4,7 @@ import { Children, useEffect, useState } from "react";
 import type { ListType, Task } from "@/lib/types";
 import { LIST_META } from "@/lib/types";
 import { LIST_TINT } from "@/lib/tint";
-import { byMyDayPriority, byXp, dayLabel, importantTasks, myDayTasks, plannedDays } from "@/lib/schedule";
+import { byMyDayPriority, byXp, dayLabel, importantTasks, myDayTasks, plannedDays, showsInMyDayDone } from "@/lib/schedule";
 import { useStore } from "@/lib/store";
 import { parseListView, useUi } from "@/lib/ui";
 import { XpHero } from "./XpHero";
@@ -126,7 +126,10 @@ function MyDay() {
   const isDone = (t: Task) =>
     t.recurrence ? completedToday.has(t.id) : t.archived;
   const active = all.filter((t) => !isDone(t));
-  const done = all.filter(isDone);
+  // Done lists only what the day owns: Musts done today + My-Day-native one-shots
+  // done today. Pinned Important/Impossible/Cool/custom-list tasks leave My Day
+  // when done (they show on their own page), and yesterday's completions drop off.
+  const done = all.filter((t) => isDone(t) && showsInMyDayDone(t, today));
 
   return (
     <div className={grid}>
