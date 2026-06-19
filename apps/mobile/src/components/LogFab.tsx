@@ -34,11 +34,14 @@ export function LogFab() {
 
   useEffect(() => {
     if (open) {
+      // Snappy spring: settles fast so the (native-driver) transformed hit area
+      // reaches full size almost instantly — options are tappable right away,
+      // while a touch of overshoot keeps the "jelly" bounce.
       Animated.spring(p, {
         toValue: 1,
         useNativeDriver: true,
-        friction: 6,
-        tension: 120,
+        friction: 7,
+        tension: 260,
       }).start();
     } else {
       Animated.timing(p, {
@@ -65,12 +68,14 @@ export function LogFab() {
   };
 
   // Menu: springs up from the bottom-right corner (scale + slide, overshoot).
+  // Start scale high (0.8, not 0.4) so the native-driven touch area is near
+  // full size from the first frame — taps land immediately, not after settle.
   const menuStyle = {
-    opacity: p.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0, 1, 1] }),
+    opacity: p.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 1, 1] }),
     transform: [
-      { translateX: p.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) },
-      { translateY: p.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) },
-      { scale: p.interpolate({ inputRange: [0, 1], outputRange: [0.4, 1] }) },
+      { translateX: p.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) },
+      { translateY: p.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) },
+      { scale: p.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) },
     ],
   };
 
