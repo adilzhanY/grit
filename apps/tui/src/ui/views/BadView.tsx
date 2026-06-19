@@ -119,13 +119,19 @@ function BadCard({ task, selected, now }: { task: Task; selected: boolean; now: 
   const next = nextMilestone(streak);
   const prevMs = cur?.ms ?? 0;
   const frac = next ? (streak - prevMs) / (next.ms - prevMs) : 1;
+  // Personal best: stored best (set on slip) or the live streak if it's longer.
+  const best = Math.max(task.bestStreakMs ?? 0, streak);
   return (
     <Box flexDirection="column" marginBottom={1}>
       <Text color={selected ? theme.accent : theme.ink}>
         {selected ? "❯ " : "  "}
         <Text bold>{`💀 ${task.title}`}</Text>
         {task.important ? <Text color={theme.accent}>{" ★"}</Text> : null}
+        <Text color={theme.inkFaint}>{`   −${task.slipPenalty ?? 0} XP/slip`}</Text>
         <Text color={theme.done}>{`   🛡 ${formatStreak(streak)} clean`}</Text>
+        {(task.bestStreakMs ?? 0) >= 60_000 ? (
+          <Text color={theme.accent}>{`   🏆 ${formatStreak(best)} best`}</Text>
+        ) : null}
       </Text>
       <Text color={theme.inkFaint}>
         {"     "}

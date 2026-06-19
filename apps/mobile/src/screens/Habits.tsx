@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
-import { byXp, formatStreak, streakMs, type ListType, type Task } from "@grit/core";
+import {
+  byXp,
+  currentMilestone,
+  formatStreak,
+  nextMilestone,
+  streakMs,
+  type ListType,
+  type Task,
+} from "@grit/core";
 import { useStore } from "../lib/store";
 import { C, FONT, LIST_TINT, R, claySm } from "../theme";
 import { TaskCard } from "../components/TaskCard";
@@ -203,47 +211,175 @@ function Chip({ icon, label, on, color, onPress }: { icon: string; label: string
 }
 
 function BadCard({ task, now }: { task: Task; now: number }) {
-  const { recordSlip, removeTask } = useStore();
+  const { recordSlip, removeTask, updateTask } = useStore();
   const confirm = useConfirm();
   const tint = LIST_TINT.bad;
+  const [editing, setEditing] = useState(false);
+  const [titleDraft, setTitleDraft] = useState("");
+  const [penaltyDraft, setPenaltyDraft] = useState("");
+
   const streak = streakMs(now, task.lastSlipAt, task.createdAt);
+  // Personal best: stored best (set on slip) or the live streak if it's longer.
+  const best = Math.max(task.bestStreakMs ?? 0, streak);
+  const reached = currentMilestone(streak);
+  const next = nextMilestone(streak);
+  const floor = reached?.ms ?? 0;
+  const ceil = next?.ms ?? streak;
+  const span = ceil - floor;
+  const progress = span > 0 ? Math.min(1, (streak - floor) / span) : 1;
+
+  const startEdit = () => {
+    setTitleDraft(task.title);
+    setPenaltyDraft(String(task.slipPenalty ?? 0));
+    setEditing(true);
+  };
+  const commitEdit = () => {
+    const title = titleDraft.trim();
+    const slipPenalty = Math.max(0, Math.round(Number(penaltyDraft)));
+    void updateTask(task.id, {
+      ...(title ? { title } : {}),
+      ...(Number.isFinite(slipPenalty) ? { slipPenalty } : {}),
+    });
+    setEditing(false);
+  };
+
   return (
-    <View style={[{ backgroundColor: tint.surf, borderRadius: R.md, padding: 14 }, claySm()]}>
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1 }}>
-          <Icon name="Skull" color={tint.acc} size={20} />
-          <Txt weight="bold" size={15} numberOfLines={1} style={{ flex: 1 }}>
-            {task.title}
-          </Txt>
-        </View>
-        <Pressable
-          onPress={async () => {
-            if (await confirm({ title: `Delete "${task.title}"?`, confirmLabel: "Delete" }))
-              void removeTask(task.id);
+    <View style={[{ backgroundColor: tint.surf, borderRadius: R.md, padding: 14, gap: 10 }, claySm()]}>
+      {/* Header: icon + title/penalty + actions */}
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+        <View
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: C.surface,
+            alignItems: "center",
+            justifyContent: "center",
           }}
-          style={{ padding: 4 }}
         >
-          <Icon name="Trash2" size={16} color={C.inkFaint} />
-        </Pressable>
-      </View>
-      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginTop: 10 }}>
-        <View>
-          <Txt size={22} weight="extrabold" color={tint.acc}>
-            {formatStreak(streak)}
-          </Txt>
-          <Txt size={11} weight="semibold" color={C.inkFaint}>
-            clean streak
-          </Txt>
+          <Icon name="Skull" color={tint.acc} size={20} />
         </View>
-        <Pressable
-          onPress={() => recordSlip(task)}
-          style={[{ backgroundColor: tint.acc, borderRadius: R.sm, paddingHorizontal: 16, paddingVertical: 9 }, claySm()]}
-        >
-          <Txt weight="bold" color="#fff">
-            I slipped
-          </Txt>
-        </Pressable>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          {editing ? (
+            <>
+              <TextInput
+                autoFocus
+                value={titleDraft}
+                onChangeText={setTitleDraft}
+                placeholder="Task name"
+                placeholderTextColor={C.inkFaint}
+                style={{ fontFamily: FONT.bold, fontSize: 15, color: C.ink, paddingVertical: 0 }}
+              />
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 2 }}>
+                <Txt size={12} weight="semibold" color={C.inkSoft}>−</Txt>
+                <TextInput
+                  value={penaltyDraft}
+                  onChangeText={setPenaltyDraft}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={C.inkFaint}
+                  style={{ fontFamily: FONT.semibold, fontSize: 12, color: C.ink, minWidth: 36, paddingVertical: 0 }}
+                />
+                <Txt size={12} weight="semibold" color={C.inkSoft}>XP if you slip</Txt>
+              </View>
+            </>
+          ) : (
+            <>
+              <Txt weight="bold" size={15} numberOfLines={1}>
+                {task.title}
+              </Txt>
+              <Txt size={12} weight="semibold" color={C.inkSoft}>
+                −{task.slipPenalty} XP if you slip
+              </Txt>
+            </>
+          )}
+        </View>
+        {editing ? (
+          <Pressable
+            onPress={commitEdit}
+            style={[
+              { width: 34, height: 34, borderRadius: R.sm, backgroundColor: tint.acc, alignItems: "center", justifyContent: "center" },
+              claySm(),
+            ]}
+          >
+            <Icon name="Check" size={18} color="#fff" strokeWidth={3} />
+          </Pressable>
+        ) : (
+          <View style={{ flexDirection: "row", alignItems: "center" }}>
+            <Pressable onPress={startEdit} style={{ padding: 4 }} hitSlop={6}>
+              <Icon name="Pencil" size={16} color={C.inkFaint} />
+            </Pressable>
+            <Pressable
+              onPress={async () => {
+                if (await confirm({ title: `Delete "${task.title}"?`, confirmLabel: "Delete" }))
+                  void removeTask(task.id);
+              }}
+              style={{ padding: 4 }}
+              hitSlop={6}
+            >
+              <Icon name="Trash2" size={16} color={C.inkFaint} />
+            </Pressable>
+          </View>
+        )}
       </View>
+
+      {/* Streak readout */}
+      <View style={{ flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" }}>
+        <View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+            <Icon name="Shield" color={tint.acc} size={18} />
+            <Txt size={22} weight="extrabold" color={tint.acc}>
+              {formatStreak(streak)}
+            </Txt>
+          </View>
+          <Txt size={11} weight="semibold" color={C.inkSoft}>
+            {reached ? `${reached.label} clean` : "clean streak"}
+          </Txt>
+          {(task.bestStreakMs ?? 0) >= 60_000 && (
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginTop: 1 }}>
+              <Icon name="Trophy" color={C.gold} size={13} />
+              <Txt size={11} weight="bold" color={C.gold}>
+                {formatStreak(best)} best
+              </Txt>
+            </View>
+          )}
+        </View>
+        <View style={{ alignItems: "flex-end" }}>
+          <Txt size={11} weight="semibold" color={C.inkSoft}>
+            {next ? `Next: ${next.label}` : "Maxed out 🏆"}
+          </Txt>
+          {next && (
+            <Txt size={11} weight="medium" color={C.inkFaint}>
+              +{Math.round(next.baseXp * (task.rewardMultiplier ?? 1))} XP
+            </Txt>
+          )}
+        </View>
+      </View>
+
+      {/* Progress to next milestone */}
+      <View style={{ height: 10, borderRadius: 999, backgroundColor: C.surface, overflow: "hidden" }}>
+        <View
+          style={{
+            height: "100%",
+            width: `${Math.round(progress * 100)}%`,
+            backgroundColor: tint.acc,
+            borderRadius: 999,
+          }}
+        />
+      </View>
+
+      <Pressable
+        onPress={() => recordSlip(task)}
+        style={[
+          { backgroundColor: tint.acc, borderRadius: R.sm, paddingVertical: 11, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+          claySm(),
+        ]}
+      >
+        <Icon name="Skull" size={16} color="#fff" />
+        <Txt weight="bold" color="#fff">
+          I slipped
+        </Txt>
+      </Pressable>
     </View>
   );
 }
