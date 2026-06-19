@@ -3,6 +3,7 @@ import { Onest } from "next/font/google";
 import "./globals.css";
 import { StoreProvider } from "@/lib/store";
 import { AuthProvider } from "@/lib/auth";
+import { ServiceWorker } from "@/components/ServiceWorker";
 
 const onest = Onest({
   variable: "--font-onest",
@@ -37,6 +38,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${onest.variable} h-full antialiased`}>
       <body className="min-h-full">
+        <ServiceWorker />
         <AuthProvider>
           <StoreProvider>{children}</StoreProvider>
         </AuthProvider>

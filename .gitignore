@@ -15,7 +15,7 @@ node_modules/
 
 # next.js (any workspace)
 .next/
-/out/
+out/
 
 # expo (mobile)
 .expo/

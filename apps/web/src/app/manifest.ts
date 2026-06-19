@@ -1,5 +1,8 @@
 import type { MetadataRoute } from "next";
 
+// Emit the manifest as a static file at build time (required by output: export).
+export const dynamic = "force-static";
+
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Grit - Life Tracker",
