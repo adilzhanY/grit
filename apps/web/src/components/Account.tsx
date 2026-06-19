@@ -199,7 +199,11 @@ function SignedIn({
   onSignOut: () => void;
 }) {
   const { syncing, syncError, syncNow } = useStore();
-  const status = syncError ? "Sync failed — tap to retry" : syncing ? "Syncing…" : "Synced";
+  const status = syncError
+    ? `Sync failed: ${syncError} — tap to retry`
+    : syncing
+      ? "Syncing…"
+      : "Synced";
   return (
     <div className="rounded-2xl px-3 py-2">
       <div className="flex items-center gap-2 font-semibold">
@@ -219,7 +223,8 @@ function SignedIn({
       </div>
       <button
         onClick={() => void syncNow()}
-        className="mt-0.5 flex items-center gap-1.5 pl-7 text-left text-[11px] font-bold"
+        title={syncError ?? status}
+        className="mt-0.5 flex w-full items-center gap-1.5 pl-7 text-left text-[11px] font-bold"
         style={{
           color: syncError ? "var(--bad-acc)" : "var(--ink-faint)",
           cursor: "pointer",
@@ -227,9 +232,9 @@ function SignedIn({
       >
         <Icon
           name="Cloud"
-          className={`h-3.5 w-3.5 ${syncing ? "animate-pulse" : ""}`}
+          className={`h-3.5 w-3.5 shrink-0 ${syncing ? "animate-pulse" : ""}`}
         />
-        {status}
+        <span className="min-w-0 flex-1 truncate">{status}</span>
       </button>
     </div>
   );

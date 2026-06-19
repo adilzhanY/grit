@@ -739,7 +739,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         await checkMilestones();
       }
     } catch (err) {
-      setSyncError(err instanceof Error ? err.message : "Sync failed.");
+      // Surface the real reason — a bare "Sync failed" is undebuggable. Supabase
+      // errors carry message/details/hint; flatten whatever we got to a string.
+      console.error("[grit] sync failed:", err);
+      const e = err as { message?: string; details?: string; hint?: string; code?: string };
+      const msg =
+        [e?.message, e?.details, e?.hint].filter(Boolean).join(" · ") ||
+        (typeof err === "string" ? err : "Sync failed.");
+      setSyncError(e?.code ? `${msg} (${e.code})` : msg);
     } finally {
       setSyncing(false);
     }

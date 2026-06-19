@@ -34,8 +34,15 @@ const REMOTE: Record<(typeof SYNCED_TABLES)[number], string> = {
 const pushKey = (userId: string) => `grit.sync.${userId}.at`;
 const pullKey = (userId: string) => `grit.sync.${userId}.pull`;
 
+// Largest epoch-ms a JS Date can represent; beyond it new Date(n).toISOString()
+// throws RangeError. A cursor that overflowed this (a pre-trigger future
+// timestamp from a skewed clock, pulled into maxSeen and persisted) would throw
+// on every pull and wedge sync forever. Treat any invalid/out-of-range cursor
+// as 0 → a one-time full re-pull that re-converges and clears the bad value.
+const MAX_TS = 8.64e15;
 function getNum(key: string): number {
-  return Number(localStorage.getItem(key) ?? 0);
+  const n = Number(localStorage.getItem(key) ?? 0);
+  return Number.isFinite(n) && n >= 0 && n <= MAX_TS ? n : 0;
 }
 function setNum(key: string, ms: number): void {
   localStorage.setItem(key, String(ms));
@@ -211,7 +218,11 @@ async function pull(
         const table = db().table(name);
         for (const row of data) {
           const remoteMs = new Date(row.updated_at).getTime();
-          if (remoteMs > maxSeen) maxSeen = remoteMs;
+          // Ignore an unparseable/out-of-range server stamp so it can't poison
+          // the persisted pull cursor (which then throws on the next cycle).
+          if (Number.isFinite(remoteMs) && remoteMs > maxSeen && remoteMs <= MAX_TS) {
+            maxSeen = remoteMs;
+          }
           if (row.deleted) {
             await table.delete(row.id);
             n += 1;

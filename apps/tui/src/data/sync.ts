@@ -163,7 +163,11 @@ async function pull(
         const table = db().table(name);
         for (const row of data) {
           const remoteMs = new Date(row.updated_at).getTime();
-          if (remoteMs > maxSeen) maxSeen = remoteMs;
+          // Ignore an unparseable/out-of-range server stamp so it can't poison
+          // the pull cursor (new Date(cursor).toISOString() would then throw).
+          if (Number.isFinite(remoteMs) && remoteMs > maxSeen && remoteMs <= 8.64e15) {
+            maxSeen = remoteMs;
+          }
           if (row.deleted) {
             await table.delete(row.id);
             n += 1;
