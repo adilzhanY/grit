@@ -2,43 +2,9 @@
 
 import type { Task } from "@/lib/types";
 import { myDayTasks } from "@/lib/schedule";
-import { useNow, useStore } from "@/lib/store";
+import { useStore } from "@/lib/store";
 import { useConfirm } from "./ConfirmDialog";
 import { Icon } from "./Icon";
-
-/** Today's date + a live countdown to local midnight, styled for the charcoal hero. */
-function TimeLeftBadge() {
-  const now = useNow(1000);
-  const d = new Date(now);
-  const midnight = new Date(
-    d.getFullYear(),
-    d.getMonth(),
-    d.getDate() + 1,
-  ).getTime();
-  const totalSec = Math.max(0, Math.floor((midnight - now) / 1000));
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  const left = `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-
-  return (
-    <div className="rounded-2xl bg-white/15 px-4 py-2 text-center backdrop-blur">
-      <p className="text-xs font-bold uppercase tracking-widest text-white/70">
-        {d.toLocaleDateString(undefined, {
-          weekday: "short",
-          month: "long",
-          day: "numeric",
-        })}
-      </p>
-      <p className="text-2xl font-extrabold leading-tight tabular-nums">
-        {left}
-      </p>
-      <p className="text-[10px] font-bold uppercase tracking-wider text-white/60">
-        left today
-      </p>
-    </div>
-  );
-}
 
 export function XpHero({ compact = false }: { compact?: boolean }) {
   const { level, todayXp, resetXp, tasks, today, completedToday } = useStore();
@@ -101,7 +67,6 @@ export function XpHero({ compact = false }: { compact?: boolean }) {
             {level.level}
           </p>
         </div>
-        <TimeLeftBadge />
         <div className="flex flex-wrap items-center justify-end gap-2">
           <div className="rounded-full bg-white/15 px-4 py-2 text-right backdrop-blur">
             <div className="flex items-center gap-1.5 text-sm font-bold tabular-nums">
