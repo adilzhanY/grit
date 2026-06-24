@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { BodySex, DayLog, DayLogKind, FoodItem, GaitActivity, WeightUnit } from "@/lib/types";
 import {
   fmtMinutes,
@@ -1330,12 +1330,19 @@ const hourFloor = (ms: number) => {
 function FocusTimeline({
   blocks,
   now,
+  maxH,
 }: {
   blocks: FocusBlock[];
   now: number;
+  /** Cap the card to the timer's height (px); content scrolls inside. */
+  maxH?: number;
 }) {
   const HOUR = 3_600_000;
-  const PX_PER_HOUR = 72;
+  // Each block needs ~44px to show its label + time on two lines. At 144px/h a
+  // 20 min session maps to 48px, so even short back-to-back sessions in one
+  // hour stay readable instead of piling on top of each other.
+  const PX_PER_HOUR = 144;
+  const MIN_BLOCK_H = 44;
 
   // Window: from the first block (or now) to the last end (or now), padded to
   // whole hours, with a 4-hour minimum so a lone block isn't cramped.
@@ -1349,21 +1356,58 @@ function FocusTimeline({
   for (let t = rangeStart; t <= rangeEnd; t += HOUR) hours.push(t);
   const y = (ms: number) => ((ms - rangeStart) / HOUR) * PX_PER_HOUR;
 
+  // Lay blocks out chronologically and never let one overlap the previous: a
+  // block sits at its real time unless that would collide, in which case it's
+  // nudged down just enough to clear the one before it. Keeps every label
+  // readable even when several short sessions are packed into one hour.
+  const GAP = 4;
+  let cursor = -Infinity;
+  const placed = [...blocks]
+    .sort((a, b) => a.start - b.start)
+    .map((b) => {
+      const top = Math.max(y(b.start), cursor);
+      const height = Math.max(MIN_BLOCK_H, y(b.end) - y(b.start));
+      cursor = top + height + GAP;
+      return { ...b, top, height };
+    });
+
+  // Tall enough for the hour grid, or for blocks pushed past the last hour.
+  const containerH = Math.max((hours.length - 1) * PX_PER_HOUR, cursor);
+
+  // While a session ticks, centre the red "now" line — but scroll only the
+  // timeline's own box, never the page (scrollIntoView would bubble up to every
+  // ancestor and yank the whole page).
+  const scrollBoxRef = useRef<HTMLDivElement>(null);
+  const hasRunning = blocks.some((b) => b.running);
+  const nowY = y(now);
+  useEffect(() => {
+    const box = scrollBoxRef.current;
+    if (hasRunning && box)
+      box.scrollTo({ top: nowY - box.clientHeight / 2, behavior: "smooth" });
+    // Only re-centre when a session starts or the box is (re)sized — not on
+    // every tick, so the user stays free to scroll the timeline themselves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasRunning, maxH]);
+
   return (
     <div
-      className="clay flex flex-col gap-3 p-5"
-      style={{ background: "var(--surface)" }}
+      className="clay flex min-h-0 flex-col gap-3 p-5"
+      style={{ background: "var(--surface)", height: maxH }}
     >
       <SectionTitle>Today</SectionTitle>
       <div
-        className="relative ml-9"
-        style={{ height: (hours.length - 1) * PX_PER_HOUR }}
+        ref={scrollBoxRef}
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+      >
+      <div
+        className="relative ml-9 transition-[height] duration-300 ease-out"
+        style={{ height: containerH }}
       >
         {/* Hour gridlines + 24h labels */}
         {hours.map((h) => (
           <div
             key={h}
-            className="absolute left-0 right-0 flex items-center"
+            className="absolute left-0 right-0 flex items-center transition-[top] duration-300 ease-out"
             style={{ top: y(h) }}
           >
             <span className="absolute -left-9 -translate-y-1/2 text-xs font-bold text-ink-faint tabular-nums">
@@ -1374,13 +1418,12 @@ function FocusTimeline({
         ))}
 
         {/* Focus blocks */}
-        {blocks.map((b, i) => {
-          const top = y(b.start);
-          const height = Math.max(18, y(b.end) - top);
+        {placed.map((b, i) => {
+          const { top, height } = b;
           return (
             <div
               key={i}
-              className="absolute left-1 right-1 overflow-hidden rounded-xl px-3 py-1.5"
+              className="absolute left-1 right-1 overflow-hidden rounded-xl px-3 py-1.5 transition-[top,height] duration-300 ease-out"
               style={{
                 top,
                 height,
@@ -1393,6 +1436,10 @@ function FocusTimeline({
               <p className="truncate text-sm font-extrabold">{b.label}</p>
               <p className="truncate text-xs font-semibold text-ink-soft">
                 {fmtClock(b.start)} – {fmtClock(b.end)}
+                <span className="text-ink-faint">
+                  {" · "}
+                  {fmtMinutes(Math.max(1, Math.round((b.end - b.start) / 60000)))}
+                </span>
               </p>
             </div>
           );
@@ -1400,8 +1447,8 @@ function FocusTimeline({
 
         {/* Now line */}
         <div
-          className="absolute left-0 right-0 flex items-center"
-          style={{ top: y(now) }}
+          className="absolute left-0 right-0 flex items-center transition-[top] duration-300 ease-out"
+          style={{ top: nowY }}
         >
           <span
             className="absolute -left-1 h-2 w-2 -translate-y-1/2 rounded-full"
@@ -1409,6 +1456,7 @@ function FocusTimeline({
           />
           <span className="h-0.5 w-full" style={{ background: "var(--bad-acc)" }} />
         </div>
+      </div>
       </div>
     </div>
   );
@@ -1559,6 +1607,31 @@ function FocusPanel() {
 
   const phaseEnd = activeFocus ? focusPhaseEnd(activeFocus) : null;
 
+  // Measure the timer card so the timeline beside it can match its height
+  // exactly and scroll its own overflow instead of stretching the card.
+  const timerRef = useRef<HTMLDivElement>(null);
+  const [timerH, setTimerH] = useState<number>();
+  useEffect(() => {
+    const el = timerRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(() => setTimerH(el.offsetHeight));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [activeFocus]);
+
+  // While the running-session panel is up there's nothing below the fold, so
+  // lock page scroll — only the timeline scrolls (its own isolated overflow).
+  const showingRunning = !!activeFocus && phaseEnd !== null;
+  useEffect(() => {
+    if (!showingRunning) return;
+    const html = document.documentElement;
+    const prev = html.style.overflow;
+    html.style.overflow = "hidden";
+    return () => {
+      html.style.overflow = prev;
+    };
+  }, [showingRunning]);
+
   // Countdown in the tab title while a session runs (frozen while paused).
   useEffect(() => {
     if (!activeFocus) return;
@@ -1631,6 +1704,7 @@ function FocusPanel() {
     return (
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
       <div
+        ref={timerRef}
         className="clay flex flex-col items-center gap-4 p-8"
         style={{ background: "var(--surface)" }}
       >
@@ -1720,7 +1794,7 @@ function FocusPanel() {
         )}
       </div>
 
-      <FocusTimeline blocks={blocks} now={now} />
+      <FocusTimeline blocks={blocks} now={now} maxH={timerH} />
     </div>
     );
   }
