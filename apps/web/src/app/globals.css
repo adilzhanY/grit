@@ -82,14 +82,28 @@ html {
 }
 
 body {
-  background:
-    radial-gradient(1200px 600px at 80% -10%, #f7f5ef 0%, transparent 60%),
-    linear-gradient(180deg, var(--page) 0%, var(--page-2) 100%);
-  background-attachment: fixed;
+  /* Solid base so the page never shows through; the gradient lives on the
+     fixed pseudo-layer below. */
+  background: var(--page);
   color: var(--ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* The page backdrop. Rendered as a position:fixed compositor layer instead of
+   `background-attachment: fixed`, which would force a full-viewport repaint on
+   every scroll frame (and re-rasterize every clay shadow on top of it). As a
+   fixed layer the GPU just holds it still while content scrolls — no repaint. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, #f7f5ef 0%, transparent 60%),
+    linear-gradient(180deg, var(--page) 0%, var(--page-2) 100%);
 }
 
 /* ---------- Clay surfaces ---------- */
