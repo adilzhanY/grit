@@ -253,7 +253,7 @@ function HistoryRow({
 }
 
 function History({ kind, render }: { kind: DayLogKind; render: (l: DayLog) => { title: string; detail?: string } }) {
-  const { dayLogs } = useStore();
+  const { dayLogs, today } = useStore();
   const logs = dayLogs.filter((l) => l.kind === kind);
   if (logs.length === 0) return null;
   return (
@@ -261,7 +261,17 @@ function History({ kind, render }: { kind: DayLogKind; render: (l: DayLog) => { 
       <SectionTitle>History</SectionTitle>
       {logs.slice(0, 30).map((l) => {
         const { title, detail } = render(l);
-        return <HistoryRow key={l.id} log={l} title={title} detail={detail} />;
+        // Lead every row with when it happened (date · time), like the Focus
+        // and Food histories — otherwise a log gives no clue when it was made.
+        const when = `${foodDayHeading(l.date, today)} · ${fmtClock(l.loggedAt)}`;
+        return (
+          <HistoryRow
+            key={l.id}
+            log={l}
+            title={title}
+            detail={detail ? `${when} · ${detail}` : when}
+          />
+        );
       })}
     </View>
   );
