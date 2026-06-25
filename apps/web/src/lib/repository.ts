@@ -754,10 +754,15 @@ export async function addFoodLog(input: {
   const settings = await getSettings();
   const todays = await db().dayLogs.where({ kind: "food", date }).toArray();
   const prevTotal = todays.reduce((s, l) => s + (l.calories ?? 0), 0);
+  // Calories burnt from today's walks raise the effective limit, so the penalty
+  // tracks net intake (eaten − burnt) exceeding the limit, not raw calories
+  // eaten. Mirrors the net figure the Food Logger shows.
+  const steps = await db().dayLogs.where({ kind: "steps", date }).toArray();
+  const burnt = steps.reduce((s, l) => s + (l.caloriesBurnt ?? 0), 0);
   const penalty = foodPenalty(
     prevTotal,
     prevTotal + input.calories,
-    settings.calorieLimit,
+    settings.calorieLimit + burnt,
   );
   if (penalty > 0) {
     await addLedger({

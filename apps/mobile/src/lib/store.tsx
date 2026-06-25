@@ -708,7 +708,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const date = localDay();
       const todays = db.dayLogs.filter((l) => l.kind === "food" && l.date === date);
       const prev = todays.reduce((s, l) => s + (l.calories ?? 0), 0);
-      const penalty = foodPenalty(prev, prev + input.calories, db.settings.calorieLimit);
+      // Calories burnt from today's walks raise the effective limit, so the
+      // penalty tracks net intake (eaten − burnt) over the limit, not raw
+      // calories eaten — matching the net figure shown in the Food Logger.
+      const burnt = db.dayLogs
+        .filter((l) => l.kind === "steps" && l.date === date)
+        .reduce((s, l) => s + (l.caloriesBurnt ?? 0), 0);
+      const penalty = foodPenalty(prev, prev + input.calories, db.settings.calorieLimit + burnt);
       if (penalty > 0) {
         pushLedger(db, { type: "food_penalty", delta: -penalty, meta: `${input.name} · over limit` });
         play("bad");
