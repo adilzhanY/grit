@@ -76,7 +76,6 @@ import { useAuth } from "./auth";
 import { computeLevel, type LevelInfo } from "./leveling";
 import { play, setSoundEnabled, unlockAudio } from "./sounds";
 import { logToast } from "./toast";
-import { seedIfEmpty } from "./seed";
 
 export type Celebration =
   | { kind: "levelup"; level: number }
@@ -302,7 +301,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let alive = true;
     (async () => {
-      await seedIfEmpty();
       const s = await getSettings();
       prevLevel.current = computeLevel(
         await totalXp(),
