@@ -94,7 +94,7 @@ export function FocusBanner() {
             />
           </span>
           <span className="flex flex-col items-start">
-            <span className="font-mono text-base font-extrabold leading-tight tabular-nums">
+            <span className="text-base font-extrabold leading-tight tabular-nums">
               {leftMin}:{String(leftSec).padStart(2, "0")}
             </span>
             <span className="text-[11px] font-semibold leading-tight text-ink-faint">

@@ -1278,16 +1278,18 @@ function fmtDayLabel(date: string): string {
 function FocusRing({
   fraction,
   color,
+  size = "h-64 w-64",
   children,
 }: {
   fraction: number;
   color: string;
+  size?: string;
   children: React.ReactNode;
 }) {
   const R = 110;
   const C = 2 * Math.PI * R;
   return (
-    <div className="relative h-64 w-64">
+    <div className={`relative ${size}`}>
       <svg viewBox="0 0 256 256" className="h-full w-full -rotate-90">
         <circle
           cx="128"
@@ -1607,6 +1609,26 @@ function FocusPanel() {
 
   const phaseEnd = activeFocus ? focusPhaseEnd(activeFocus) : null;
 
+  // Zen mode: a full-screen, distraction-free timer. Esc leaves it, and it
+  // can't outlive the session it magnifies.
+  const [zen, setZen] = useState(false);
+  useEffect(() => {
+    if (!zen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setZen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zen]);
+  // When the session ends, leave zen with it — adjusted during render so the
+  // next session never starts already-fullscreen.
+  const hasSession = !!activeFocus;
+  const [hadSession, setHadSession] = useState(hasSession);
+  if (hadSession !== hasSession) {
+    setHadSession(hasSession);
+    if (!hasSession) setZen(false);
+  }
+
   // Measure the timer card so the timeline beside it can match its height
   // exactly and scroll its own overflow instead of stretching the card.
   const timerRef = useRef<HTMLDivElement>(null);
@@ -1723,7 +1745,7 @@ function FocusPanel() {
         )}
 
         <FocusRing fraction={1 - leftMs / totalMs} color={color}>
-          <span className="font-mono text-5xl font-extrabold tabular-nums tracking-tight">
+          <span className="text-5xl font-extrabold tabular-nums tracking-tight">
             {leftMin}:{String(leftSec).padStart(2, "0")}
           </span>
           <span className="text-sm font-bold text-ink-soft">
@@ -1747,6 +1769,15 @@ function FocusPanel() {
               style={{ background: color, cursor: "pointer" }}
             >
               <Icon name={paused ? "Play" : "Pause"} className="h-5 w-5" />
+            </button>
+
+            <button
+              onClick={() => setZen(true)}
+              className="clay-press flex items-center gap-2 px-5 py-2.5 text-sm font-bold"
+              style={{ background: "var(--page-2)", cursor: "pointer" }}
+            >
+              <Icon name="Maximize2" className="h-4 w-4" />
+              Zen
             </button>
 
             {isFocus && canSave && (
@@ -1795,6 +1826,40 @@ function FocusPanel() {
       </div>
 
       <FocusTimeline blocks={blocks} now={now} maxH={timerH} />
+
+      {/* Zen mode: nothing but the ticking timer. z-50 keeps it under the
+          z-[60] alarm overlay, which takes over when the phase ends. */}
+      {zen && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6"
+          style={{ background: "var(--page)" }}
+        >
+          {activeFocus.label && (
+            <span className="text-lg font-extrabold tracking-tight text-ink-soft">
+              {activeFocus.label}
+            </span>
+          )}
+          <FocusRing
+            fraction={1 - leftMs / totalMs}
+            color={color}
+            size="h-80 w-80"
+          >
+            <span className="text-7xl font-extrabold tabular-nums tracking-tight">
+              {leftMin}:{String(leftSec).padStart(2, "0")}
+            </span>
+            <span className="text-sm font-bold text-ink-soft">
+              {paused ? "Paused" : isFocus ? "Focus" : "Rest"}
+            </span>
+          </FocusRing>
+          <button
+            onClick={() => setZen(false)}
+            className="text-xs font-semibold text-ink-faint"
+            style={{ cursor: "pointer" }}
+          >
+            Esc to exit
+          </button>
+        </div>
+      )}
     </div>
     );
   }

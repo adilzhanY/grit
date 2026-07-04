@@ -59,6 +59,7 @@ import {
   Route,
   ChartColumn,
   Target,
+  Maximize2,
   type LucideIcon,
 } from "lucide-react";
 
@@ -123,6 +124,7 @@ const MAP: Record<string, LucideIcon> = {
   Route,
   ChartColumn,
   Target,
+  Maximize2,
 };
 
 export function Icon({
