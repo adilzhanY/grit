@@ -64,7 +64,7 @@ export function Celebration() {
           {celebration.level}
         </p>
         <p className="mt-4 text-lg font-semibold">
-          Ты ебошишь! Keep going. 🔥
+          You&apos;re crushing it! Keep going. 🔥
         </p>
         <p className="mt-2 text-sm text-white/70">Tap anywhere to continue</p>
       </div>

@@ -59,7 +59,7 @@ export function Celebration() {
               {celebration.level}
             </Txt>
             <Txt size={16} weight="semibold" color="#fff" style={{ marginTop: 10 }}>
-              Ты ебошишь! Keep going. 🔥
+              You&apos;re crushing it! Keep going. 🔥
             </Txt>
             <Txt size={12} weight="medium" color="rgba(255,255,255,0.7)" style={{ marginTop: 8 }}>
               Tap anywhere to continue
