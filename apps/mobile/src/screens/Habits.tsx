@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, ScrollView, TextInput, View } from "react-native";
 import {
   byXp,
@@ -28,6 +28,8 @@ export function Habits() {
   const confirm = useConfirm();
   const [sel, setSel] = useState<string>("must");
   const [draft, setDraft] = useState("");
+  /** Bad only: "YYYY-MM-DD" the habit was quit; empty = starting now. */
+  const [cleanSince, setCleanSince] = useState("");
   const [creating, setCreating] = useState(false);
   const [newList, setNewList] = useState("");
   const [editingName, setEditingName] = useState(false);
@@ -59,11 +61,27 @@ export function Habits() {
     type === "bad" ? all.filter((t) => !t.archived) : byXp(all.filter((t) => !isDone(t)));
   const achieved = type === "bad" ? [] : byXp(all.filter(isDone));
 
+  // Local midnight of the typed clean-since date; undefined unless it parses
+  // to a real calendar day in the past (free-form input, no native picker).
+  const cleanTs = useMemo(() => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(cleanSince)) return undefined;
+    const [y, m, d] = cleanSince.split("-").map(Number);
+    const dt = new Date(y, m - 1, d);
+    const real = dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+    return real && dt.getTime() < now ? dt.getTime() : undefined;
+  }, [cleanSince, now]);
+
   const submit = () => {
     const n = draft.trim();
     if (!n) return;
-    void addTask({ listType: type, title: n, ...(isList && listId ? { listId } : {}) });
+    void addTask({
+      listType: type,
+      title: n,
+      ...(isList && listId ? { listId } : {}),
+      ...(type === "bad" && cleanTs ? { cleanSince: cleanTs } : {}),
+    });
     setDraft("");
+    setCleanSince("");
   };
 
   // onSubmitEditing + onBlur can both fire — guard so we create exactly once.
@@ -167,6 +185,28 @@ export function Habits() {
           <Icon name="Plus" color="#fff" size={20} />
         </Pressable>
       </View>
+
+      {/* Bad only: backdate the clean streak ("I quit on …"), like the web's
+          "Clean since" field. Empty = the streak starts now. */}
+      {type === "bad" ? (
+        <View style={[{ flexDirection: "row", alignItems: "center", gap: 10, backgroundColor: C.surface, borderRadius: R.md, paddingHorizontal: 14, paddingVertical: 8 }, claySm()]}>
+          <Icon name="Shield" size={16} color={tint.acc} />
+          <Txt size={13} weight="semibold" color={C.inkSoft}>
+            Clean since
+          </Txt>
+          <TextInput
+            value={cleanSince}
+            onChangeText={setCleanSince}
+            placeholder="YYYY-MM-DD"
+            placeholderTextColor={C.inkFaint}
+            keyboardType="numbers-and-punctuation"
+            style={{ flex: 1, backgroundColor: C.page2, borderRadius: R.sm, paddingHorizontal: 10, paddingVertical: 7, fontFamily: FONT.semibold, fontSize: 13, color: C.ink }}
+          />
+          <Txt size={12} weight="bold" color={cleanTs ? tint.acc : C.inkFaint}>
+            {cleanTs ? `${formatStreak(now - cleanTs)} clean` : cleanSince ? "…" : "now"}
+          </Txt>
+        </View>
+      ) : null}
 
       {active.length === 0 && achieved.length === 0 ? (
         <Txt color={C.inkFaint} weight="medium" style={{ paddingVertical: 12 }}>
