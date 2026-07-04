@@ -1842,12 +1842,12 @@ function FocusPanel() {
           <FocusRing
             fraction={1 - leftMs / totalMs}
             color={color}
-            size="h-80 w-80"
+            size="h-[min(80vmin,34rem)] w-[min(80vmin,34rem)]"
           >
-            <span className="text-7xl font-extrabold tabular-nums tracking-tight">
+            <span className="text-[clamp(4rem,18vmin,8rem)] font-extrabold leading-none tabular-nums tracking-tight">
               {leftMin}:{String(leftSec).padStart(2, "0")}
             </span>
-            <span className="text-sm font-bold text-ink-soft">
+            <span className="text-base font-bold text-ink-soft">
               {paused ? "Paused" : isFocus ? "Focus" : "Rest"}
             </span>
           </FocusRing>
