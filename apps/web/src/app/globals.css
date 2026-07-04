@@ -71,7 +71,7 @@
   --color-cool: var(--cool-acc);
   --color-imp: var(--imp-acc);
   --color-gold: var(--gold);
-  --font-sans: var(--font-onest), system-ui, sans-serif;
+  --font-sans: var(--font-sf), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --radius-lg: var(--r-lg);
   --radius-md: var(--r-md);
   --radius-sm: var(--r-sm);

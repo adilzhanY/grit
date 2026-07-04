@@ -1,15 +1,23 @@
 import type { Metadata, Viewport } from "next";
-import { Onest } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { StoreProvider } from "@/lib/store";
 import { AuthProvider } from "@/lib/auth";
 import { ServiceWorker } from "@/components/ServiceWorker";
 
-const onest = Onest({
-  variable: "--font-onest",
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+// SF Pro Display (Apple's system font), self-hosted and subset to Latin.
+// Weights map to the app's scale: 400 / 500 / 600 / 700, plus Heavy for the
+// "extrabold" (800) usages.
+const sfPro = localFont({
+  variable: "--font-sf",
   display: "swap",
+  src: [
+    { path: "./fonts/SFProDisplay-Regular.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/SFProDisplay-Medium.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/SFProDisplay-Semibold.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/SFProDisplay-Bold.woff2", weight: "700", style: "normal" },
+    { path: "./fonts/SFProDisplay-Heavy.woff2", weight: "800", style: "normal" },
+  ],
 });
 
 export const metadata: Metadata = {
@@ -36,7 +44,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${onest.variable} h-full antialiased`}>
+    <html lang="en" className={`${sfPro.variable} h-full antialiased`}>
       <body className="min-h-full">
         <ServiceWorker />
         <AuthProvider>
