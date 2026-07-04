@@ -54,8 +54,8 @@ function Shell() {
           <Image
             src="/logo.png"
             alt="grit"
-            width={546}
-            height={266}
+            width={552}
+            height={552}
             priority
             className="h-10 w-auto"
           />
