@@ -1,13 +1,13 @@
 "use client";
 
 import { createContext, useContext, useState } from "react";
-import type { DayLogKind } from "./types";
 
 export type View =
   | "myday"
   | "important"
   | "planned"
   | "dailylog"
+  | "focus"
   | "analytics"
   | "must"
   | "bad"
@@ -26,10 +26,6 @@ interface UiValue {
   /** Mobile nav drawer open state. */
   menuOpen: boolean;
   setMenuOpen: (open: boolean) => void;
-  /** Which Daily Log tracker is open. Lifted here so the floating focus
-   *  banner knows when the big timer ring is already on screen. */
-  dailyLogTab: DayLogKind;
-  setDailyLogTab: (k: DayLogKind) => void;
 }
 
 const Ctx = createContext<UiValue | null>(null);
@@ -37,11 +33,8 @@ const Ctx = createContext<UiValue | null>(null);
 export function UiProvider({ children }: { children: React.ReactNode }) {
   const [view, setView] = useState<View>("myday");
   const [menuOpen, setMenuOpen] = useState(false);
-  const [dailyLogTab, setDailyLogTab] = useState<DayLogKind>("food");
   return (
-    <Ctx.Provider
-      value={{ view, setView, menuOpen, setMenuOpen, dailyLogTab, setDailyLogTab }}
-    >
+    <Ctx.Provider value={{ view, setView, menuOpen, setMenuOpen }}>
       {children}
     </Ctx.Provider>
   );

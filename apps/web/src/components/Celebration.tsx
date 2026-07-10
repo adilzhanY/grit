@@ -43,7 +43,7 @@ export function Celebration() {
   return (
     <button
       onClick={dismissCelebration}
-      className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-6 backdrop-blur-sm"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/40 dark:bg-black/60 px-6 backdrop-blur-sm"
       aria-label="Dismiss celebration"
       style={{ cursor: "pointer" }}
     >

@@ -122,7 +122,7 @@ export function BadCard({
             onClick={commitEdit}
             aria-label={`Save ${task.title}`}
             className="clay-press grid h-9 w-9 shrink-0 place-items-center"
-            style={{ background: tint.acc, color: "#fff", cursor: "pointer" }}
+            style={{ background: tint.acc, color: "var(--on-accent)", cursor: "pointer" }}
           >
             <Icon name="Check" className="h-4 w-4" strokeWidth={3} />
           </button>
@@ -136,7 +136,7 @@ export function BadCard({
           <button
             onClick={startEdit}
             aria-label={`Edit ${task.title}`}
-            className="grid h-9 w-9 place-items-center rounded-full text-ink-faint hover:bg-black/5"
+            className="grid h-9 w-9 place-items-center rounded-full text-ink-faint hover:bg-black/5 dark:hover:bg-white/10"
             style={{ cursor: "pointer" }}
           >
             <Icon name="Pencil" className="h-4 w-4" />
@@ -147,7 +147,7 @@ export function BadCard({
                 onClick={() => toggleImportant(task)}
                 aria-label={task.important ? "Unmark important" : "Mark important"}
                 aria-pressed={!!task.important}
-                className="grid h-9 w-9 place-items-center rounded-full hover:bg-black/5"
+                className="grid h-9 w-9 place-items-center rounded-full hover:bg-black/5 dark:hover:bg-white/10"
                 style={{
                   cursor: "pointer",
                   color: task.important ? tint.acc : "var(--ink-faint)",
@@ -159,7 +159,7 @@ export function BadCard({
                 onClick={() => toggleMyDay(task)}
                 aria-label={task.starredMyDay ? "Remove from My Day" : "Add to My Day"}
                 aria-pressed={!!task.starredMyDay}
-                className="grid h-9 w-9 place-items-center rounded-full hover:bg-black/5"
+                className="grid h-9 w-9 place-items-center rounded-full hover:bg-black/5 dark:hover:bg-white/10"
                 style={{
                   cursor: "pointer",
                   color: task.starredMyDay ? tint.acc : "var(--ink-faint)",
@@ -180,7 +180,7 @@ export function BadCard({
                 removeTask(task.id);
             }}
             aria-label={`Delete ${task.title}`}
-            className="grid h-9 w-9 place-items-center rounded-full text-ink-faint hover:bg-black/5"
+            className="grid h-9 w-9 place-items-center rounded-full text-ink-faint hover:bg-black/5 dark:hover:bg-white/10"
             style={{ cursor: "pointer" }}
           >
             <Icon name="Trash2" className="h-4 w-4" />
@@ -240,7 +240,7 @@ export function BadCard({
       <button
         onClick={onSlip}
         className="clay-press mt-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-bold"
-        style={{ background: tint.acc, color: "#fff", cursor: "pointer" }}
+        style={{ background: tint.acc, color: "var(--on-accent)", cursor: "pointer" }}
       >
         <Icon name="Skull" className="h-4 w-4" />I slipped
       </button>

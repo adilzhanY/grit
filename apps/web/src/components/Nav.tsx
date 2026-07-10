@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store";
 import { Icon } from "./Icon";
 import { AccountButton } from "./Account";
 import { DataBackupButton } from "./DataBackup";
+import { ThemeSwitch } from "./ThemeSwitch";
 
 const SMART: { view: View; label: string; icon: string; color: string }[] = [
   { view: "myday", label: "My Day", icon: "Sun", color: "var(--primary)" },
@@ -28,6 +29,7 @@ const SMART: { view: View; label: string; icon: string; color: string }[] = [
     icon: "NotebookPen",
     color: "var(--primary)",
   },
+  { view: "focus", label: "Focus", icon: "Timer", color: "var(--accent)" },
 ];
 
 const GAMIFIED: { view: View; label: string; icon: string; color: string }[] = [
@@ -74,7 +76,7 @@ function NavItem({
 }
 
 function Divider() {
-  return <div className="my-2 h-px bg-black/10" />;
+  return <div className="my-2 h-px bg-black/10 dark:bg-white/15" />;
 }
 
 /** The shared sidebar body, used by both the desktop rail and the mobile drawer. */
@@ -170,7 +172,7 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
       ) : (
         <button
           onClick={() => setCreating(true)}
-          className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left font-semibold text-primary transition-colors hover:bg-black/5"
+          className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left font-semibold text-primary transition-colors hover:bg-black/5 dark:hover:bg-white/10"
           style={{ cursor: "pointer" }}
         >
           <Icon name="Plus" className="h-5 w-5 shrink-0" />
@@ -194,7 +196,7 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
 
       <button
         onClick={() => setSoundsEnabled(!settings.soundsEnabled)}
-        className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left font-semibold text-ink-soft transition-colors hover:bg-black/5"
+        className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left font-semibold text-ink-soft transition-colors hover:bg-black/5 dark:hover:bg-white/10"
         style={{ cursor: "pointer" }}
       >
         <Icon
@@ -203,6 +205,8 @@ function NavBody({ onNavigate }: { onNavigate?: () => void }) {
         />
         Sound {settings.soundsEnabled ? "on" : "off"}
       </button>
+
+      <ThemeSwitch />
     </>
   );
 }
@@ -221,7 +225,7 @@ export function Nav() {
       {menuOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div
-            className="absolute inset-0 bg-black/30"
+            className="absolute inset-0 bg-black/30 dark:bg-black/60"
             onClick={close}
             aria-hidden
           />

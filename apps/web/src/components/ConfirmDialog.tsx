@@ -60,7 +60,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
       {children}
       {req && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-6 backdrop-blur-sm"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/40 dark:bg-black/60 px-6 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label={req.title}
@@ -92,7 +92,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
               <button
                 autoFocus
                 onClick={() => settle(true)}
-                className="clay-press px-4 py-2 text-sm font-bold text-white"
+                className="clay-press px-4 py-2 text-sm font-bold text-(--on-accent)"
                 style={{ background: "var(--bad-acc)", cursor: "pointer" }}
               >
                 {req.confirmLabel ?? "Confirm"}

@@ -488,7 +488,7 @@ export function Analytics() {
       {/* Header + period selector */}
       <div className="flex flex-wrap items-center gap-4 p-5 clay" style={{ background: "var(--surface)" }}>
         <div
-          className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-white"
+          className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-(--on-accent)"
           style={{ background: "var(--primary)" }}
         >
           <Icon name="ChartColumn" className="h-7 w-7" />

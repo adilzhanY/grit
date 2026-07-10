@@ -95,7 +95,7 @@ function BackupPanel() {
 function BackupModal({ onClose }: { onClose: () => void }) {
   return (
     <div
-      className="fixed inset-0 z-[60] grid place-items-center bg-black/40 px-6 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] grid place-items-center bg-black/40 dark:bg-black/60 px-6 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label="Backup & data"
@@ -133,7 +133,7 @@ export function DataBackupButton() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left font-semibold text-ink-soft transition-colors hover:bg-black/5"
+        className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left font-semibold text-ink-soft transition-colors hover:bg-black/5 dark:hover:bg-white/10"
         style={{ cursor: "pointer" }}
       >
         <Icon name="Database" className="h-5 w-5 shrink-0" />

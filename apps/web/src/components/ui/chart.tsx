@@ -53,7 +53,7 @@ function ChartContainer({
         data-slot="chart"
         data-chart={chartId}
         className={cn(
-          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-[var(--ink-faint)] [&_.recharts-cartesian-grid_line]:stroke-black/5 [&_.recharts-layer]:outline-hidden [&_.recharts-sector]:outline-hidden [&_.recharts-surface]:outline-hidden",
+          "flex aspect-video justify-center text-xs [&_.recharts-cartesian-axis-tick_text]:fill-[var(--ink-faint)] [&_.recharts-cartesian-grid_line]:stroke-black/5 dark:[&_.recharts-cartesian-grid_line]:stroke-white/10 [&_.recharts-layer]:outline-hidden [&_.recharts-sector]:outline-hidden [&_.recharts-surface]:outline-hidden",
           className,
         )}
         {...props}
@@ -180,7 +180,7 @@ function ChartTooltipContent({
   return (
     <div
       className={cn(
-        "grid min-w-[8rem] items-start gap-1.5 rounded-xl border border-black/5 bg-[var(--surface)] px-2.5 py-1.5 text-xs shadow-xl",
+        "grid min-w-[8rem] items-start gap-1.5 rounded-xl border border-black/5 dark:border-white/10 bg-[var(--surface)] px-2.5 py-1.5 text-xs shadow-xl",
         className,
       )}
     >

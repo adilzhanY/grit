@@ -20,10 +20,10 @@ function fmtClock(ts: number): string {
  */
 export function FocusBanner() {
   const { activeFocus } = useStore();
-  const { view, dailyLogTab, setView, setDailyLogTab } = useUi();
+  const { view, setView } = useUi();
   const now = useNow(1000);
 
-  const onFocusPanel = view === "dailylog" && dailyLogTab === "focus";
+  const onFocusPanel = view === "focus";
   // Hide while ringing — the full-screen alarm overlay takes over then.
   const elapsed = !!activeFocus && focusElapsed(activeFocus, now);
   const show = !!activeFocus && !onFocusPanel && !elapsed;
@@ -46,10 +46,7 @@ export function FocusBanner() {
 
   return (
     <button
-      onClick={() => {
-        setView("dailylog");
-        setDailyLogTab("focus");
-      }}
+      onClick={() => setView("focus")}
       aria-label="Open the running pomodoro"
       aria-hidden={!show}
       tabIndex={show ? 0 : -1}

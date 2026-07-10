@@ -1,7 +1,11 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: `.dark` on <html>, toggled by ThemeSwitch and the
+   pre-paint script in layout.tsx (persisted in localStorage "grit:theme"). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ============================================================
-   grit design tokens — Bento grid + Claymorphism, bright mode only
+   grit design tokens — Bento grid + Claymorphism
    ============================================================ */
 
 :root {
@@ -46,7 +50,22 @@
   --clay-pressed: inset 5px 5px 11px rgba(20, 26, 24, 0.16),
     inset -3px -3px 8px rgba(255, 255, 255, 0.55);
 
+  --clay-inset: inset 4px 4px 9px rgba(20, 26, 24, 0.14),
+    inset -4px -4px 9px rgba(255, 255, 255, 0.85);
+
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Text sitting on primary/accent-filled chips and buttons */
+  --on-accent: #fff;
+  /* Success green (Daily Log deltas, heatmap cells) */
+  --good: #1f9d55;
+  /* Subtle ink-alpha fills that must flip to white-alpha in dark */
+  --thread: rgba(20, 26, 24, 0.12); /* subtask thread lines */
+  --check-idle: rgba(20, 26, 24, 0.22); /* unchecked task marks */
+  --cell-track: rgba(20, 26, 24, 0.14); /* heatmap "missed" cells */
+  --cell-faint: rgba(20, 26, 24, 0.05); /* heatmap "not scheduled" cells */
+  --chart-cursor: rgba(0, 0, 0, 0.04); /* recharts hover cursor */
+  --page-glow: #f7f5ef; /* radial highlight in the page backdrop */
 
   /* Chart palette (shadcn charts read these) */
   --chart-1: var(--primary);
@@ -54,6 +73,62 @@
   --chart-3: var(--must-acc);
   --chart-4: var(--imp-acc);
   --chart-5: var(--accent);
+}
+
+/* ============================================================
+   Dark theme — same green-undertone family, inverted values.
+   Pure CSS variable remap: toggling the class re-colors the app
+   without a React re-render (same pattern as whaleabyss admin).
+   ============================================================ */
+.dark {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --page: #141715;
+  --page-2: #0f1211;
+  --surface: #1e2320;
+  --ink: #e7ebe8;
+  --ink-soft: #a4b0a9;
+  --ink-faint: #75817b;
+
+  /* Brand — primary flips to a light sage so it stays legible as text/icons;
+     anything written on top of it uses --on-accent. */
+  --primary: #c3cfc7;
+  --primary-deep: #e2e9e4;
+
+  /* Per-list clay tints: deep muted surfaces, brightened accents */
+  --must-surf: #322817;
+  --must-acc: #e39a3b;
+  --bad-surf: #372020;
+  --bad-acc: #e66467;
+  --cool-surf: #14302b;
+  --cool-acc: #2fae9f;
+  --imp-surf: #262040;
+  --imp-acc: #a48aff;
+  --gold: #edb51e;
+
+  /* Clay shadows: deep drop shadows, faint top-left sheen */
+  --clay: 7px 7px 18px rgba(0, 0, 0, 0.5),
+    -7px -7px 16px rgba(255, 255, 255, 0.03),
+    inset 3px 3px 6px rgba(255, 255, 255, 0.04),
+    inset -4px -4px 9px rgba(0, 0, 0, 0.3);
+  --clay-sm: 4px 4px 10px rgba(0, 0, 0, 0.45),
+    -4px -4px 9px rgba(255, 255, 255, 0.03),
+    inset 2px 2px 4px rgba(255, 255, 255, 0.04),
+    inset -3px -3px 6px rgba(0, 0, 0, 0.3);
+  --clay-pressed: inset 5px 5px 11px rgba(0, 0, 0, 0.55),
+    inset -3px -3px 8px rgba(255, 255, 255, 0.03);
+  --clay-inset: inset 4px 4px 9px rgba(0, 0, 0, 0.5),
+    inset -4px -4px 9px rgba(255, 255, 255, 0.04);
+
+  --on-accent: #141715;
+  --good: #2fb56b;
+  --thread: rgba(255, 255, 255, 0.14);
+  --check-idle: rgba(255, 255, 255, 0.28);
+  --cell-track: rgba(255, 255, 255, 0.16);
+  --cell-faint: rgba(255, 255, 255, 0.06);
+  --chart-cursor: rgba(255, 255, 255, 0.06);
+  --page-glow: #1b201d;
 }
 
 @theme inline {
@@ -102,7 +177,7 @@ body::before {
   z-index: -1;
   pointer-events: none;
   background:
-    radial-gradient(1200px 600px at 80% -10%, #f7f5ef 0%, transparent 60%),
+    radial-gradient(1200px 600px at 80% -10%, var(--page-glow) 0%, transparent 60%),
     linear-gradient(180deg, var(--page) 0%, var(--page-2) 100%);
 }
 
@@ -136,9 +211,13 @@ body::before {
 
 /* Inset "well" — used for progress tracks and check sockets */
 .clay-inset {
-  box-shadow:
-    inset 4px 4px 9px rgba(20, 26, 24, 0.14),
-    inset -4px -4px 9px rgba(255, 255, 255, 0.85);
+  box-shadow: var(--clay-inset);
+}
+
+/* Recharts renders the tooltip cursor fill as an SVG attribute, which can't
+   hold var(); this CSS property wins over the attribute in both themes. */
+.recharts-tooltip-cursor {
+  fill: var(--chart-cursor);
 }
 
 /* ---------- Motion ---------- */

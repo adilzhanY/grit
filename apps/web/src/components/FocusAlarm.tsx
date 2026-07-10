@@ -46,7 +46,7 @@ export function FocusAlarm() {
         style={{ background: "var(--surface)" }}
       >
         <span
-          className="grid h-16 w-16 animate-bounce place-items-center rounded-full text-white"
+          className="grid h-16 w-16 animate-bounce place-items-center rounded-full text-(--on-accent)"
           style={{ background: color }}
         >
           <Icon name="BellRing" className="h-8 w-8" />
@@ -68,7 +68,7 @@ export function FocusAlarm() {
             {activeFocus.restMin > 0 && (
               <button
                 onClick={() => finishFocusSession(true)}
-                className="clay-press flex items-center justify-center gap-2 py-3 text-sm font-bold text-white"
+                className="clay-press flex items-center justify-center gap-2 py-3 text-sm font-bold text-(--on-accent)"
                 style={{ background: "var(--cool-acc)", cursor: "pointer" }}
               >
                 <Icon name="Coffee" className="h-4 w-4" />
@@ -77,7 +77,7 @@ export function FocusAlarm() {
             )}
             <button
               onClick={() => finishFocusSession(false)}
-              className="clay-press flex items-center justify-center gap-2 py-3 text-sm font-bold text-white"
+              className="clay-press flex items-center justify-center gap-2 py-3 text-sm font-bold text-(--on-accent)"
               style={{ background: "var(--primary)", cursor: "pointer" }}
             >
               <Icon name="Check" className="h-4 w-4" />
@@ -95,7 +95,7 @@ export function FocusAlarm() {
           <div className="flex w-full flex-col gap-2">
             <button
               onClick={() => continueFocusSession()}
-              className="clay-press flex items-center justify-center gap-2 py-3 text-sm font-bold text-white"
+              className="clay-press flex items-center justify-center gap-2 py-3 text-sm font-bold text-(--on-accent)"
               style={{ background: "var(--accent)", cursor: "pointer" }}
             >
               <Icon name="Timer" className="h-4 w-4" />
@@ -103,7 +103,7 @@ export function FocusAlarm() {
             </button>
             <button
               onClick={() => cancelFocusSession()}
-              className="clay-press flex items-center justify-center gap-2 py-3 text-sm font-bold text-white"
+              className="clay-press flex items-center justify-center gap-2 py-3 text-sm font-bold text-(--on-accent)"
               style={{ background: "var(--primary)", cursor: "pointer" }}
             >
               <Icon name="Check" className="h-4 w-4" />

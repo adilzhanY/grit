@@ -10,9 +10,9 @@ import { Icon } from "./Icon";
 type Mode = "week" | "month" | "year";
 
 const GREEN = "#22a55e";
-const GRAY = "rgba(20, 26, 24, 0.14)";
+const GRAY = "var(--cell-track)";
 /** Day exists but the task isn't scheduled for it. */
-const FAINT = "rgba(20, 26, 24, 0.05)";
+const FAINT = "var(--cell-faint)";
 
 const WD = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const MONTHS = [
@@ -67,7 +67,7 @@ function NavArrow({
       onClick={onClick}
       disabled={disabled}
       aria-label={dir === "left" ? "Previous period" : "Next period"}
-      className="grid h-8 w-8 place-items-center rounded-full hover:bg-black/5 disabled:opacity-30"
+      className="grid h-8 w-8 place-items-center rounded-full hover:bg-black/5 dark:hover:bg-white/10 disabled:opacity-30"
       style={{ cursor: disabled ? "default" : "pointer" }}
     >
       <Icon

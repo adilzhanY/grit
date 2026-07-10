@@ -51,7 +51,7 @@ function DuePicker({
   };
 
   const row =
-    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold hover:bg-black/5";
+    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/10";
 
   return (
     <div className="relative" ref={ref}>
@@ -96,7 +96,7 @@ function DuePicker({
               {WD_SHORT[weekdayOf(tomorrow)]}
             </span>
           </button>
-          <div className="my-1 h-px bg-black/10" />
+          <div className="my-1 h-px bg-black/10 dark:bg-white/15" />
           {picking ? (
             <input
               autoFocus
@@ -170,7 +170,7 @@ function RepeatPicker({
     setWeekdays((w) => (w.includes(d) ? w.filter((x) => x !== d) : [...w, d]));
 
   const row =
-    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold hover:bg-black/5";
+    "flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold hover:bg-black/5 dark:hover:bg-white/10";
 
   return (
     <div className="relative" ref={ref}>
@@ -214,7 +214,7 @@ function RepeatPicker({
                   <span className="flex-1">{p.label}</span>
                 </button>
               ))}
-              <div className="my-1 h-px bg-black/10" />
+              <div className="my-1 h-px bg-black/10 dark:bg-white/15" />
               <button
                 onClick={() => setCustom(true)}
                 className={row}
@@ -225,7 +225,7 @@ function RepeatPicker({
               </button>
               {repeat && (
                 <>
-                  <div className="my-1 h-px bg-black/10" />
+                  <div className="my-1 h-px bg-black/10 dark:bg-white/15" />
                   <button
                     onClick={() => pick(null)}
                     className={row}
@@ -277,7 +277,7 @@ function RepeatPicker({
                         className="grid h-8 flex-1 place-items-center rounded-lg text-[11px] font-bold"
                         style={{
                           background: on ? "var(--primary)" : "var(--page-2)",
-                          color: on ? "#fff" : "var(--ink-soft)",
+                          color: on ? "var(--on-accent)" : "var(--ink-soft)",
                           cursor: "pointer",
                         }}
                       >
@@ -290,7 +290,7 @@ function RepeatPicker({
               <button
                 onClick={saveCustom}
                 className="clay-press mx-auto px-5 py-1.5 text-sm font-bold"
-                style={{ background: "var(--primary)", color: "#fff", cursor: "pointer" }}
+                style={{ background: "var(--primary)", color: "var(--on-accent)", cursor: "pointer" }}
               >
                 Save
               </button>
@@ -416,7 +416,7 @@ export function AddTask({
           className="clay-press px-4 py-2 text-sm font-bold disabled:opacity-40"
           style={{
             background: tint.acc,
-            color: "#fff",
+            color: "var(--on-accent)",
             cursor: title.trim() ? "pointer" : "not-allowed",
           }}
         >
@@ -425,7 +425,7 @@ export function AddTask({
       </div>
 
       {open && (
-        <div className="mt-3 flex flex-wrap items-center gap-4 border-t border-black/5 pt-3 text-sm">
+        <div className="mt-3 flex flex-wrap items-center gap-4 border-t border-black/5 dark:border-white/10 pt-3 text-sm">
           {listType === "must" && (
             <div className="flex items-center gap-2">
               <span className="font-semibold text-ink-soft">Days:</span>
@@ -441,7 +441,7 @@ export function AddTask({
                       className="grid h-8 w-8 place-items-center rounded-full text-xs font-bold"
                       style={{
                         background: on ? tint.acc : "var(--page-2)",
-                        color: on ? "#fff" : "var(--ink-soft)",
+                        color: on ? "var(--on-accent)" : "var(--ink-soft)",
                         cursor: "pointer",
                       }}
                     >

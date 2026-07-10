@@ -11,6 +11,7 @@ import { Toast } from "@/components/Toast";
 import { FocusBanner } from "@/components/FocusBanner";
 import { FocusAlarm } from "@/components/FocusAlarm";
 import { XpHero } from "@/components/XpHero";
+import { ThemeSwitchIcon } from "@/components/ThemeSwitch";
 import { Icon } from "@/components/Icon";
 
 function MobileBar() {
@@ -40,6 +41,7 @@ function MobileBar() {
           className="h-5 w-5"
         />
       </button>
+      <ThemeSwitchIcon />
     </header>
   );
 }

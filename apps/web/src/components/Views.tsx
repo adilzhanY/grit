@@ -13,6 +13,7 @@ import { TaskCard } from "./TaskCard";
 import { BadCard } from "./BadCard";
 import { AddTask } from "./AddTask";
 import { DailyLog } from "./DailyLog";
+import { FocusPage } from "./Focus";
 import { Analytics } from "./Analytics";
 import { MustHeatmap } from "./MustHeatmap";
 import { Icon } from "./Icon";
@@ -52,7 +53,7 @@ function ListHeader({
       style={{ background: tint.surf }}
     >
       <div
-        className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-white"
+        className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-(--on-accent)"
         style={{ background: tint.acc }}
       >
         <Icon name={meta.icon} className="h-7 w-7" />
@@ -69,7 +70,7 @@ function ListHeader({
 
 function EmptyHint({ text }: { text: string }) {
   return (
-    <div className="rounded-2xl border-2 border-dashed border-black/10 p-6 text-center text-sm font-medium text-ink-faint sm:col-span-2 2xl:col-span-3">
+    <div className="rounded-2xl border-2 border-dashed border-black/10 dark:border-white/15 p-6 text-center text-sm font-medium text-ink-faint sm:col-span-2 2xl:col-span-3">
       {text}
     </div>
   );
@@ -181,7 +182,7 @@ function ImportantList() {
         style={{ background: "var(--surface)" }}
       >
         <div
-          className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-white"
+          className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-(--on-accent)"
           style={{ background: "var(--primary)" }}
         >
           <Icon name="Star" className="h-7 w-7" />
@@ -257,7 +258,7 @@ function PlannedList() {
         style={{ background: "var(--surface)" }}
       >
         <div
-          className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-white"
+          className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-(--on-accent)"
           style={{ background: "var(--primary)" }}
         >
           <Icon name="CalendarDays" className="h-7 w-7" />
@@ -292,7 +293,7 @@ function HeatmapToggle({ on, onClick }: { on: boolean; onClick: () => void }) {
       className="clay-press flex shrink-0 items-center gap-2 px-3.5 py-2 text-sm font-bold"
       style={{
         background: on ? "var(--must-acc)" : "var(--surface)",
-        color: on ? "#fff" : "var(--ink-soft)",
+        color: on ? "var(--on-accent)" : "var(--ink-soft)",
         cursor: "pointer",
       }}
     >
@@ -427,7 +428,7 @@ function CustomListView({ listId }: { listId: string }) {
         style={{ background: "var(--surface)" }}
       >
         <div
-          className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-white"
+          className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-(--on-accent)"
           style={{ background: "var(--primary)" }}
         >
           <Icon name="ListChecks" className="h-7 w-7" />
@@ -474,7 +475,7 @@ function CustomListView({ listId }: { listId: string }) {
             }
           }}
           aria-label="Delete list"
-          className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink-faint hover:bg-black/5"
+          className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-ink-faint hover:bg-black/5 dark:hover:bg-white/10"
           style={{ cursor: "pointer" }}
         >
           <Icon name="Trash2" className="h-5 w-5" />
@@ -525,6 +526,8 @@ export function Views() {
       return <PlannedList />;
     case "dailylog":
       return <DailyLog />;
+    case "focus":
+      return <FocusPage />;
     case "analytics":
       return <Analytics />;
     case "bad":

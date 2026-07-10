@@ -58,6 +58,7 @@ import {
   Gauge,
   Route,
   ChartColumn,
+  ChartPie,
   Target,
   Maximize2,
   type LucideIcon,
@@ -123,6 +124,7 @@ const MAP: Record<string, LucideIcon> = {
   Gauge,
   Route,
   ChartColumn,
+  ChartPie,
   Target,
   Maximize2,
 };

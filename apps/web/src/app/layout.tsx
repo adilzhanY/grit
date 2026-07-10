@@ -44,8 +44,22 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${sfPro.variable} h-full antialiased`}>
+    // suppressHydrationWarning: the inline script below may add `dark` to
+    // <html> before React hydrates (same pattern as next-themes).
+    <html
+      lang="en"
+      className={`${sfPro.variable} h-full antialiased`}
+      suppressHydrationWarning
+    >
       <body className="min-h-full">
+        {/* Applies the saved theme synchronously during HTML parse — no
+            light-theme flash before hydration. Key must match ThemeSwitch's
+            THEME_KEY. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `try{if(localStorage.getItem("grit:theme")==="dark")document.documentElement.classList.add("dark")}catch(e){}`,
+          }}
+        />
         <ServiceWorker />
         <AuthProvider>
           <StoreProvider>{children}</StoreProvider>

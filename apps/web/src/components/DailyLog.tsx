@@ -1,16 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import type { BodySex, DayLog, DayLogKind, FoodItem, GaitActivity, WeightUnit } from "@/lib/types";
 import {
   fmtMinutes,
   fmtWeight,
   fmtXp,
-  focusXp,
-  focusRemainingMs,
-  focusElapsedMs,
-  focusPhaseEnd,
-  focusElapsed,
   foodTotal,
   lastFoodLoggedAt,
   fmtElapsed,
@@ -26,20 +21,19 @@ import {
   readingXp,
   sleepXp,
   stepsXp,
-  FOCUS_SET_SIZE,
-  FOCUS_SET_XP,
   SLEEP_GOLD_XP,
-  XP_PER_FOCUS_MIN,
   XP_PER_READING_MIN,
 } from "@/lib/daylog";
 import { addDays, dayLabel } from "@/lib/schedule";
 import { useNow, useStore } from "@/lib/store";
-import { useUi } from "@/lib/ui";
 import { useConfirm } from "./ConfirmDialog";
 import { Icon } from "./Icon";
 
+/** Focus has its own page now, so the chooser covers every other log kind. */
+type TrackerKind = Exclude<DayLogKind, "focus">;
+
 const TRACKERS: {
-  kind: DayLogKind;
+  kind: TrackerKind;
   label: string;
   icon: string;
   blurb: string;
@@ -49,9 +43,14 @@ const TRACKERS: {
   { kind: "sleep", label: "Sleep", icon: "Moon", blurb: "7h 30m is the gold standard.", acc: "var(--imp-acc)" },
   { kind: "steps", label: "Steps", icon: "Footprints", blurb: "Every step counts.", acc: "var(--cool-acc)" },
   { kind: "reading", label: "Reading", icon: "BookOpen", blurb: "+2 XP per minute.", acc: "var(--primary)" },
-  { kind: "focus", label: "Focus", icon: "Timer", blurb: "Pomodoro deep work.", acc: "var(--accent)" },
   { kind: "weight", label: "Weight", icon: "Scale", blurb: "Watch the trend.", acc: "var(--imp-acc)" },
 ];
+
+/** "13:05" for a timestamp (24h, always colon-separated). */
+function fmtClock(ts: number): string {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+}
 
 const MACROS: { field: "protein" | "carbs" | "fat"; label: string; icon: string }[] = [
   { field: "protein", label: "Protein", icon: "Beef" },
@@ -90,7 +89,7 @@ function GoalsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-6 backdrop-blur-sm"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/40 dark:bg-black/60 px-6 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label="Daily calorie targets"
@@ -106,7 +105,7 @@ function GoalsModal({
           <button
             onClick={onClose}
             aria-label="Close"
-            className="rounded-full p-1 text-ink-faint hover:bg-black/5"
+            className="rounded-full p-1 text-ink-faint hover:bg-black/5 dark:hover:bg-white/10"
             style={{ cursor: "pointer" }}
           >
             <Icon name="X" className="h-4 w-4" />
@@ -218,7 +217,7 @@ function LogRow({
             removeDayLog(log.id);
         }}
         aria-label="Delete log"
-        className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-faint opacity-0 transition-opacity hover:bg-black/5 focus-visible:opacity-100 group-hover:opacity-100"
+        className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-faint opacity-0 transition-opacity hover:bg-black/5 dark:hover:bg-white/10 focus-visible:opacity-100 group-hover:opacity-100"
         style={{ cursor: "pointer" }}
       >
         <Icon name="Trash2" className="h-3.5 w-3.5" />
@@ -290,7 +289,7 @@ function LogButton({
       className="clay-press px-5 py-2.5 text-sm font-bold disabled:opacity-40"
       style={{
         background: "var(--primary)",
-        color: "#fff",
+        color: "var(--on-accent)",
         cursor: disabled ? "not-allowed" : "pointer",
       }}
     >
@@ -450,7 +449,7 @@ function FoodPanel() {
                   setLimitDraft(String(limit));
                   setEditingLimit(true);
                 }}
-                className="flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-bold text-ink-soft hover:bg-black/5"
+                className="flex shrink-0 items-center gap-1 rounded-full px-2 py-1 text-xs font-bold text-ink-soft hover:bg-black/5 dark:hover:bg-white/10"
                 style={{ cursor: "pointer" }}
               >
                 <Icon name="Pencil" className="h-3 w-3" />
@@ -537,7 +536,7 @@ function FoodPanel() {
                   <button
                     onClick={() => setEditing(f)}
                     aria-label={`Edit ${f.name}`}
-                    className="grid h-6 w-6 place-items-center rounded-full text-ink-faint hover:bg-black/5"
+                    className="grid h-6 w-6 place-items-center rounded-full text-ink-faint hover:bg-black/5 dark:hover:bg-white/10"
                     style={{ cursor: "pointer" }}
                   >
                     <Icon name="Pencil" className="h-3 w-3" />
@@ -553,7 +552,7 @@ function FoodPanel() {
                         removeFood(f.id);
                     }}
                     aria-label={`Remove ${f.name} from saved foods`}
-                    className="grid h-6 w-6 place-items-center rounded-full text-ink-faint hover:bg-black/5"
+                    className="grid h-6 w-6 place-items-center rounded-full text-ink-faint hover:bg-black/5 dark:hover:bg-white/10"
                     style={{ cursor: "pointer" }}
                   >
                     <Icon name="X" className="h-3 w-3" />
@@ -594,7 +593,7 @@ function FoodPanel() {
             className="flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold"
             style={{
               background: save ? "var(--primary)" : "var(--page-2)",
-              color: save ? "#fff" : "var(--ink-soft)",
+              color: save ? "var(--on-accent)" : "var(--ink-soft)",
               cursor: "pointer",
             }}
           >
@@ -634,7 +633,7 @@ function foodDayHeading(date: string, today: string): string {
 }
 
 /** Net-calorie green — signals "under budget after the burn", a good thing. */
-const GOOD_GREEN = "#1f9d55";
+const GOOD_GREEN = "var(--good)";
 
 /** A day's macro totals as a compact horizontal badge of icons + numbers. */
 function DayMacroTotals({ rows, burnt }: { rows: DayLog[]; burnt: number }) {
@@ -778,7 +777,7 @@ function EditFoodModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/40 px-6 backdrop-blur-sm"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/40 dark:bg-black/60 px-6 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label={`Edit ${food.name}`}
@@ -815,7 +814,7 @@ function EditFoodModal({
           <button
             onClick={save}
             disabled={!name.trim()}
-            className="clay-press px-4 py-2 text-sm font-bold text-white disabled:opacity-40"
+            className="clay-press px-4 py-2 text-sm font-bold text-(--on-accent) disabled:opacity-40"
             style={{ background: "var(--primary)", cursor: "pointer" }}
           >
             Save
@@ -999,7 +998,7 @@ function StepsPanel() {
               className="flex items-center gap-1.5 rounded-full px-4 py-1 text-sm font-bold capitalize"
               style={{
                 background: activity === a ? "var(--cool-acc)" : "transparent",
-                color: activity === a ? "#fff" : "var(--ink-soft)",
+                color: activity === a ? "var(--on-accent)" : "var(--ink-soft)",
                 cursor: "pointer",
               }}
             >
@@ -1231,913 +1230,6 @@ function ReadingPanel() {
   );
 }
 
-// ---------------- Focus (Pomodoro) ----------------
-
-const FOCUS_PRESETS = [
-  { label: "Classic", focus: 25, rest: 5 },
-  { label: "Deep", focus: 50, rest: 10 },
-];
-
-type FocusPeriod = "today" | "week" | "month" | "year" | "all" | "custom";
-
-const FOCUS_PERIODS: { value: FocusPeriod; label: string }[] = [
-  { value: "today", label: "Today" },
-  { value: "week", label: "This week" },
-  { value: "month", label: "This month" },
-  { value: "year", label: "This year" },
-  { value: "all", label: "All time" },
-  { value: "custom", label: "Custom range" },
-];
-
-/** Colours cycled across the focus-task list icons. */
-const TASK_COLORS = [
-  "var(--must-acc)",
-  "var(--imp-acc)",
-  "var(--cool-acc)",
-  "var(--primary)",
-  "var(--accent)",
-  "var(--bad-acc)",
-];
-
-/** "13:05" for a timestamp (24h, always colon-separated). */
-function fmtClock(ts: number): string {
-  const d = new Date(ts);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-/** "May 14" for a YYYY-MM-DD day string. */
-function fmtDayLabel(date: string): string {
-  const [y, m, d] = date.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-}
-
-/** SVG progress ring with the countdown in the center. */
-function FocusRing({
-  fraction,
-  color,
-  size = "h-64 w-64",
-  children,
-}: {
-  fraction: number;
-  color: string;
-  size?: string;
-  children: React.ReactNode;
-}) {
-  const R = 110;
-  const C = 2 * Math.PI * R;
-  return (
-    <div className={`relative ${size}`}>
-      <svg viewBox="0 0 256 256" className="h-full w-full -rotate-90">
-        <circle
-          cx="128"
-          cy="128"
-          r={R}
-          fill="none"
-          stroke="var(--page-2)"
-          strokeWidth="14"
-        />
-        <circle
-          cx="128"
-          cy="128"
-          r={R}
-          fill="none"
-          stroke={color}
-          strokeWidth="14"
-          strokeLinecap="round"
-          strokeDasharray={C}
-          strokeDashoffset={C * (1 - Math.min(1, Math.max(0, fraction)))}
-          style={{ transition: "stroke-dashoffset 1s linear" }}
-        />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center gap-1">
-        {children}
-      </div>
-    </div>
-  );
-}
-
-/** A focus block placed on the day timeline. */
-type FocusBlock = { start: number; end: number; label: string; running: boolean };
-
-const hourFloor = (ms: number) => {
-  const d = new Date(ms);
-  d.setMinutes(0, 0, 0);
-  return d.getTime();
-};
-
-/** Today's focus sessions laid out on a vertical 24h timeline. */
-function FocusTimeline({
-  blocks,
-  now,
-  maxH,
-}: {
-  blocks: FocusBlock[];
-  now: number;
-  /** Cap the card to the timer's height (px); content scrolls inside. */
-  maxH?: number;
-}) {
-  const HOUR = 3_600_000;
-  // Each block needs ~44px to show its label + time on two lines. At 144px/h a
-  // 20 min session maps to 48px, so even short back-to-back sessions in one
-  // hour stay readable instead of piling on top of each other.
-  const PX_PER_HOUR = 144;
-  const MIN_BLOCK_H = 44;
-
-  // Window: from the first block (or now) to the last end (or now), padded to
-  // whole hours, with a 4-hour minimum so a lone block isn't cramped.
-  const starts = blocks.map((b) => b.start);
-  const ends = blocks.map((b) => b.end);
-  let rangeStart = hourFloor(Math.min(now, ...starts));
-  let rangeEnd = hourFloor(Math.max(now, ...ends)) + HOUR;
-  while (rangeEnd - rangeStart < 4 * HOUR) rangeEnd += HOUR;
-
-  const hours: number[] = [];
-  for (let t = rangeStart; t <= rangeEnd; t += HOUR) hours.push(t);
-  const y = (ms: number) => ((ms - rangeStart) / HOUR) * PX_PER_HOUR;
-
-  // Lay blocks out chronologically and never let one overlap the previous: a
-  // block sits at its real time unless that would collide, in which case it's
-  // nudged down just enough to clear the one before it. Keeps every label
-  // readable even when several short sessions are packed into one hour.
-  const GAP = 4;
-  let cursor = -Infinity;
-  const placed = [...blocks]
-    .sort((a, b) => a.start - b.start)
-    .map((b) => {
-      const top = Math.max(y(b.start), cursor);
-      const height = Math.max(MIN_BLOCK_H, y(b.end) - y(b.start));
-      cursor = top + height + GAP;
-      return { ...b, top, height };
-    });
-
-  // Tall enough for the hour grid, or for blocks pushed past the last hour.
-  const containerH = Math.max((hours.length - 1) * PX_PER_HOUR, cursor);
-
-  // While a session ticks, centre the red "now" line — but scroll only the
-  // timeline's own box, never the page (scrollIntoView would bubble up to every
-  // ancestor and yank the whole page).
-  const scrollBoxRef = useRef<HTMLDivElement>(null);
-  const hasRunning = blocks.some((b) => b.running);
-  const nowY = y(now);
-  useEffect(() => {
-    const box = scrollBoxRef.current;
-    if (hasRunning && box)
-      box.scrollTo({ top: nowY - box.clientHeight / 2, behavior: "smooth" });
-    // Only re-centre when a session starts or the box is (re)sized — not on
-    // every tick, so the user stays free to scroll the timeline themselves.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hasRunning, maxH]);
-
-  return (
-    <div
-      className="clay flex min-h-0 flex-col gap-3 p-5"
-      style={{ background: "var(--surface)", height: maxH }}
-    >
-      <SectionTitle>Today</SectionTitle>
-      <div
-        ref={scrollBoxRef}
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-      >
-      <div
-        className="relative ml-9 transition-[height] duration-300 ease-out"
-        style={{ height: containerH }}
-      >
-        {/* Hour gridlines + 24h labels */}
-        {hours.map((h) => (
-          <div
-            key={h}
-            className="absolute left-0 right-0 flex items-center transition-[top] duration-300 ease-out"
-            style={{ top: y(h) }}
-          >
-            <span className="absolute -left-9 -translate-y-1/2 text-xs font-bold text-ink-faint tabular-nums">
-              {String(new Date(h).getHours()).padStart(2, "0")}
-            </span>
-            <span className="h-px w-full" style={{ background: "var(--page-2)" }} />
-          </div>
-        ))}
-
-        {/* Focus blocks */}
-        {placed.map((b, i) => {
-          const { top, height } = b;
-          return (
-            <div
-              key={i}
-              className="absolute left-1 right-1 overflow-hidden rounded-xl px-3 py-1.5 transition-[top,height] duration-300 ease-out"
-              style={{
-                top,
-                height,
-                background: b.running
-                  ? "color-mix(in srgb, var(--accent) 30%, var(--surface))"
-                  : "color-mix(in srgb, var(--accent) 18%, var(--surface))",
-                border: `2px solid ${b.running ? "var(--accent)" : "color-mix(in srgb, var(--accent) 40%, transparent)"}`,
-              }}
-            >
-              <p className="truncate text-sm font-extrabold">{b.label}</p>
-              <p className="truncate text-xs font-semibold text-ink-soft">
-                {fmtClock(b.start)} – {fmtClock(b.end)}
-                <span className="text-ink-faint">
-                  {" · "}
-                  {fmtMinutes(Math.max(1, Math.round((b.end - b.start) / 60000)))}
-                </span>
-              </p>
-            </div>
-          );
-        })}
-
-        {/* Now line */}
-        <div
-          className="absolute left-0 right-0 flex items-center transition-[top] duration-300 ease-out"
-          style={{ top: nowY }}
-        >
-          <span
-            className="absolute -left-1 h-2 w-2 -translate-y-1/2 rounded-full"
-            style={{ background: "var(--bad-acc)" }}
-          />
-          <span className="h-0.5 w-full" style={{ background: "var(--bad-acc)" }} />
-        </div>
-      </div>
-      </div>
-    </div>
-  );
-}
-
-/** Overview stat tile (e.g. "Total Pomo · 163"). */
-function OverviewStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex flex-col gap-1 rounded-2xl p-3" style={{ background: "var(--page-2)" }}>
-      <span className="text-xs font-semibold text-ink-faint">{label}</span>
-      <span className="text-2xl font-extrabold tabular-nums">{value}</span>
-    </div>
-  );
-}
-
-/** Right-rail overview + scrollable per-day record of every focus session. */
-function FocusRecord({ logs, today }: { logs: DayLog[]; today: string }) {
-  const { removeDayLog } = useStore();
-  const confirm = useConfirm();
-  const [days, setDays] = useState(10);
-
-  const todays = logs.filter((l) => l.date === today);
-  const sumMin = (ls: DayLog[]) => ls.reduce((s, l) => s + (l.minutes ?? 0), 0);
-
-  // Group sessions by day, newest day first; within a day, newest first.
-  const byDate = new Map<string, DayLog[]>();
-  for (const l of logs) {
-    const arr = byDate.get(l.date) ?? [];
-    arr.push(l);
-    byDate.set(l.date, arr);
-  }
-  const dates = [...byDate.keys()].sort().reverse();
-  const shown = dates.slice(0, days);
-
-  return (
-    <div
-      className="clay flex flex-col gap-4 p-5 lg:sticky lg:top-4 lg:max-h-[calc(100vh-7rem)]"
-      style={{ background: "var(--surface)" }}
-    >
-      <div className="flex flex-col gap-3">
-        <SectionTitle>Overview</SectionTitle>
-        <div className="grid grid-cols-2 gap-3">
-          <OverviewStat label="Today's Pomo" value={String(todays.length)} />
-          <OverviewStat label="Today's Focus" value={fmtMinutes(sumMin(todays)) || "0m"} />
-          <OverviewStat label="Total Pomo" value={String(logs.length)} />
-          <OverviewStat label="Total Focus" value={fmtMinutes(sumMin(logs)) || "0m"} />
-        </div>
-      </div>
-
-      <SectionTitle>Focus Record</SectionTitle>
-      {dates.length === 0 ? (
-        <p className="text-sm font-medium text-ink-faint">
-          No sessions yet. Finish a pomodoro to see it here.
-        </p>
-      ) : (
-        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto pr-1">
-          {shown.map((date) => {
-            const sessions = [...byDate.get(date)!].sort(
-              (a, b) => b.loggedAt - a.loggedAt,
-            );
-            return (
-              <div key={date} className="flex flex-col gap-2">
-                <p className="text-xs font-bold text-ink-faint">{fmtDayLabel(date)}</p>
-                {sessions.map((l) => {
-                  const start = l.loggedAt - (l.minutes ?? 0) * 60_000;
-                  return (
-                    <div key={l.id} className="group flex items-start gap-3">
-                      <span
-                        className="mt-0.5 grid h-7 w-7 shrink-0 place-items-center rounded-full text-white"
-                        style={{ background: "var(--accent)" }}
-                      >
-                        <Icon name="Timer" className="h-4 w-4" />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-baseline justify-between gap-2">
-                          <span className="text-sm font-medium text-ink-faint tabular-nums">
-                            {fmtClock(start)} – {fmtClock(l.loggedAt)}
-                          </span>
-                          <span className="shrink-0 text-sm font-bold text-ink-soft">
-                            {fmtMinutes(l.minutes ?? 0)}
-                          </span>
-                        </div>
-                        <p className="truncate text-sm font-extrabold">
-                          {l.name ?? "Focus"}
-                        </p>
-                      </div>
-                      <button
-                        onClick={async () => {
-                          if (
-                            await confirm({
-                              title: "Delete this focus session?",
-                              message: "Its XP will be reversed.",
-                              confirmLabel: "Delete",
-                            })
-                          )
-                            removeDayLog(l.id);
-                        }}
-                        aria-label="Delete focus session"
-                        className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-faint opacity-0 transition-opacity hover:bg-black/5 focus-visible:opacity-100 group-hover:opacity-100"
-                        style={{ cursor: "pointer" }}
-                      >
-                        <Icon name="Trash2" className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-          {dates.length > days && (
-            <button
-              onClick={() => setDays((d) => d + 10)}
-              className="clay-press self-center px-4 py-2 text-sm font-bold"
-              style={{ background: "var(--page-2)", cursor: "pointer" }}
-            >
-              View more
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function FocusPanel() {
-  const {
-    dayLogs,
-    today,
-    settings,
-    activeFocus,
-    startFocusSession,
-    cancelFocusSession,
-    saveFocusSession,
-    pauseFocusSession,
-    resumeFocusSession,
-    addFocusTask,
-    removeFocusTask,
-  } = useStore();
-  const confirm = useConfirm();
-  const now = useNow(1000);
-  const [focusMin, setFocusMin] = useState("25");
-  const [restMin, setRestMin] = useState("5");
-  const [task, setTask] = useState<string | null>(null);
-  const [newTask, setNewTask] = useState("");
-  const [period, setPeriod] = useState<FocusPeriod>("today");
-  const [customFrom, setCustomFrom] = useState(today);
-  const [customTo, setCustomTo] = useState(today);
-
-  const phaseEnd = activeFocus ? focusPhaseEnd(activeFocus) : null;
-
-  // Zen mode: a full-screen, distraction-free timer. Esc leaves it, and it
-  // can't outlive the session it magnifies.
-  const [zen, setZen] = useState(false);
-  useEffect(() => {
-    if (!zen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setZen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [zen]);
-  // When the session ends, leave zen with it — adjusted during render so the
-  // next session never starts already-fullscreen.
-  const hasSession = !!activeFocus;
-  const [hadSession, setHadSession] = useState(hasSession);
-  if (hadSession !== hasSession) {
-    setHadSession(hasSession);
-    if (!hasSession) setZen(false);
-  }
-
-  // Measure the timer card so the timeline beside it can match its height
-  // exactly and scroll its own overflow instead of stretching the card.
-  const timerRef = useRef<HTMLDivElement>(null);
-  const [timerH, setTimerH] = useState<number>();
-  useEffect(() => {
-    const el = timerRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver(() => setTimerH(el.offsetHeight));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [activeFocus]);
-
-  // While the running-session panel is up there's nothing below the fold, so
-  // lock page scroll — only the timeline scrolls (its own isolated overflow).
-  const showingRunning = !!activeFocus && phaseEnd !== null;
-  useEffect(() => {
-    if (!showingRunning) return;
-    const html = document.documentElement;
-    const prev = html.style.overflow;
-    html.style.overflow = "hidden";
-    return () => {
-      html.style.overflow = prev;
-    };
-  }, [showingRunning]);
-
-  // Countdown in the tab title while a session runs (frozen while paused).
-  useEffect(() => {
-    if (!activeFocus) return;
-    const left = focusRemainingMs(activeFocus, now);
-    const m = Math.floor(left / 60_000);
-    const s = Math.floor((left % 60_000) / 1000);
-    const paused = activeFocus.pausedAt != null;
-    document.title = `${paused ? "⏸" : activeFocus.phase === "focus" ? "🔥" : "☕"} ${m}:${String(s).padStart(2, "0")} · grit`;
-    return () => {
-      document.title = "grit";
-    };
-  }, [activeFocus, now]);
-
-  const focusLogs = dayLogs.filter((l) => l.kind === "focus");
-  const todays = focusLogs.filter((l) => l.date === today);
-  const doneToday = todays.length;
-
-  // Created tasks first, then any logged-only labels (e.g. deleted tasks).
-  const loggedNames = [
-    ...new Set(focusLogs.map((l) => l.name).filter(Boolean) as string[]),
-  ];
-  const loggedOnly = loggedNames.filter((n) => !settings.focusTasks.includes(n));
-  const allTasks = [...settings.focusTasks, ...loggedOnly];
-
-  const submitNewTask = () => {
-    const n = newTask.trim();
-    if (!n) return;
-    void addFocusTask(n);
-    setTask(n);
-    setNewTask("");
-  };
-
-  // Monday of the current week, for the "This week" period filter.
-  const monday = addDays(today, -((new Date().getDay() + 6) % 7));
-
-  // ---- Running session ----
-  if (activeFocus && phaseEnd !== null) {
-    const isFocus = activeFocus.phase === "focus";
-    const paused = activeFocus.pausedAt != null;
-    const elapsed = focusElapsed(activeFocus, now);
-    const totalMs =
-      (isFocus ? activeFocus.focusMin : activeFocus.restMin) * 60_000;
-    const leftMs = focusRemainingMs(activeFocus, now);
-    const leftMin = Math.floor(leftMs / 60_000);
-    const leftSec = Math.floor((leftMs % 60_000) / 1000);
-    const canSave = Math.floor(focusElapsedMs(activeFocus, now) / 60_000) >= 1;
-    const color = isFocus ? "var(--accent)" : "var(--cool-acc)";
-
-    // Today's finished blocks + the one in progress (only during a focus phase).
-    const blocks: FocusBlock[] = todays
-      .map((l) => ({
-        start: l.loggedAt - (l.minutes ?? 0) * 60_000,
-        end: l.loggedAt,
-        label: l.name ?? "Focus",
-        running: false,
-      }))
-      .concat(
-        isFocus
-          ? [
-              {
-                start: activeFocus.startedAt,
-                end: Math.min(now, phaseEnd),
-                label: activeFocus.label ?? "Focus",
-                running: true,
-              },
-            ]
-          : [],
-      );
-
-    return (
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
-      <div
-        ref={timerRef}
-        className="clay flex flex-col items-center gap-4 p-8"
-        style={{ background: "var(--surface)" }}
-      >
-        <span
-          className="flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-extrabold uppercase tracking-wider text-white"
-          style={{ background: paused ? "var(--ink-soft)" : color }}
-        >
-          <Icon name={paused ? "Pause" : isFocus ? "Timer" : "Coffee"} className="h-4 w-4" />
-          {paused ? "Paused" : isFocus ? "Focus" : "Rest"}
-        </span>
-
-        {activeFocus.label && (
-          <span className="text-lg font-extrabold tracking-tight">
-            {activeFocus.label}
-          </span>
-        )}
-
-        <FocusRing fraction={1 - leftMs / totalMs} color={color}>
-          <span className="text-5xl font-extrabold tabular-nums tracking-tight">
-            {leftMin}:{String(leftSec).padStart(2, "0")}
-          </span>
-          <span className="text-sm font-bold text-ink-soft">
-            {fmtClock(activeFocus.startedAt)} – {fmtClock(phaseEnd)}
-          </span>
-          {isFocus && (
-            <span className="text-xs font-semibold text-ink-faint">
-              +{focusXp(activeFocus.focusMin)} XP on finish
-            </span>
-          )}
-        </FocusRing>
-
-        {/* While the alarm is ringing the overlay owns the choices. */}
-        {!elapsed && (
-          <div className="flex items-center gap-3">
-            {/* Pause / Resume */}
-            <button
-              onClick={() => (paused ? resumeFocusSession() : pauseFocusSession())}
-              aria-label={paused ? "Resume" : "Pause"}
-              className="clay-press grid h-12 w-12 place-items-center rounded-full text-white"
-              style={{ background: color, cursor: "pointer" }}
-            >
-              <Icon name={paused ? "Play" : "Pause"} className="h-5 w-5" />
-            </button>
-
-            <button
-              onClick={() => setZen(true)}
-              className="clay-press flex items-center gap-2 px-5 py-2.5 text-sm font-bold"
-              style={{ background: "var(--page-2)", cursor: "pointer" }}
-            >
-              <Icon name="Maximize2" className="h-4 w-4" />
-              Zen
-            </button>
-
-            {isFocus && canSave && (
-              <button
-                onClick={async () => {
-                  const mins = Math.floor(focusElapsedMs(activeFocus, Date.now()) / 60_000);
-                  if (
-                    await confirm({
-                      title: "Save this focus session?",
-                      message: `${fmtMinutes(mins)} of focus will be logged.`,
-                      confirmLabel: "Save",
-                    })
-                  )
-                    void saveFocusSession();
-                }}
-                className="clay-press px-5 py-2.5 text-sm font-bold"
-                style={{ background: "var(--accent)", color: "#fff", cursor: "pointer" }}
-              >
-                Save
-              </button>
-            )}
-
-            <button
-              onClick={async () => {
-                if (!isFocus) return void cancelFocusSession();
-                if (
-                  await confirm({
-                    title: "Give up this pomodoro?",
-                    message: "An abandoned session earns no XP.",
-                    confirmLabel: "Give up",
-                  })
-                )
-                  void cancelFocusSession();
-              }}
-              className="clay-press px-5 py-2.5 text-sm font-bold"
-              style={{
-                background: isFocus ? "var(--bad-acc)" : "var(--primary)",
-                color: "#fff",
-                cursor: "pointer",
-              }}
-            >
-              {isFocus ? "Give up" : "Skip rest"}
-            </button>
-          </div>
-        )}
-      </div>
-
-      <FocusTimeline blocks={blocks} now={now} maxH={timerH} />
-
-      {/* Zen mode: nothing but the ticking timer. z-50 keeps it under the
-          z-[60] alarm overlay, which takes over when the phase ends. */}
-      {zen && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6"
-          style={{ background: "var(--page)" }}
-        >
-          {activeFocus.label && (
-            <span className="text-lg font-extrabold tracking-tight text-ink-soft">
-              {activeFocus.label}
-            </span>
-          )}
-          <FocusRing
-            fraction={1 - leftMs / totalMs}
-            color={color}
-            size="h-[min(80vmin,34rem)] w-[min(80vmin,34rem)]"
-          >
-            <span className="text-[clamp(4rem,18vmin,8rem)] font-extrabold leading-none tabular-nums tracking-tight">
-              {leftMin}:{String(leftSec).padStart(2, "0")}
-            </span>
-            <span className="text-base font-bold text-ink-soft">
-              {paused ? "Paused" : isFocus ? "Focus" : "Rest"}
-            </span>
-          </FocusRing>
-          <button
-            onClick={() => setZen(false)}
-            className="text-xs font-semibold text-ink-faint"
-            style={{ cursor: "pointer" }}
-          >
-            Esc to exit
-          </button>
-        </div>
-      )}
-    </div>
-    );
-  }
-
-  // ---- Idle: presets + stats + history ----
-  const f = num(focusMin);
-  const r = num(restMin);
-
-  // Selected period → inclusive [rangeStart, rangeEnd] day window.
-  let rangeStart = today;
-  let rangeEnd = today;
-  if (period === "week") rangeStart = monday;
-  else if (period === "month") rangeStart = `${today.slice(0, 8)}01`;
-  else if (period === "year") rangeStart = `${today.slice(0, 4)}-01-01`;
-  else if (period === "all") {
-    rangeStart = "0000-01-01";
-    rangeEnd = "9999-12-31";
-  } else if (period === "custom") {
-    rangeStart = customFrom;
-    rangeEnd = customTo;
-  }
-  const periodLogs = focusLogs.filter(
-    (l) => l.date >= rangeStart && l.date <= rangeEnd,
-  );
-  const taskPeriodMin = (name: string) =>
-    periodLogs
-      .filter((l) => (l.name ?? "") === name)
-      .reduce((s, l) => s + (l.minutes ?? 0), 0);
-
-  return (
-    <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-      {/* LEFT: start a pomodoro + working hours + history */}
-      <div className="flex flex-col gap-4">
-      <div
-        className="clay flex flex-col gap-4 p-5"
-        style={{ background: "var(--surface)" }}
-      >
-        <SectionTitle>Start a pomodoro</SectionTitle>
-
-        {/* Focus task chooser */}
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              onClick={() => setTask(null)}
-              aria-pressed={task === null}
-              className="rounded-full px-3 py-1.5 text-sm font-bold"
-              style={{
-                background: task === null ? "var(--accent)" : "var(--page-2)",
-                color: task === null ? "#fff" : "var(--ink-soft)",
-                cursor: "pointer",
-              }}
-            >
-              No task
-            </button>
-            {allTasks.map((t) => {
-              const on = task === t;
-              return (
-                <span
-                  key={t}
-                  className="group flex items-center rounded-full"
-                  style={{
-                    background: on ? "var(--accent)" : "var(--page-2)",
-                    color: on ? "#fff" : "var(--ink)",
-                  }}
-                >
-                  <button
-                    onClick={() => setTask(on ? null : t)}
-                    aria-pressed={on}
-                    className="rounded-full py-1.5 pl-3 pr-2 text-sm font-bold"
-                    style={{ cursor: "pointer" }}
-                  >
-                    {t}
-                  </button>
-                  <button
-                    onClick={async () => {
-                      if (
-                        await confirm({
-                          title: `Delete focus task "${t}"?`,
-                          message: "Past sessions keep their time.",
-                          confirmLabel: "Delete",
-                        })
-                      ) {
-                        if (task === t) setTask(null);
-                        void removeFocusTask(t);
-                      }
-                    }}
-                    aria-label={`Delete ${t}`}
-                    className="grid h-6 w-6 place-items-center rounded-full opacity-0 transition-opacity hover:bg-black/10 group-hover:opacity-100"
-                    style={{ cursor: "pointer" }}
-                  >
-                    <Icon name="X" className="h-3 w-3" />
-                  </button>
-                </span>
-              );
-            })}
-          </div>
-          <div className="flex items-center gap-2">
-            <input
-              value={newTask}
-              onChange={(e) => setNewTask(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") submitNewTask();
-              }}
-              placeholder="New focus task (e.g. Learn German)"
-              aria-label="New focus task"
-              className="min-w-0 flex-1 rounded-xl bg-page-2 px-3 py-2 text-sm font-semibold text-ink outline-none placeholder:text-ink-faint"
-            />
-            <button
-              onClick={submitNewTask}
-              disabled={!newTask.trim()}
-              aria-label="Add focus task"
-              className="clay-press grid h-9 w-9 shrink-0 place-items-center disabled:opacity-40"
-              style={{
-                background: "var(--accent)",
-                color: "#fff",
-                cursor: newTask.trim() ? "pointer" : "not-allowed",
-              }}
-            >
-              <Icon name="Plus" className="h-4 w-4" />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-end gap-3">
-          {FOCUS_PRESETS.map((p) => (
-            <button
-              key={p.label}
-              onClick={() => {
-                setFocusMin(String(p.focus));
-                setRestMin(String(p.rest));
-              }}
-              aria-pressed={f === p.focus && r === p.rest}
-              className="flex flex-col items-start gap-0.5 rounded-2xl px-4 py-2.5 text-left"
-              style={{
-                background:
-                  f === p.focus && r === p.rest ? "var(--accent)" : "var(--page-2)",
-                color: f === p.focus && r === p.rest ? "#fff" : "var(--ink)",
-                cursor: "pointer",
-              }}
-            >
-              <span className="text-sm font-extrabold">{p.label}</span>
-              <span className="text-xs font-semibold opacity-80">
-                {p.focus} / {p.rest} min
-              </span>
-            </button>
-          ))}
-          <NumberField label="Focus" icon="Timer" value={focusMin} onChange={setFocusMin} suffix="min" width="w-28" />
-          <NumberField label="Rest" icon="Coffee" value={restMin} onChange={setRestMin} suffix="min" width="w-28" />
-          <div className="flex-1" />
-          <button
-            onClick={() => startFocusSession(f, r, task ?? undefined)}
-            disabled={f <= 0}
-            className="clay-press flex items-center gap-2 px-5 py-2.5 text-sm font-bold disabled:opacity-40"
-            style={{
-              background: "var(--accent)",
-              color: "#fff",
-              cursor: f > 0 ? "pointer" : "not-allowed",
-            }}
-          >
-            <Icon name="Play" className="h-4 w-4" />
-            Start
-          </button>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs font-medium text-ink-faint">
-          <span>
-            +{XP_PER_FOCUS_MIN} XP per focused minute — paid only when the
-            session finishes. Every {FOCUS_SET_SIZE}th pomodoro of the day:
-            +{FOCUS_SET_XP} bonus.
-          </span>
-          <span className="ml-auto flex items-center gap-1" aria-label="Set progress">
-            {Array.from({ length: FOCUS_SET_SIZE }, (_, i) => {
-              const filled =
-                doneToday > 0 && doneToday % FOCUS_SET_SIZE === 0
-                  ? FOCUS_SET_SIZE
-                  : doneToday % FOCUS_SET_SIZE;
-              return (
-                <span
-                  key={i}
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{
-                    background: i < filled ? "var(--accent)" : "var(--page-2)",
-                  }}
-                />
-              );
-            })}
-            <span className="ml-1 font-bold text-ink-soft">{doneToday} today</span>
-          </span>
-        </div>
-      </div>
-
-      {/* Focus tasks with total time for the selected period */}
-      <div className="clay flex flex-col gap-3 p-5" style={{ background: "var(--surface)" }}>
-        <div className="flex items-center justify-between gap-2">
-          <SectionTitle>Focus tasks</SectionTitle>
-          <select
-            value={period}
-            onChange={(e) => setPeriod(e.target.value as FocusPeriod)}
-            aria-label="Time period"
-            className="rounded-xl bg-page-2 px-3 py-1.5 text-sm font-bold text-ink-soft outline-none"
-            style={{ cursor: "pointer" }}
-          >
-            {FOCUS_PERIODS.map((p) => (
-              <option key={p.value} value={p.value}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {period === "custom" && (
-          <div className="flex flex-wrap items-center gap-2 text-sm font-semibold text-ink-soft">
-            <input
-              type="date"
-              value={customFrom}
-              max={customTo}
-              onChange={(e) => setCustomFrom(e.target.value)}
-              aria-label="From date"
-              className="rounded-xl bg-page-2 px-3 py-1.5 text-sm font-semibold text-ink outline-none"
-            />
-            <span>–</span>
-            <input
-              type="date"
-              value={customTo}
-              min={customFrom}
-              onChange={(e) => setCustomTo(e.target.value)}
-              aria-label="To date"
-              className="rounded-xl bg-page-2 px-3 py-1.5 text-sm font-semibold text-ink outline-none"
-            />
-          </div>
-        )}
-
-        {allTasks.length === 0 ? (
-          <p className="text-sm font-medium text-ink-faint">
-            Create a focus task above to track time here.
-          </p>
-        ) : (
-          <div className="flex flex-col">
-            {allTasks.map((t, i) => (
-              <div
-                key={t}
-                className="flex items-center gap-3 border-t border-black/5 py-3 first:border-t-0"
-              >
-                <span
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-white"
-                  style={{ background: TASK_COLORS[i % TASK_COLORS.length] }}
-                >
-                  <Icon name="Timer" className="h-4.5 w-4.5" />
-                </span>
-                <span className="min-w-0 flex-1 truncate text-sm font-bold">{t}</span>
-                <span className="shrink-0 text-sm font-bold text-ink-soft tabular-nums">
-                  {fmtMinutes(taskPeriodMin(t)) || "0m"}
-                </span>
-                <button
-                  onClick={() => startFocusSession(f, r, t)}
-                  disabled={f <= 0}
-                  aria-label={`Start a pomodoro for ${t}`}
-                  className="grid h-8 w-8 shrink-0 place-items-center rounded-full hover:bg-black/5 disabled:opacity-40"
-                  style={{
-                    color: "var(--accent)",
-                    cursor: f > 0 ? "pointer" : "not-allowed",
-                  }}
-                >
-                  <Icon name="Play" className="h-5 w-5" />
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      </div>
-
-      {/* RIGHT: overview + scrollable focus record */}
-      <FocusRecord logs={focusLogs} today={today} />
-    </div>
-  );
-}
-
 // ---------------- Weight ----------------
 
 function WeightPanel() {
@@ -2326,11 +1418,11 @@ function PastLogs({
 // ---------------- Page ----------------
 
 export function DailyLog() {
-  const { dailyLogTab: active, setDailyLogTab: setActive } = useUi();
+  const [active, setActive] = useState<TrackerKind>("food");
   const { dayLogs, today, settings } = useStore();
 
   /** Today's one-line summary per tracker, shown on its chooser tile. */
-  const summary = (kind: DayLogKind): string => {
+  const summary = (kind: TrackerKind): string => {
     const todays = dayLogs.filter((l) => l.kind === kind && l.date === today);
     switch (kind) {
       case "food":
@@ -2351,12 +1443,6 @@ export function DailyLog() {
         const m = todays.reduce((s, l) => s + (l.minutes ?? 0), 0);
         return m > 0 ? fmtMinutes(m) : "Not logged";
       }
-      case "focus": {
-        const m = todays.reduce((s, l) => s + (l.minutes ?? 0), 0);
-        return m > 0
-          ? `${fmtMinutes(m)} · ${todays.length} done`
-          : "No sessions yet";
-      }
       case "weight": {
         const latest = dayLogs.find((l) => l.kind === "weight");
         return latest
@@ -2373,7 +1459,7 @@ export function DailyLog() {
         style={{ background: "var(--surface)" }}
       >
         <div
-          className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-white"
+          className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl text-(--on-accent)"
           style={{ background: "var(--primary)" }}
         >
           <Icon name="NotebookPen" className="h-7 w-7" />
@@ -2387,7 +1473,7 @@ export function DailyLog() {
       </div>
 
       {/* Tracker chooser */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {TRACKERS.map((t) => {
           const on = active === t.kind;
           const { current, best } = logStreak(
@@ -2414,7 +1500,7 @@ export function DailyLog() {
                   className="absolute right-2 top-2 flex items-center gap-1 rounded-full px-2 py-1 text-sm font-extrabold leading-none tabular-nums"
                   style={{
                     background: live ? t.acc : "var(--page-2)",
-                    color: live ? "#fff" : "var(--ink-faint)",
+                    color: live ? "var(--on-accent)" : "var(--ink-faint)",
                   }}
                   title={`Current ${current} · best ${best} days`}
                 >
@@ -2423,7 +1509,7 @@ export function DailyLog() {
                 </span>
               )}
               <span
-                className="grid h-9 w-9 place-items-center rounded-xl text-white"
+                className="grid h-9 w-9 place-items-center rounded-xl text-(--on-accent)"
                 style={{ background: t.acc }}
               >
                 <Icon name={t.icon} className="h-4.5 w-4.5" />
@@ -2441,7 +1527,6 @@ export function DailyLog() {
       {active === "sleep" && <SleepPanel />}
       {active === "steps" && <StepsPanel />}
       {active === "reading" && <ReadingPanel />}
-      {active === "focus" && <FocusPanel />}
       {active === "weight" && <WeightPanel />}
     </div>
   );

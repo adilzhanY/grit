@@ -9,7 +9,7 @@ import { useStore } from "@/lib/store";
 import { useConfirm } from "./ConfirmDialog";
 import { Icon } from "./Icon";
 
-const THREAD_LINE = "rgba(20, 26, 24, 0.12)";
+const THREAD_LINE = "var(--thread)";
 
 /** Curved Reddit-style connector linking a thread row up to its parent. */
 function Connector({ isLast }: { isLast: boolean }) {
@@ -82,7 +82,7 @@ function SubtaskRow({
         className="clay-press grid h-8 w-8 shrink-0 place-items-center"
         style={{
           background: done ? tint.acc : "var(--surface)",
-          color: done ? "#fff" : "rgba(20,26,24,0.22)",
+          color: done ? "var(--on-accent)" : "var(--check-idle)",
           cursor: "pointer",
         }}
       >
@@ -122,7 +122,7 @@ function SubtaskRow({
           <button
             onClick={commitEdit}
             aria-label="Save subtask"
-            className="clay-press grid h-7 w-7 shrink-0 place-items-center rounded-full text-white"
+            className="clay-press grid h-7 w-7 shrink-0 place-items-center rounded-full text-(--on-accent)"
             style={{ background: tint.acc, cursor: "pointer" }}
           >
             <Icon name="Check" className="h-3.5 w-3.5" strokeWidth={3} />
@@ -150,7 +150,7 @@ function SubtaskRow({
             <button
               onClick={startEdit}
               aria-label={`Edit subtask ${sub.title}`}
-              className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-faint opacity-0 transition-opacity hover:bg-black/5 focus-visible:opacity-100 group-hover/sub:opacity-100"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-faint opacity-0 transition-opacity hover:bg-black/5 dark:hover:bg-white/10 focus-visible:opacity-100 group-hover/sub:opacity-100"
               style={{ cursor: "pointer" }}
             >
               <Icon name="Pencil" className="h-3.5 w-3.5" />
@@ -160,7 +160,7 @@ function SubtaskRow({
             <button
               onClick={() => removeSubtask(task, sub.id)}
               aria-label={`Delete subtask ${sub.title}`}
-              className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-faint opacity-0 transition-opacity hover:bg-black/5 focus-visible:opacity-100 group-hover/sub:opacity-100"
+              className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-ink-faint opacity-0 transition-opacity hover:bg-black/5 dark:hover:bg-white/10 focus-visible:opacity-100 group-hover/sub:opacity-100"
               style={{ cursor: "pointer" }}
             >
               <Icon name="Trash2" className="h-3.5 w-3.5" />
@@ -305,7 +305,7 @@ export function TaskCard({
           className="clay-press relative grid h-10 w-10 shrink-0 place-items-center"
           style={{
             background: done ? tint.acc : "var(--surface)",
-            color: done ? "#fff" : "rgba(20,26,24,0.22)",
+            color: done ? "var(--on-accent)" : "var(--check-idle)",
             cursor: "pointer",
             // Partial ring: some subtasks done, not all.
             outline: partial ? `3px solid ${tint.acc}` : undefined,
@@ -362,7 +362,7 @@ export function TaskCard({
                 onClick={() => setExpanded((e) => !e)}
                 aria-expanded={open}
                 aria-label="Toggle subtasks"
-                className="-ml-1 flex items-center gap-1 rounded-full px-1.5 py-0.5 font-bold hover:bg-black/5"
+                className="-ml-1 flex items-center gap-1 rounded-full px-1.5 py-0.5 font-bold hover:bg-black/5 dark:hover:bg-white/10"
                 style={{ color: tint.acc, cursor: "pointer" }}
               >
                 <Icon
@@ -416,7 +416,7 @@ export function TaskCard({
             onClick={commitEdit}
             aria-label={`Save ${task.title}`}
             className="clay-press grid h-8 w-8 shrink-0 place-items-center"
-            style={{ background: tint.acc, color: "#fff", cursor: "pointer" }}
+            style={{ background: tint.acc, color: "var(--on-accent)", cursor: "pointer" }}
           >
             <Icon name="Check" className="h-4 w-4" strokeWidth={3} />
           </button>
@@ -431,7 +431,7 @@ export function TaskCard({
           <button
             onClick={startEdit}
             aria-label={`Edit ${task.title}`}
-            className="grid h-8 w-8 place-items-center rounded-full text-ink-faint hover:bg-black/5"
+            className="grid h-8 w-8 place-items-center rounded-full text-ink-faint hover:bg-black/5 dark:hover:bg-white/10"
             style={{ cursor: "pointer" }}
           >
             <Icon name="Pencil" className="h-4 w-4" />
@@ -440,7 +440,7 @@ export function TaskCard({
             <button
               onClick={startAdd}
               aria-label={`Add subtask to ${task.title}`}
-              className="grid h-8 w-8 place-items-center rounded-full text-ink-faint hover:bg-black/5"
+              className="grid h-8 w-8 place-items-center rounded-full text-ink-faint hover:bg-black/5 dark:hover:bg-white/10"
               style={{ cursor: "pointer" }}
             >
               <Icon name="ListPlus" className="h-5 w-5" />
@@ -450,7 +450,7 @@ export function TaskCard({
             onClick={() => toggleImportant(task)}
             aria-label={task.important ? "Unmark important" : "Mark important"}
             aria-pressed={!!task.important}
-            className="grid h-8 w-8 place-items-center rounded-full hover:bg-black/5"
+            className="grid h-8 w-8 place-items-center rounded-full hover:bg-black/5 dark:hover:bg-white/10"
             style={{
               cursor: "pointer",
               color: task.important ? tint.acc : "var(--ink-faint)",
@@ -462,7 +462,7 @@ export function TaskCard({
             onClick={() => toggleMyDay(task)}
             aria-label={task.starredMyDay ? "Remove from My Day" : "Add to My Day"}
             aria-pressed={!!task.starredMyDay}
-            className="grid h-8 w-8 place-items-center rounded-full hover:bg-black/5"
+            className="grid h-8 w-8 place-items-center rounded-full hover:bg-black/5 dark:hover:bg-white/10"
             style={{
               cursor: "pointer",
               color: task.starredMyDay ? tint.acc : "var(--ink-faint)",
@@ -481,7 +481,7 @@ export function TaskCard({
                 removeTask(task.id);
             }}
             aria-label={`Delete ${task.title}`}
-            className="grid h-8 w-8 place-items-center rounded-full text-ink-faint hover:bg-black/5"
+            className="grid h-8 w-8 place-items-center rounded-full text-ink-faint hover:bg-black/5 dark:hover:bg-white/10"
             style={{ cursor: "pointer" }}
           >
             <Icon name="Trash2" className="h-4 w-4" />
@@ -538,7 +538,7 @@ export function TaskCard({
                     className="clay-press grid h-9 w-9 shrink-0 place-items-center disabled:opacity-40"
                     style={{
                       background: tint.acc,
-                      color: "#fff",
+                      color: "var(--on-accent)",
                       cursor: draft.trim() ? "pointer" : "not-allowed",
                     }}
                   >

@@ -86,7 +86,7 @@ function AuthModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className="fixed inset-0 z-[60] grid place-items-center bg-black/40 px-6 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] grid place-items-center bg-black/40 dark:bg-black/60 px-6 backdrop-blur-sm"
       role="dialog"
       aria-modal="true"
       aria-label="Account"
@@ -119,9 +119,9 @@ function AuthModal({ onClose }: { onClose: () => void }) {
         </button>
 
         <div className="my-3 flex items-center gap-3 text-[11px] font-bold text-ink-faint">
-          <span className="h-px flex-1 bg-black/10" />
+          <span className="h-px flex-1 bg-black/10 dark:bg-white/15" />
           OR
-          <span className="h-px flex-1 bg-black/10" />
+          <span className="h-px flex-1 bg-black/10 dark:bg-white/15" />
         </div>
 
         <div className="flex flex-col gap-2">
@@ -162,7 +162,7 @@ function AuthModal({ onClose }: { onClose: () => void }) {
         <button
           onClick={submit}
           disabled={busy}
-          className="clay-press mt-4 w-full px-4 py-2.5 text-sm font-bold text-white disabled:opacity-50"
+          className="clay-press mt-4 w-full px-4 py-2.5 text-sm font-bold text-(--on-accent) disabled:opacity-50"
           style={{ background: "var(--primary)", cursor: "pointer" }}
         >
           {busy
@@ -215,7 +215,7 @@ function SignedIn({
           onClick={onSignOut}
           aria-label="Sign out"
           title="Sign out"
-          className="grid h-8 w-8 shrink-0 place-items-center rounded-full hover:bg-black/5"
+          className="grid h-8 w-8 shrink-0 place-items-center rounded-full hover:bg-black/5 dark:hover:bg-white/10"
           style={{ cursor: "pointer" }}
         >
           <Icon name="LogOut" className="h-4 w-4 text-ink-soft" />
@@ -264,7 +264,7 @@ export function AccountButton() {
     <>
       <button
         onClick={() => setOpen(true)}
-        className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left font-semibold text-primary transition-colors hover:bg-black/5"
+        className="flex items-center gap-3 rounded-2xl px-3 py-2.5 text-left font-semibold text-primary transition-colors hover:bg-black/5 dark:hover:bg-white/10"
         style={{ cursor: "pointer" }}
       >
         <Icon name="LogIn" className="h-5 w-5 shrink-0" />

@@ -41,7 +41,7 @@ export function XpHero({ compact = false }: { compact?: boolean }) {
               className="h-full rounded-full transition-[width] duration-700"
               style={{
                 width: `${pct}%`,
-                background: "linear-gradient(90deg, #272d29, #f97316)",
+                background: "linear-gradient(90deg, var(--primary), var(--accent))",
               }}
             />
           </div>
