@@ -76,8 +76,12 @@ function Shell() {
               content (e.g. the composer input's intrinsic size) stretch the
               page past the viewport on phones. */}
           <main className="min-w-0 flex-1 px-4 pb-28 pt-4 md:px-6 md:pb-10 md:pt-6">
-            <MobileBar />
-            <Views />
+            {/* Centered column: on wide screens content keeps comfortable side
+                margins instead of stretching edge to edge (matches Focus). */}
+            <div className="mx-auto w-full max-w-6xl">
+              <MobileBar />
+              <Views />
+            </div>
           </main>
         </div>
         <FocusBanner />
