@@ -72,7 +72,10 @@ function Shell() {
       <ConfirmProvider>
         <div className="flex min-h-screen w-full">
           <Nav />
-          <main className="flex-1 px-4 pb-28 pt-4 md:px-6 md:pb-10 md:pt-6">
+          {/* min-w-0: a flex child's min-width:auto would otherwise let wide
+              content (e.g. the composer input's intrinsic size) stretch the
+              page past the viewport on phones. */}
+          <main className="min-w-0 flex-1 px-4 pb-28 pt-4 md:px-6 md:pb-10 md:pt-6">
             <MobileBar />
             <Views />
           </main>

@@ -18,9 +18,11 @@ export function Celebration() {
 
   if (celebration.kind === "milestone") {
     return (
+      // Pass-through like Toast: the chip is purely informational and on a
+      // phone it overlaps the top-bar controls — it must never eat taps.
       <div className="pointer-events-none fixed inset-x-0 top-6 z-50 flex justify-center px-4">
         <div
-          className="animate-pop pointer-events-auto flex items-center gap-3 px-5 py-3 clay"
+          className="animate-pop flex items-center gap-3 px-5 py-3 clay"
           style={{ background: "var(--surface)" }}
         >
           <div

@@ -60,7 +60,8 @@ function Root() {
         }}
       >
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-          <Logo size={26} color={C.primary} />
+          {/* Brand tile like the app icon: ember flame on the dark rounded square. */}
+          <Logo size={26} background="#1A1B1A" />
           <Txt size={16} weight="extrabold">
             Hello, {name}.
           </Txt>
