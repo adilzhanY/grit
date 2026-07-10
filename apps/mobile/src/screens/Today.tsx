@@ -1,7 +1,7 @@
 import { ScrollView, View } from "react-native";
 import { byMyDayPriority, myDayTasks, showsInMyDayDone, type Task } from "@grit/core";
 import { useStore } from "../lib/store";
-import { C } from "../theme";
+import { C, TOP_BAR_SPACE } from "../theme";
 import { XpHero } from "../components/XpHero";
 import { TaskCard } from "../components/TaskCard";
 import { AddTask } from "../components/AddTask";
@@ -21,7 +21,7 @@ export function Today() {
 
   return (
     <ScrollView
-      contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 140 }}
+      contentContainerStyle={{ padding: 16, paddingTop: TOP_BAR_SPACE + 16, gap: 12, paddingBottom: 140 }}
       keyboardShouldPersistTaps="handled"
     >
       <XpHero />

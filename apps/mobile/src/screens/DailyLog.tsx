@@ -27,7 +27,7 @@ import {
 } from "@grit/core";
 import { useStore } from "../lib/store";
 import { useUi } from "../lib/ui";
-import { C, R, claySm } from "../theme";
+import { C, R, TOP_BAR_SPACE, claySm } from "../theme";
 import { Card, NumberField, Pill, PrimaryButton, SectionTitle, TextField, Txt } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { PopIn } from "../components/anim";
@@ -117,7 +117,7 @@ export function DailyLog() {
   const { logTab, setLogTab } = useUi();
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={{ padding: 16, paddingTop: TOP_BAR_SPACE + 16, gap: 12, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
       <Txt size={24} weight="extrabold">
         Daily Log
       </Txt>

@@ -12,7 +12,7 @@ import {
   type WeightUnit,
 } from "@grit/core";
 import { useStore } from "../lib/store";
-import { C, R, claySm } from "../theme";
+import { C, R, TOP_BAR_SPACE, claySm } from "../theme";
 import { Card, SectionTitle, Txt } from "../components/ui";
 import { Icon } from "../components/Icon";
 
@@ -195,7 +195,7 @@ export function Stats() {
   const xpTotal = xpSeries.reduce((s, p) => s + (p.value ?? 0), 0);
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 140 }}>
+    <ScrollView contentContainerStyle={{ padding: 16, paddingTop: TOP_BAR_SPACE + 16, gap: 12, paddingBottom: 140 }}>
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
         <Txt size={24} weight="extrabold">Analytics</Txt>
         <View style={{ flexDirection: "row", gap: 4, backgroundColor: C.page2, borderRadius: R.pill, padding: 3 }}>

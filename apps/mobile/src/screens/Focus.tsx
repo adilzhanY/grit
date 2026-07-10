@@ -12,7 +12,7 @@ import {
   type DayLog,
 } from "@grit/core";
 import { useStore } from "../lib/store";
-import { C, R, claySm } from "../theme";
+import { C, R, TOP_BAR_SPACE, claySm } from "../theme";
 import { Card, NumberField, PrimaryButton, SectionTitle, TextField, Txt } from "../components/ui";
 import { Icon } from "../components/Icon";
 import { useConfirm } from "../components/ConfirmDialog";
@@ -61,7 +61,7 @@ export function Focus() {
     const canSave = Math.floor(focusElapsedMs(activeFocus, now) / 60_000) >= 1;
 
     return (
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 140, alignItems: "center", gap: 18 }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingTop: TOP_BAR_SPACE + 16, paddingBottom: 140, alignItems: "center", gap: 18 }}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: color, borderRadius: R.pill, paddingHorizontal: 16, paddingVertical: 7, marginTop: 16 }}>
           <Icon name={paused ? "Pause" : isFocus ? "Timer" : "Coffee"} size={16} color="#fff" />
           <Txt weight="extrabold" color="#fff" size={13} style={{ textTransform: "uppercase", letterSpacing: 1 }}>{paused ? "Paused" : isFocus ? "Focus" : "Rest"}</Txt>
@@ -119,7 +119,7 @@ export function Focus() {
   const dates = [...byDate.keys()].sort().reverse().slice(0, 14);
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={{ padding: 16, paddingTop: TOP_BAR_SPACE + 16, gap: 12, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
       <Txt size={24} weight="extrabold">Focus</Txt>
 
       <Card>

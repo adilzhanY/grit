@@ -38,6 +38,13 @@ export const C = {
 
 export const R = { lg: 28, md: 22, sm: 16, pill: 999 } as const;
 
+/**
+ * Distance from the screen top to below the floating top bar (8 gap +
+ * 52 bar). Tab screens add their own padding on top of this; content
+ * scrolls under the bar.
+ */
+export const TOP_BAR_SPACE = 60;
+
 export const FONT = {
   regular: "Onest_400Regular",
   medium: "Onest_500Medium",

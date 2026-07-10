@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Pressable, ScrollView, View } from "react-native";
 import { byXp, dayLabel, plannedDays, type Task } from "@grit/core";
 import { useStore } from "../lib/store";
-import { C } from "../theme";
+import { C, TOP_BAR_SPACE } from "../theme";
 import { TaskCard } from "../components/TaskCard";
 import { Icon } from "../components/Icon";
 import { Txt } from "../components/ui";
@@ -12,7 +12,7 @@ export function Planned() {
   const days = plannedDays(tasks, today);
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 140 }}>
+    <ScrollView contentContainerStyle={{ padding: 16, paddingTop: TOP_BAR_SPACE + 16, gap: 12, paddingBottom: 140 }}>
       <Txt size={24} weight="extrabold">Planned</Txt>
       <Txt size={13} weight="medium" color={C.inkSoft} style={{ marginTop: -4 }}>
         What&apos;s coming up over the next 10 days.

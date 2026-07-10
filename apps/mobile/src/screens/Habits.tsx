@@ -10,7 +10,7 @@ import {
   type Task,
 } from "@grit/core";
 import { useStore } from "../lib/store";
-import { C, FONT, LIST_TINT, R, claySm } from "../theme";
+import { C, FONT, LIST_TINT, R, TOP_BAR_SPACE, claySm } from "../theme";
 import { TaskCard } from "../components/TaskCard";
 import { Icon } from "../components/Icon";
 import { SectionTitle, TextField, Txt } from "../components/ui";
@@ -100,7 +100,7 @@ export function Habits() {
   };
 
   return (
-    <ScrollView contentContainerStyle={{ padding: 16, gap: 12, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
+    <ScrollView contentContainerStyle={{ padding: 16, paddingTop: TOP_BAR_SPACE + 16, gap: 12, paddingBottom: 140 }} keyboardShouldPersistTaps="handled">
       <Txt size={24} weight="extrabold">Habits & Lists</Txt>
 
       {/* Selector: gamified types + custom lists + new */}
