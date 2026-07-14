@@ -13,6 +13,7 @@ import {
   logStreak,
   readingXp,
   sleepXp,
+  sortFoodsByUsage,
   stepsXp,
   unitToKg,
   walkCalories,
@@ -442,6 +443,7 @@ function FoodPanel() {
   const [goalsOpen, setGoalsOpen] = useState(false);
 
   const todays = dayLogs.filter((l) => l.kind === "food" && l.date === today);
+  const savedFoods = sortFoodsByUsage(foods, dayLogs);
   const eaten = foodTotal(todays, "calories");
   // Calories burnt from today's walks reduce the effective (net) intake.
   const burnt = dayLogs
@@ -535,7 +537,7 @@ function FoodPanel() {
         <View style={{ gap: 6 }}>
           <SectionTitle>Saved foods</SectionTitle>
           <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-            {foods.map((f) => (
+            {savedFoods.map((f) => (
               <View
                 key={f.id}
                 style={[{ width: "48%", backgroundColor: C.surface, borderRadius: R.md, padding: 12, gap: 8 }, claySm()]}

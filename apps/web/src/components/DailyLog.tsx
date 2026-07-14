@@ -16,6 +16,7 @@ import {
   weightLossXp,
   XP_PER_100G_LOST,
   logStreak,
+  sortFoodsByUsage,
   walkCalories,
   ageFromBirthday,
   readingXp,
@@ -335,6 +336,7 @@ function FoodPanel() {
   const [goalsOpen, setGoalsOpen] = useState(false);
 
   const todays = dayLogs.filter((l) => l.kind === "food" && l.date === today);
+  const savedFoods = sortFoodsByUsage(foods, dayLogs);
   const eaten = foodTotal(todays, "calories");
   // Calories burnt from today's walks reduce the effective (net) intake.
   const burnt = dayLogs
@@ -491,7 +493,7 @@ function FoodPanel() {
         <div className="flex flex-col gap-2">
           <SectionTitle>Saved foods</SectionTitle>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {foods.map((f: FoodItem) => (
+            {savedFoods.map((f: FoodItem) => (
               <div
                 key={f.id}
                 className="group relative flex flex-col gap-2 rounded-2xl p-3"

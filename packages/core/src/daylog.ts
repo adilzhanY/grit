@@ -1,4 +1,11 @@
-import type { ActiveFocus, BodySex, DayLog, GaitActivity, WeightUnit } from "./types";
+import type {
+  ActiveFocus,
+  BodySex,
+  DayLog,
+  FoodItem,
+  GaitActivity,
+  WeightUnit,
+} from "./types";
 
 /**
  * Daily Log XP rules — pure functions so the UI can preview exactly what the
@@ -94,6 +101,23 @@ export function foodPenalty(
   const overCalories =
     Math.max(0, newTotal - limit) - Math.max(0, prevTotal - limit);
   return Math.round(overCalories * XP_PER_OVER_CALORIE);
+}
+
+/**
+ * Saved foods ordered by how often each has been logged, so the foods eaten
+ * most often surface first for one-tap re-adding. Usage is counted by matching
+ * log names case-insensitively (logs don't store the saved food's id). Ties —
+ * including never-logged foods — fall back to newest-saved first.
+ */
+export function sortFoodsByUsage(foods: FoodItem[], logs: DayLog[]): FoodItem[] {
+  const counts = new Map<string, number>();
+  for (const l of logs) {
+    if (l.kind !== "food" || !l.name) continue;
+    const key = l.name.trim().toLowerCase();
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const used = (f: FoodItem) => counts.get(f.name.trim().toLowerCase()) ?? 0;
+  return [...foods].sort((a, b) => used(b) - used(a) || b.createdAt - a.createdAt);
 }
 
 // ---- Fasting ----
