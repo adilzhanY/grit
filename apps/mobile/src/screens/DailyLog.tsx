@@ -17,6 +17,7 @@ import {
   stepsXp,
   unitToKg,
   walkCalories,
+  weeklyLogStreak,
   weightLossXp,
   type BodySex,
   type CalorieGoals,
@@ -167,7 +168,9 @@ function TrackerChip({ icon, label, on, color, onPress }: { icon: string; label:
 /** Current + best logging streak for a tracker, shown inside its panel. */
 function StreakBadge({ kind, color }: { kind: DayLogKind; color: string }) {
   const { dayLogs, today } = useStore();
-  const { current, best } = logStreak(
+  // Weight is a weekly habit (log once a week), so its streak counts weeks.
+  const weekly = kind === "weight";
+  const { current, best } = (weekly ? weeklyLogStreak : logStreak)(
     dayLogs.filter((l) => l.kind === kind).map((l) => l.date),
     today,
   );
@@ -178,7 +181,7 @@ function StreakBadge({ kind, color }: { kind: DayLogKind; color: string }) {
       <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
         <Icon name="Flame" size={15} color={live ? color : C.inkFaint} />
         <Txt size={13} weight="extrabold" color={live ? color : C.inkFaint}>
-          {current} day{current === 1 ? "" : "s"}
+          {current} {weekly ? "week" : "day"}{current === 1 ? "" : "s"}
         </Txt>
       </View>
       <Txt size={12} weight="semibold" color={C.inkFaint}>

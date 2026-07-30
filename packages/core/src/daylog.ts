@@ -386,3 +386,38 @@ export function logStreak(days: string[], today: string): LogStreak {
   const current = behind >= STREAK_GRACE_DAYS ? 0 : trailing;
   return { current, best: Math.max(best, current) };
 }
+
+/** Monday-start week index of a YYYY-MM-DD local day string (DST-safe). */
+function weekIndex(day: string): number {
+  const [y, m, d] = day.split("-").map(Number);
+  const epochDays = Math.round(Date.UTC(y, m - 1, d) / 86_400_000);
+  // Epoch day 0 (1970-01-01) was a Thursday, so day 4 starts the first Monday week.
+  return Math.floor((epochDays - 4) / 7);
+}
+
+/**
+ * Weekly logging streak for a tracker meant to be logged once a week
+ * (e.g. weight). Weeks run Monday–Sunday; any log day within a week counts.
+ *
+ * `best` is the longest run of consecutive logged weeks. `current` is the run
+ * ending at the most recently logged week — it stays alive through the week
+ * after the last log (there is still time to log this week), and counts as
+ * broken (0) once a full Monday–Sunday week passes with no log.
+ */
+export function weeklyLogStreak(days: string[], today: string): LogStreak {
+  const uniq = Array.from(new Set(days.map(weekIndex))).sort((a, b) => a - b);
+  if (uniq.length === 0) return { current: 0, best: 0 };
+
+  let best = 1;
+  let run = 1;
+  let trailing = 1; // length of the run ending at the last logged week
+  for (let i = 1; i < uniq.length; i++) {
+    run = uniq[i] - uniq[i - 1] === 1 ? run + 1 : 1;
+    if (run > best) best = run;
+    trailing = run;
+  }
+
+  const behind = weekIndex(today) - uniq[uniq.length - 1];
+  const current = behind >= 2 ? 0 : trailing;
+  return { current, best: Math.max(best, current) };
+}

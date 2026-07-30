@@ -16,6 +16,7 @@ import {
   weightLossXp,
   XP_PER_100G_LOST,
   logStreak,
+  weeklyLogStreak,
   sortFoodsByUsage,
   walkCalories,
   ageFromBirthday,
@@ -1478,7 +1479,9 @@ export function DailyLog() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {TRACKERS.map((t) => {
           const on = active === t.kind;
-          const { current, best } = logStreak(
+          // Weight is a weekly habit (log once a week), so its streak counts weeks.
+          const weekly = t.kind === "weight";
+          const { current, best } = (weekly ? weeklyLogStreak : logStreak)(
             dayLogs.filter((l) => l.kind === t.kind).map((l) => l.date),
             today,
           );
@@ -1504,7 +1507,7 @@ export function DailyLog() {
                     background: live ? t.acc : "var(--page-2)",
                     color: live ? "var(--on-accent)" : "var(--ink-faint)",
                   }}
-                  title={`Current ${current} · best ${best} days`}
+                  title={`Current ${current} · best ${best} ${weekly ? "weeks" : "days"}`}
                 >
                   <Icon name="Flame" className="h-3.5 w-3.5" />
                   {current}
