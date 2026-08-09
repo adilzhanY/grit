@@ -7,6 +7,11 @@ export function weekdayOf(day: string): number {
   return new Date(y, m - 1, d).getDay();
 }
 
+/** The Monday on or before `day` (weeks anchor on Monday everywhere). */
+export function mondayOf(day: string): string {
+  return addDays(day, -((weekdayOf(day) + 6) % 7));
+}
+
 function parts(day: string): [number, number, number] {
   return day.split("-").map(Number) as [number, number, number];
 }

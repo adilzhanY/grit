@@ -58,6 +58,34 @@ export function focusXp(minutes: number): number {
   return minutes * XP_PER_FOCUS_MIN;
 }
 
+/**
+ * Gamified rank from lifetime focus hours. Single source of truth — the web
+ * and the Quickshell widget carried their own copies of this ladder before.
+ */
+export const FOCUS_TITLES: [number, string][] = [
+  [1000, "Zenith"],
+  [500, "Sage"],
+  [250, "Master"],
+  [100, "Expert"],
+  [50, "Scholar"],
+  [25, "Adept"],
+  [10, "Apprentice"],
+  [0, "Novice"],
+];
+
+/** Current focus rank for a lifetime hour total. */
+export function focusTitle(hours: number): string {
+  return FOCUS_TITLES.find(([h]) => hours >= h)![1];
+}
+
+/** The next rank up, or null at the top of the ladder. */
+export function nextFocusTitle(hours: number): { hours: number; title: string } | null {
+  for (let i = FOCUS_TITLES.length - 1; i >= 0; i--) {
+    if (hours < FOCUS_TITLES[i][0]) return { hours: FOCUS_TITLES[i][0], title: FOCUS_TITLES[i][1] };
+  }
+  return null;
+}
+
 // ---- Running-session timing (shared by web + mobile) ----
 
 /** Length of the current phase in ms. */
