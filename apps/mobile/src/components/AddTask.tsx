@@ -145,7 +145,7 @@ export function AddTask({ listType = "custom", listId, myDay = true }: { listTyp
       <Sheet open={dueOpen} onClose={() => setDueOpen(false)} title="Due">
         <Row icon="CalendarCheck" label="Today" hint={WD[weekdayOf(today)]} onPress={() => { setDue(today); setDueOpen(false); }} />
         <Row icon="CalendarDays" label="Tomorrow" hint={WD[weekdayOf(tomorrow)]} onPress={() => { setDue(tomorrow); setDueOpen(false); }} />
-        <View style={{ height: 1, backgroundColor: "rgba(0,0,0,0.08)", marginVertical: 4 }} />
+        <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.08)", marginVertical: 4 }} />
         <View style={{ paddingHorizontal: 12 }}>
           <Txt size={12} weight="bold" color={C.inkSoft} style={{ marginBottom: 4 }}>Pick a date</Txt>
           <TextInput
@@ -166,7 +166,7 @@ export function AddTask({ listType = "custom", listId, myDay = true }: { listTyp
             {REPEAT_PRESETS.map((p) => (
               <Row key={p.label} icon="CalendarDays" label={p.label} onPress={() => pickRepeat(p.rec)} />
             ))}
-            <View style={{ height: 1, backgroundColor: "rgba(0,0,0,0.08)", marginVertical: 4 }} />
+            <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.08)", marginVertical: 4 }} />
             <Row icon="CalendarClock" label="Custom" onPress={() => setCustom(true)} />
             {repeat ? <Row icon="Trash2" label="Never repeat" danger onPress={() => pickRepeat(null)} /> : null}
           </>

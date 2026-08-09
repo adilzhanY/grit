@@ -1,59 +1,63 @@
 /**
- * grit design tokens for mobile — a faithful port of the web's globals.css
- * clay/bento system. Same palette, radii, and type scale so the two apps look
- * identical. RN can't do the web's layered inset clay shadow, so `clay()` and
- * `clayInset()` approximate it with a single soft elevation.
+ * grit design tokens for mobile — "Night Arcade": a dark, gamified take on
+ * the clay/bento system. Near-black OLED surfaces, neon list accents, and
+ * glow shadows instead of clay elevation. Shapes and radii stay from the
+ * clay system so components keep their geometry.
  */
 import { Platform, type ViewStyle } from "react-native";
 
 export const C = {
-  page: "#f1efe9",
-  page2: "#e9e7df",
-  surface: "#faf9f5",
-  ink: "#1b211f",
-  inkSoft: "#4b5650",
-  inkFaint: "#76817b",
+  page: "#0c0e0d",
+  page2: "#1b1f1d",
+  surface: "#151816",
+  ink: "#f2f4f2",
+  inkSoft: "#b7c1bb",
+  inkFaint: "#8f9a94",
 
-  primary: "#272d29",
-  primaryDeep: "#161a17",
-  accent: "#f97316",
+  primary: "#1e2220",
+  primaryDeep: "#101312",
+  accent: "#ff7a1a",
 
-  mustSurf: "#fff0d6",
-  mustAcc: "#c2700a",
-  badSurf: "#ffe0dd",
-  badAcc: "#cf3b3f",
-  coolSurf: "#d4f3ec",
-  coolAcc: "#0b7d72",
-  impSurf: "#e9e2ff",
-  impAcc: "#6d4fe0",
-  gold: "#e0a500",
+  mustSurf: "#151816",
+  mustAcc: "#ffb02e",
+  badSurf: "#151816",
+  badAcc: "#ff4d57",
+  coolSurf: "#151816",
+  coolAcc: "#2dd4bf",
+  impSurf: "#151816",
+  impAcc: "#8b6cff",
+  gold: "#ffcf3f",
 
   // Chart palette
-  chart1: "#272d29",
-  chart2: "#0b7d72",
-  chart3: "#c2700a",
-  chart4: "#6d4fe0",
-  chart5: "#f97316",
+  chart1: "#ff7a1a",
+  chart2: "#2dd4bf",
+  chart3: "#ffb02e",
+  chart4: "#8b6cff",
+  chart5: "#ff4d57",
 } as const;
+
+/** Hairline edge that separates dark surfaces from the near-black page. */
+export const EDGE = "rgba(255,255,255,0.07)";
 
 export const R = { lg: 28, md: 22, sm: 16, pill: 999 } as const;
 
 /**
- * Distance from the screen top to below the floating top bar (8 gap +
- * 52 bar). Tab screens add their own padding on top of this; content
- * scrolls under the bar.
+ * The floating top bar is gone (profile and stats live in the dock now), so
+ * screens no longer need to clear it. Kept at 0 so the screens' shared
+ * `TOP_BAR_SPACE + padding` sums keep working unchanged.
  */
-export const TOP_BAR_SPACE = 60;
+export const TOP_BAR_SPACE = 0;
 
 export const FONT = {
-  regular: "Onest_400Regular",
-  medium: "Onest_500Medium",
-  semibold: "Onest_600SemiBold",
-  bold: "Onest_700Bold",
-  extrabold: "Onest_800ExtraBold",
+  regular: "SpaceGrotesk_400Regular",
+  medium: "SpaceGrotesk_500Medium",
+  semibold: "SpaceGrotesk_600SemiBold",
+  bold: "SpaceGrotesk_700Bold",
+  extrabold: "SpaceGrotesk_700Bold",
 } as const;
 
-/** Per-list tint: surface + accent (mirror of web LIST_TINT). */
+/** Per-list tint: surface + accent. On dark, the surface is shared and the
+ * accent carries the identity (edge bars, badges, glows). */
 export const LIST_TINT: Record<
   "must" | "bad" | "cool" | "impossible" | "custom",
   { surf: string; acc: string }
@@ -62,33 +66,49 @@ export const LIST_TINT: Record<
   bad: { surf: C.badSurf, acc: C.badAcc },
   cool: { surf: C.coolSurf, acc: C.coolAcc },
   impossible: { surf: C.impSurf, acc: C.impAcc },
-  custom: { surf: C.surface, acc: C.primary },
+  custom: { surf: C.surface, acc: C.accent },
 };
 
-/** Soft raised clay shadow. */
+/** Soft raised shadow — on the dark page this reads as depth, not clay. */
 export function clay(): ViewStyle {
   return Platform.select<ViewStyle>({
     ios: {
-      shadowColor: "#141a18",
-      shadowOffset: { width: 4, height: 6 },
-      shadowOpacity: 0.16,
-      shadowRadius: 12,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.5,
+      shadowRadius: 16,
     },
-    android: { elevation: 4 },
+    android: { elevation: 6 },
     default: {},
   })!;
 }
 
-/** Smaller clay shadow for chips/buttons. */
+/** Smaller shadow for chips/buttons. */
 export function claySm(): ViewStyle {
   return Platform.select<ViewStyle>({
     ios: {
-      shadowColor: "#141a18",
-      shadowOffset: { width: 2, height: 3 },
-      shadowOpacity: 0.12,
-      shadowRadius: 7,
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.4,
+      shadowRadius: 8,
     },
-    android: { elevation: 2 },
+    android: { elevation: 3 },
+    default: {},
+  })!;
+}
+
+/** Neon glow around an element (checkboxes, the FAB, active nav). */
+export function glow(color: string, radius = 10): ViewStyle {
+  return Platform.select<ViewStyle>({
+    ios: {
+      shadowColor: color,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.55,
+      shadowRadius: radius,
+    },
+    // Android can't do colored soft shadows on plain Views; the hairline
+    // edge + accent fills carry the look there.
+    android: {},
     default: {},
   })!;
 }

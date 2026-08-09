@@ -3,7 +3,7 @@ import { Modal, Pressable, TextInput, View } from "react-native";
 import type { Subtask, Task } from "@grit/core";
 import { recurrenceLabel } from "@grit/core";
 import { subtaskDone, subtaskShares, useStore } from "../lib/store";
-import { C, FONT, LIST_TINT, R, clay, claySm } from "../theme";
+import { C, EDGE, FONT, LIST_TINT, R, clay, claySm, glow } from "../theme";
 import { NumberField, PrimaryButton, TextField, Txt } from "./ui";
 import { Icon } from "./Icon";
 import { useConfirm } from "./ConfirmDialog";
@@ -89,7 +89,34 @@ export function TaskCard({
     });
 
   return (
-    <View style={[{ backgroundColor: tint.surf, borderRadius: R.md, padding: 12 }, claySm()]}>
+    <View
+      style={[
+        {
+          backgroundColor: tint.surf,
+          borderRadius: R.md,
+          padding: 12,
+          paddingLeft: 16,
+          borderWidth: 1,
+          borderColor: EDGE,
+        },
+        claySm(),
+      ]}
+    >
+      {/* Neon identity bar — the list tint lives here on dark. */}
+      <View
+        style={[
+          {
+            position: "absolute",
+            left: 0,
+            top: 10,
+            bottom: 10,
+            width: 4,
+            borderRadius: 2,
+            backgroundColor: tint.acc,
+          },
+          glow(tint.acc, 7),
+        ]}
+      />
       <View style={{ flexDirection: "row", alignItems: "center", gap: 12 }}>
         <View>
           {float !== null ? (
@@ -106,14 +133,14 @@ export function TaskCard({
                 borderRadius: R.sm,
                 alignItems: "center",
                 justifyContent: "center",
-                backgroundColor: done ? tint.acc : C.surface,
-                borderWidth: partial ? 3 : 0,
-                borderColor: partial ? tint.acc : "transparent",
+                backgroundColor: done ? tint.acc : "transparent",
+                borderWidth: partial ? 3 : done ? 0 : 1.5,
+                borderColor: partial ? tint.acc : done ? "transparent" : "rgba(255,255,255,0.22)",
               },
-              claySm(),
+              done ? glow(tint.acc, 9) : {},
             ]}
           >
-            <Icon name="Check" color={done ? "#fff" : "rgba(20,26,24,0.22)"} size={20} strokeWidth={3.2} />
+            <Icon name="Check" color={done ? C.primaryDeep : "rgba(255,255,255,0.2)"} size={20} strokeWidth={3.2} />
           </Squish>
         </View>
 
@@ -146,7 +173,7 @@ export function TaskCard({
           </View>
         </View>
 
-        <View style={{ backgroundColor: C.surface, borderRadius: R.pill, paddingHorizontal: 10, paddingVertical: 3 }}>
+        <View style={{ backgroundColor: "rgba(255,255,255,0.06)", borderRadius: R.pill, paddingHorizontal: 10, paddingVertical: 3 }}>
           <Txt size={12} weight="extrabold" color={tint.acc}>+{task.points}</Txt>
         </View>
       </View>
@@ -195,7 +222,7 @@ export function TaskCard({
                   onBlur={() => { if (!draft.trim()) setAdding(false); }}
                   placeholder="Add a subtask…"
                   placeholderTextColor={C.inkFaint}
-                  style={{ flex: 1, backgroundColor: C.surface, borderRadius: R.sm, paddingHorizontal: 12, paddingVertical: 8, fontFamily: FONT.medium, fontSize: 14, color: C.ink }}
+                  style={{ flex: 1, backgroundColor: C.page2, borderRadius: R.sm, paddingHorizontal: 12, paddingVertical: 8, fontFamily: FONT.medium, fontSize: 14, color: C.ink }}
                 />
                 <Pressable
                   onPress={submitSub}
@@ -240,7 +267,7 @@ function EditTaskForm({ task, onClose }: { task: Task; onClose: () => void }) {
   return (
     <Pressable
       onPress={onClose}
-      style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center", padding: 24 }}
+      style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: 24 }}
     >
       <PopIn>
         <Pressable
@@ -291,16 +318,25 @@ function SubtaskRow({
     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
       {/* connector rail */}
       <View style={{ width: 10, alignItems: "center", alignSelf: "stretch" }}>
-        <View style={{ width: 2, flex: 1, backgroundColor: isLast ? "transparent" : "rgba(20,26,24,0.12)" }} />
+        <View style={{ width: 2, flex: 1, backgroundColor: isLast ? "transparent" : "rgba(255,255,255,0.10)" }} />
       </View>
       <Squish
         onPress={() => toggleSubtask(task, sub.id)}
         style={[
-          { width: 32, height: 32, borderRadius: R.sm, alignItems: "center", justifyContent: "center", backgroundColor: done ? tint.acc : C.surface },
-          claySm(),
+          {
+            width: 32,
+            height: 32,
+            borderRadius: R.sm,
+            alignItems: "center",
+            justifyContent: "center",
+            backgroundColor: done ? tint.acc : "transparent",
+            borderWidth: done ? 0 : 1.5,
+            borderColor: done ? "transparent" : "rgba(255,255,255,0.22)",
+          },
+          done ? glow(tint.acc, 7) : {},
         ]}
       >
-        <Icon name="Check" color={done ? "#fff" : "rgba(20,26,24,0.22)"} size={16} strokeWidth={3.2} />
+        <Icon name="Check" color={done ? C.primaryDeep : "rgba(255,255,255,0.2)"} size={16} strokeWidth={3.2} />
       </Squish>
       <Txt
         weight="medium"
@@ -311,7 +347,7 @@ function SubtaskRow({
       >
         {sub.title}
       </Txt>
-      <View style={{ backgroundColor: C.surface, borderRadius: R.pill, paddingHorizontal: 9, paddingVertical: 3 }}>
+      <View style={{ backgroundColor: "rgba(255,255,255,0.06)", borderRadius: R.pill, paddingHorizontal: 9, paddingVertical: 3 }}>
         <Txt size={11} weight="extrabold" color={tint.acc}>+{share}</Txt>
       </View>
       {/* One roomy touch target (name/XP/delete live in the sheet) */}
@@ -384,7 +420,7 @@ function EditSubtaskForm({
   return (
     <Pressable
       onPress={onClose}
-      style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.4)", alignItems: "center", justifyContent: "center", padding: 24 }}
+      style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", alignItems: "center", justifyContent: "center", padding: 24 }}
     >
       <PopIn>
         <Pressable
@@ -430,7 +466,7 @@ function ActionBtn({ name, onPress, active, color }: { name: string; onPress: ()
   return (
     <Pressable
       onPress={onPress}
-      style={{ width: 36, height: 36, borderRadius: R.pill, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.04)" }}
+      style={{ width: 36, height: 36, borderRadius: R.pill, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(255,255,255,0.06)" }}
     >
       <Icon name={name} size={18} color={active ? color : C.inkFaint} />
     </Pressable>

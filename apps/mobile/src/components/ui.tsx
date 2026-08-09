@@ -9,7 +9,7 @@ import {
   type TextStyle,
   type ViewStyle,
 } from "react-native";
-import { C, FONT, R, clay, claySm } from "../theme";
+import { C, EDGE, FONT, R, clay, claySm } from "../theme";
 import { Squish } from "./anim";
 
 export function Txt({
@@ -49,7 +49,7 @@ export function Card({
   return (
     <View
       style={[
-        { backgroundColor: background, borderRadius: R.md, padding: 16 },
+        { backgroundColor: background, borderRadius: R.md, padding: 16, borderWidth: 1, borderColor: EDGE },
         clay(),
         style,
       ]}
@@ -101,8 +101,8 @@ export function PrimaryButton({
   label,
   onPress,
   disabled,
-  background = C.primary,
-  color = "#fff",
+  background = C.accent,
+  color = C.primaryDeep,
 }: {
   label: string;
   onPress: () => void;
@@ -214,5 +214,5 @@ export function TextField({
 }
 
 export function Divider() {
-  return <View style={{ height: 1, backgroundColor: "rgba(20,26,24,0.08)" }} />;
+  return <View style={{ height: 1, backgroundColor: "rgba(255,255,255,0.08)" }} />;
 }

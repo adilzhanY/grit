@@ -48,6 +48,7 @@ import {
   UserCircle,
   Wheat,
   X,
+  Zap,
   type LucideIcon,
 } from "lucide-react-native";
 import { C } from "../theme";
@@ -57,7 +58,7 @@ const MAP: Record<string, LucideIcon> = {
   Check, CheckCheck, ChevronDown, ChevronLeft, ChevronRight, Clock, Coffee, Droplets, Flame, Footprints,
   Gauge, ListChecks, ListPlus, Moon, Mountain, NotebookPen, Pause, Pencil, Play, Plus,
   Repeat, Ruler, Save, Scale, Shield, Skull, Sparkles, Star, Sun, Target, Timer, TrendingDown,
-  TrendingUp, Trash2, Trophy, UserCircle, Wheat, X,
+  TrendingUp, Trash2, Trophy, UserCircle, Wheat, X, Zap,
 };
 
 export function Icon({
