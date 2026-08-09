@@ -49,11 +49,11 @@ export const R = { lg: 28, md: 22, sm: 16, pill: 999 } as const;
 export const TOP_BAR_SPACE = 0;
 
 export const FONT = {
-  regular: "SpaceGrotesk_400Regular",
-  medium: "SpaceGrotesk_500Medium",
-  semibold: "SpaceGrotesk_600SemiBold",
-  bold: "SpaceGrotesk_700Bold",
-  extrabold: "SpaceGrotesk_700Bold",
+  regular: "BricolageGrotesque_400Regular",
+  medium: "BricolageGrotesque_500Medium",
+  semibold: "BricolageGrotesque_600SemiBold",
+  bold: "BricolageGrotesque_700Bold",
+  extrabold: "BricolageGrotesque_800ExtraBold",
 } as const;
 
 /** Per-list tint: surface + accent. On dark, the surface is shared and the
