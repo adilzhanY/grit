@@ -8,16 +8,13 @@ import { Animated, Easing, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { DayLogKind } from "@grit/core";
 import { useUi } from "../lib/ui";
-import { C, R, clay, claySm } from "../theme";
+import { C, EDGE, R, clay, claySm, glow } from "../theme";
 import { Icon } from "./Icon";
 import { Txt } from "./ui";
 
 const OPTIONS: { kind: DayLogKind | "focus"; label: string; icon: string; acc: string }[] = [
   { kind: "food", label: "Food", icon: "Flame", acc: C.mustAcc },
-  { kind: "sleep", label: "Sleep", icon: "Moon", acc: C.impAcc },
-  { kind: "steps", label: "Steps", icon: "Footprints", acc: C.coolAcc },
-  { kind: "reading", label: "Reading", icon: "BookOpen", acc: C.primary },
-  { kind: "weight", label: "Weight", icon: "Scale", acc: C.impAcc },
+  { kind: "steps", label: "Calories", icon: "Zap", acc: C.coolAcc },
   { kind: "focus", label: "Focus", icon: "Timer", acc: C.accent },
 ];
 
@@ -93,7 +90,7 @@ export function LogFab() {
           right: 0,
           top: 0,
           bottom: 0,
-          backgroundColor: "rgba(0,0,0,0.35)",
+          backgroundColor: "rgba(0,0,0,0.55)",
           opacity: p.interpolate({ inputRange: [0, 1], outputRange: [0, 1] }),
         }}
       >
@@ -110,6 +107,8 @@ export function LogFab() {
             bottom: fabBottom + FAB_SIZE + 14,
             width: 232,
             backgroundColor: C.surface,
+            borderWidth: 1,
+            borderColor: EDGE,
             borderRadius: R.lg,
             padding: 8,
           },
@@ -141,7 +140,7 @@ export function LogFab() {
                 justifyContent: "center",
               }}
             >
-              <Icon name={o.icon} color="#fff" size={21} />
+              <Icon name={o.icon} color={C.primaryDeep} size={21} />
             </View>
             <Txt weight="bold" size={15}>
               {o.label}
@@ -163,18 +162,12 @@ export function LogFab() {
               alignItems: "center",
               justifyContent: "center",
             },
-            claySm(),
-            {
-              shadowColor: "#141a18",
-              shadowOffset: { width: 0, height: 6 },
-              shadowOpacity: 0.3,
-              shadowRadius: 10,
-              elevation: 8,
-            },
+            glow(C.accent, 14),
+            { elevation: 8 },
           ]}
         >
           <Animated.View style={fabStyle}>
-            <Icon name="Plus" color="#fff" size={28} strokeWidth={3} />
+            <Icon name="Plus" color={C.primaryDeep} size={28} strokeWidth={3} />
           </Animated.View>
         </Pressable>
       </View>
