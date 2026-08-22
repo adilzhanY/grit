@@ -1,0 +1,9 @@
+{
+  "name": "@grit/panel",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Grit desktop panel for Hyprland, written in QML for Quickshell",
+  "scripts": {
+    "dev": "qs -p ."
+  }
+}
