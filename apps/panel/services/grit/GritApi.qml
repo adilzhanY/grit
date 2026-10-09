@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.modules.common
+import qs.modules.common.functions
 
 /**
  * Supabase client for Grit: email/password auth with persisted, auto-refreshing
@@ -35,7 +36,7 @@ Singleton {
     readonly property string sessionPath: sessionDir + "/session.json"
 
     Component.onCompleted: {
-        Quickshell.execDetached(["mkdir", "-p", root.sessionDir]);
+        Quickshell.execDetached(["mkdir", "-p", FileUtils.trimFileProtocol(root.sessionDir)]); // the dir is a file:// URL
     }
 
     // ---------- Auth ----------

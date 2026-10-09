@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.modules.common
+import qs.modules.common.functions
 import "GritCore.js" as Core
 
 /**
@@ -1479,7 +1480,7 @@ Singleton {
     }
 
     Component.onCompleted: {
-        Quickshell.execDetached(["mkdir", "-p", root.dbDir]);
+        Quickshell.execDetached(["mkdir", "-p", FileUtils.trimFileProtocol(root.dbDir)]); // the dir is a file:// URL
     }
 
     FileView {

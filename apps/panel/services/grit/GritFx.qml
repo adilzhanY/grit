@@ -4,6 +4,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.modules.common
+import qs.modules.common.functions
 
 /**
  * Euro-based exchange rates, for entering a subscription in the currency it is
@@ -113,7 +114,7 @@ Singleton {
     }
 
     Component.onCompleted: {
-        Quickshell.execDetached(["mkdir", "-p", root.cacheDir]);
+        Quickshell.execDetached(["mkdir", "-p", FileUtils.trimFileProtocol(root.cacheDir)]); // the dir is a file:// URL
     }
 
     FileView {

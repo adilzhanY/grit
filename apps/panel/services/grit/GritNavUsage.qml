@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Io
 import qs
 import qs.modules.common
+import qs.modules.common.functions
 
 /**
  * How often each Grit view actually gets *edited*, so the nav rail can float
@@ -110,7 +111,7 @@ Singleton {
     }
 
     Component.onCompleted: {
-        Quickshell.execDetached(["mkdir", "-p", root.dir]);
+        Quickshell.execDetached(["mkdir", "-p", FileUtils.trimFileProtocol(root.dir)]); // the dir is a file:// URL
     }
 
     FileView {
