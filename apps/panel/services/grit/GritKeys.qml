@@ -170,6 +170,15 @@ Singleton {
         case "i":
             root.leaderCommand("stats");
             return true;
+        case "m":
+            root.leaderCommand("spendings");
+            return true;
+        case "u":
+            root.leaderCommand("subscriptions");
+            return true;
+        case "b":
+            root.leaderCommand("body");
+            return true;
         case "?":
             root.cheatsheetOpen = true;
             return true;

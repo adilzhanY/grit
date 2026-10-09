@@ -90,12 +90,12 @@ Singleton {
             const actions = a.restMin > 0
                 ? ["-A", "rest=Take rest", "-A", "done=Done"]
                 : ["-A", "done=Done"];
-            notifProc.command = ["notify-send", "-a", "Grit", "-t", "0", "-p",
+            notifProc.command = [...GritNotify.base, "-t", "0", "-p",
                 ...actions,
                 "Focus finished 🎉",
                 `${a.focusMin} min${label} · +${xp} XP waiting`];
         } else {
-            notifProc.command = ["notify-send", "-a", "Grit", "-t", "0", "-p",
+            notifProc.command = [...GritNotify.base, "-t", "0", "-p",
                 "-A", "continue=Keep going", "-A", "end=End session",
                 "Rest over",
                 "Back to work?"];
@@ -157,7 +157,7 @@ Singleton {
         function onFocusMustCompleted(title, xp) {
             GritSounds.play("cool");
             mustProc.running = false;
-            mustProc.command = ["notify-send", "-a", "Grit", "-t", "6000",
+            mustProc.command = [...GritNotify.base, "-t", "6000",
                 `${title} ✓`,
                 `Done from focus time · +${xp} XP`];
             mustProc.running = true;
@@ -171,7 +171,7 @@ Singleton {
         target: GritStore
         function onFocusRankUp(title, hours, xp) {
             rankProc.running = false;
-            rankProc.command = ["notify-send", "-a", "Grit", "-t", "10000", "-u", "critical",
+            rankProc.command = [...GritNotify.base, "-t", "10000", "-u", "critical",
                 `${title} ⭐`,
                 `${hours}h of focus. +${xp} XP`];
             rankProc.running = true;
@@ -186,14 +186,14 @@ Singleton {
         function onQuestCompleted(label, xp) {
             GritSounds.play("cool");
             questProc.running = false;
-            questProc.command = ["notify-send", "-a", "Grit", "-t", "5000",
+            questProc.command = [...GritNotify.base, "-t", "5000",
                 "Quest done", `${label} · +${xp} XP`];
             questProc.running = true;
         }
         function onWeeklyGoalMet(xp) {
             GritSounds.play("milestone");
             questProc.running = false;
-            questProc.command = ["notify-send", "-a", "Grit", "-t", "8000",
+            questProc.command = [...GritNotify.base, "-t", "8000",
                 "Weekly goal cleared 🏆", `+${xp} XP`];
             questProc.running = true;
         }
@@ -232,7 +232,7 @@ Singleton {
         const rate = Core.XP_PER_FOCUS_MIN * Math.max(1, GritStore.xpMultiplier.mult);
         const minutes = Math.max(5, Math.ceil(short / rate / 5) * 5);
         nudgeProc.running = false;
-        nudgeProc.command = ["notify-send", "-a", "Grit", "-t", "12000",
+        nudgeProc.command = [...GritNotify.base, "-t", "12000",
             `${GritStore.streak} day streak on the line`,
             `${short} XP short. A ${minutes} minute focus block covers it.`];
         nudgeProc.running = true;

@@ -3,6 +3,7 @@ import qs.services
 import qs.services.grit
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.iris
 import QtQuick
 import QtQuick.Layouts
 
@@ -17,34 +18,22 @@ Item {
 
     ColumnLayout {
         anchors.centerIn: parent
-        width: 340
-        spacing: 10
+        width: UiScale.px(340)
+        spacing: UiScale.px(10)
 
-        RowLayout {
+        GritWordmark {
             Layout.alignment: Qt.AlignHCenter
-            spacing: 8
-
-            MaterialSymbol {
-                text: "flag"
-                iconSize: Appearance.font.pixelSize.hugeass
-                color: Appearance.colors.colPrimary
-            }
-            GritText {
-                text: "Grit"
-                font.pixelSize: Appearance.font.pixelSize.huge
-                font.family: Appearance.font.family.title
-                color: Appearance.colors.colOnLayer0
-            }
+            size: UiScale.px(44)
         }
 
-        GritText {
+        IrisText {
             Layout.alignment: Qt.AlignHCenter
             text: Translation.tr("Sign in to sync your life")
-            font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.colors.colSubtext
+            role: "label"
+            color: Iris.fg2
         }
 
-        GritTextField {
+        IrisField {
             id: emailField
             Layout.fillWidth: true
             placeholderText: Translation.tr("Email")
@@ -52,47 +41,37 @@ Item {
             onAccepted: passwordField.forceActiveFocus()
         }
 
-        GritTextField {
+        IrisField {
             id: passwordField
             Layout.fillWidth: true
             placeholderText: Translation.tr("Password")
-            echoMode: TextInput.Password
+            password: true
             onAccepted: root.doSignIn()
         }
 
-        GritText {
+        IrisText {
             Layout.fillWidth: true
             visible: GritApi.authError !== ""
             text: GritApi.authError
-            font.pixelSize: Appearance.font.pixelSize.smallest
-            color: Appearance.colors.colError
+            role: "caption"
+            color: Iris.danger
             wrapMode: Text.WordWrap
+            elide: Text.ElideNone
         }
 
-        RippleButton {
+        // The main action: a white pill; a spinner in it while signing in
+        IrisPill {
             Layout.fillWidth: true
-            implicitHeight: 36
+            primary: true
+            text: root.busy ? "" : Translation.tr("Sign in")
             enabled: !root.busy && emailField.text.length > 0 && passwordField.text.length > 0
-            buttonRadius: Appearance.rounding.full
-            colBackground: Appearance.colors.colPrimary
-            colBackgroundHover: Appearance.colors.colPrimaryHover
-            colRipple: Appearance.colors.colPrimaryActive
-            onClicked: root.doSignIn()
+            onClicked: if (enabled) root.doSignIn()
 
-            contentItem: Item {
-                MaterialLoadingIndicator {
-                    anchors.centerIn: parent
-                    visible: root.busy
-                    implicitSize: 22
-                    colShape: Appearance.colors.colOnPrimary
-                }
-                GritText {
-                    anchors.centerIn: parent
-                    visible: !root.busy
-                    text: Translation.tr("Sign in")
-                    font.pixelSize: Appearance.font.pixelSize.normal
-                    color: Appearance.colors.colOnPrimary
-                }
+            MaterialLoadingIndicator {
+                anchors.centerIn: parent
+                visible: root.busy
+                implicitSize: UiScale.px(22)
+                colShape: Iris.ink
             }
         }
     }

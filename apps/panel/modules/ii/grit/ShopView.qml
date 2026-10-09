@@ -3,6 +3,7 @@ import qs.services
 import qs.services.grit
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.iris
 import QtQuick
 import QtQuick.Layouts
 import "../../../services/grit/GritCore.js" as Core
@@ -41,110 +42,79 @@ StyledFlickable {
     ColumnLayout {
         id: mainColumn
         width: parent.width
-        spacing: 8
+        spacing: UiScale.px(12)
 
         // ---- Wallet ----
-        Rectangle {
-            Layout.fillWidth: true
-            implicitHeight: walletColumn.implicitHeight + 20
-            radius: Appearance.rounding.normal
-            color: Appearance.colors.colLayer1
-            border.width: 1
-            border.color: Appearance.colors.colLayer0Border
+        IrisCard {
+            spacing: UiScale.px(10)
 
-            ColumnLayout {
-                id: walletColumn
-                anchors {
-                    left: parent.left
-                    right: parent.right
-                    verticalCenter: parent.verticalCenter
-                    leftMargin: 14
-                    rightMargin: 14
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: UiScale.px(14)
+
+                IrisDisc {
+                    size: UiScale.px(56)
+                    icon: "account_balance_wallet"
+                    on: true
+                    filled: true
                 }
-                spacing: 2
-
-                RowLayout {
+                ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: 0
 
-                    MaterialSymbol {
-                        Layout.alignment: Qt.AlignBottom
-                        Layout.bottomMargin: 4
-                        text: "account_balance_wallet"
-                        fill: 1
-                        iconSize: Appearance.font.pixelSize.larger
-                        color: Appearance.colors.colPrimary
-                    }
-                    GritText {
-                        text: `${Math.round(GritStore.xp)}`
-                        font.pixelSize: 26
-                        font.family: "Google Sans Flex"
+                    IrisText {
+                        text: Translation.tr("%1 XP").arg(Math.round(GritStore.xp))
+                        font.pixelSize: Appearance.font.pixelSize.hugeass
                         font.features: { "tnum": 1 }
-                        font.variableAxes: { "wght": 800, "ROND": 100 }
-                        color: Appearance.colors.colOnLayer1
+                        font.weight: Font.ExtraBold
+                        color: GritColors.fg
                     }
-                    GritText {
-                        Layout.alignment: Qt.AlignBottom
-                        Layout.bottomMargin: 4
-                        text: Translation.tr("XP to spend")
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        color: Appearance.colors.colSubtext
-                    }
-                    Item { Layout.fillWidth: true }
-                    GritText {
-                        Layout.alignment: Qt.AlignBottom
-                        Layout.bottomMargin: 4
-                        text: Translation.tr("level %1 · %2 lifetime")
+                    IrisText {
+                        Layout.fillWidth: true
+                        text: Translation.tr("to spend · level %1 · %2 lifetime")
                             .arg(GritStore.levelInfo.level).arg(Math.round(GritStore.lifetimeXp))
-                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         font.features: { "tnum": 1 }
-                        color: Appearance.colors.colSubtext
+                        color: GritColors.fg3
+                        elide: Text.ElideRight
                     }
                 }
+            }
 
-                GritText {
-                    Layout.fillWidth: true
-                    text: Translation.tr("Buying spends the wallet only. Your level runs off lifetime XP, which never goes down.")
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    color: Appearance.colors.colSubtext
-                    wrapMode: Text.Wrap
-                }
+            IrisText {
+                Layout.fillWidth: true
+                text: Translation.tr("Buying spends the wallet only. Your level runs off lifetime XP, which never goes down.")
+                font.pixelSize: Appearance.font.pixelSize.smallest
+                color: GritColors.fg3
+                wrapMode: Text.Wrap
+                elide: Text.ElideNone
             }
         }
 
         // ---- Add a reward ----
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 6
-
-            GritTextField {
-                id: nameField
+        IrisCard {
+            RowLayout {
                 Layout.fillWidth: true
-                placeholderText: Translation.tr("Reward")
-                onAccepted: root.addFromForm()
-            }
-            GritTextField {
-                id: costField
-                Layout.preferredWidth: 80
-                placeholderText: Translation.tr("XP")
-                validator: IntValidator { bottom: 1; top: 10000000 }
-                onAccepted: root.addFromForm()
-            }
-            RippleButton {
-                implicitHeight: 30
-                buttonRadius: Appearance.rounding.full
-                colBackground: Appearance.colors.colPrimary
-                colBackgroundHover: Appearance.colors.colPrimaryHover
-                colRipple: Appearance.colors.colPrimaryActive
-                onClicked: root.addFromForm()
-                contentItem: GritText {
-                    anchors.centerIn: parent
-                    horizontalAlignment: Text.AlignHCenter
-                    leftPadding: 14
-                    rightPadding: 14
+                spacing: UiScale.px(6)
+
+                IrisField {
+                    id: nameField
+                    Layout.fillWidth: true
+                    placeholderText: Translation.tr("Reward")
+                    onAccepted: root.addFromForm()
+                }
+                IrisField {
+                    id: costField
+                    Layout.preferredWidth: UiScale.px(100)
+                    placeholderText: Translation.tr("XP")
+                    validator: IntValidator { bottom: 1; top: 10000000 }
+                    onAccepted: root.addFromForm()
+                }
+                IrisPill {
+                    primary: true
+                    icon: "add"
                     text: Translation.tr("Add")
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.colors.colOnPrimary
+                    onClicked: root.addFromForm()
                 }
             }
         }
@@ -152,56 +122,31 @@ StyledFlickable {
         // ---- Empty state: one tap starters ----
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.topMargin: 8
             visible: GritStore.rewards.length === 0
-            spacing: 6
+            spacing: UiScale.px(8)
 
-            GritText {
-                text: Translation.tr("Nothing to buy yet. Tap one to add it, or write your own above. A reward only works if you would actually honour it.")
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.colors.colSubtext
-                wrapMode: Text.Wrap
+            IrisText {
                 Layout.fillWidth: true
+                Layout.leftMargin: UiScale.px(6)
+                text: Translation.tr("Nothing to buy yet. Tap one to add it, or write your own above. A reward only works if you would actually honour it.")
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: GritColors.fg3
+                wrapMode: Text.Wrap
+                elide: Text.ElideNone
             }
             Flow {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: UiScale.px(8)
                 Repeater {
                     model: root.suggestions
-                    delegate: RippleButton {
+                    delegate: IrisPill {
                         id: suggestion
                         required property var modelData
-                        implicitHeight: 40
-                        implicitWidth: suggestionRow.implicitWidth + 28
-                        buttonRadius: Appearance.rounding.full
-                        // Filled, otherwise a transparent RippleButton reads as
-                        // loose text rather than something you can click.
-                        colBackground: Appearance.colors.colLayer2
+                        icon: "add"
+                        onBlack: true
+                        text: `${suggestion.modelData.name}  ${suggestion.modelData.cost}`
+                        tip: Translation.tr("Add this reward to your shop")
                         onClicked: GritStore.addReward(suggestion.modelData.name, suggestion.modelData.cost)
-                        GritToolTip { text: Translation.tr("Add this reward to your shop") }
-                        contentItem: RowLayout {
-                            id: suggestionRow
-                            anchors.centerIn: parent
-                            spacing: 7
-
-                            MaterialSymbol {
-                                text: "add"
-                                iconSize: Appearance.font.pixelSize.larger
-                                color: Appearance.colors.colSubtext
-                            }
-                            GritText {
-                                text: suggestion.modelData.name
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                color: Appearance.colors.colOnLayer1
-                            }
-                            GritText {
-                                text: `${suggestion.modelData.cost}`
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                font.features: { "tnum": 1 }
-                                font.variableAxes: { "wght": 700, "ROND": 100 }
-                                color: Appearance.colors.colSubtext
-                            }
-                        }
                     }
                 }
             }
@@ -216,15 +161,9 @@ StyledFlickable {
                 readonly property bool affordable: GritStore.xp >= rewardRow.modelData.cost
 
                 Layout.fillWidth: true
-                implicitHeight: rewardLayout.implicitHeight + 14
-                radius: Appearance.rounding.small
-                color: Appearance.colors.colLayer1
-                border.width: 1
-                border.color: rewardRow.affordable ? Appearance.colors.colPrimary : Appearance.colors.colLayer0Border
-
-                Behavior on border.color {
-                    ColorAnimation { duration: Appearance.animation.elementMoveFast.duration }
-                }
+                implicitHeight: Math.max(UiScale.px(60), rewardLayout.implicitHeight + UiScale.px(20))
+                radius: UiScale.px(20)
+                color: GritColors.raised
 
                 RowLayout {
                     id: rewardLayout
@@ -232,57 +171,55 @@ StyledFlickable {
                         left: parent.left
                         right: parent.right
                         verticalCenter: parent.verticalCenter
-                        leftMargin: 12
-                        rightMargin: 6
+                        leftMargin: UiScale.px(12)
+                        rightMargin: UiScale.px(12)
                     }
-                    spacing: 8
+                    spacing: UiScale.px(10)
 
-                    MaterialSymbol {
-                        text: "redeem"
-                        fill: rewardRow.affordable ? 1 : 0
-                        iconSize: Appearance.font.pixelSize.larger
-                        color: rewardRow.affordable ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                    IrisDisc {
+                        size: UiScale.px(38)
+                        icon: "redeem"
+                        on: rewardRow.affordable
+                        filled: rewardRow.affordable
+                        tone: "card"
                     }
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: -1
+                        spacing: 0
 
-                        GritText {
+                        IrisText {
                             Layout.fillWidth: true
                             text: rewardRow.modelData.name
-                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.pixelSize: Appearance.font.pixelSize.small
                             font.weight: Font.DemiBold
-                            color: Appearance.colors.colOnLayer1
+                            color: GritColors.fg
                             elide: Text.ElideRight
                         }
-                        GritText {
+                        IrisText {
                             Layout.fillWidth: true
                             text: {
-                                const cost = rewardRow.modelData.cost;
                                 const bought = rewardRow.modelData.bought ?? 0;
-                                const short = Math.max(0, cost - Math.round(GritStore.xp));
                                 const boughtPart = bought > 0
                                     ? Translation.tr(" · bought %1×").arg(bought) : "";
-                                return short > 0
-                                    ? Translation.tr("%1 XP · %2 short").arg(cost).arg(short) + boughtPart
-                                    : Translation.tr("%1 XP").arg(cost) + boughtPart;
+                                return Translation.tr("%1 XP").arg(rewardRow.modelData.cost) + boughtPart;
                             }
-                            font.pixelSize: Appearance.font.pixelSize.small
+                            font.pixelSize: Appearance.font.pixelSize.smallest
                             font.features: { "tnum": 1 }
-                            font.variableAxes: { "wght": 500, "ROND": 100 }
-                            color: Appearance.colors.colSubtext
+                            font.weight: Font.Medium
+                            color: GritColors.fg3
                             elide: Text.ElideRight
                         }
                     }
 
-                    RippleButton {
+                    // White "Buy" when affordable, else a well pill with what is missing
+                    IrisPill {
+                        compact: true
+                        primary: rewardRow.affordable
                         enabled: rewardRow.affordable
-                        opacity: enabled ? 1 : 0.4
-                        implicitHeight: 28
-                        buttonRadius: Appearance.rounding.full
-                        colBackground: Appearance.colors.colPrimary
-                        colBackgroundHover: Appearance.colors.colPrimaryHover
-                        colRipple: Appearance.colors.colPrimaryActive
+                        opacity: 1
+                        text: rewardRow.affordable
+                            ? Translation.tr("Buy")
+                            : Translation.tr("%1 short").arg(Math.max(0, rewardRow.modelData.cost - Math.round(GritStore.xp)))
                         onClicked: {
                             const id = rewardRow.modelData.id;
                             const name = rewardRow.modelData.name;
@@ -294,22 +231,15 @@ StyledFlickable {
                                 () => {
                                     if (GritStore.buyReward(id))
                                         GritToast.show(Translation.tr("Bought: %1").arg(name), "redeem");
-                                });
-                        }
-                        contentItem: GritText {
-                            anchors.centerIn: parent
-                            horizontalAlignment: Text.AlignHCenter
-                            leftPadding: 12
-                            rightPadding: 12
-                            text: Translation.tr("Buy")
-                            font.pixelSize: Appearance.font.pixelSize.smallest
-                            color: Appearance.colors.colOnPrimary
+                                }, Translation.tr("Buy"), false);
                         }
                     }
-                    RippleButton {
-                        implicitWidth: 32
-                        implicitHeight: 32
-                        buttonRadius: Appearance.rounding.full
+                    IrisDisc {
+                        clickable: true
+                        size: UiScale.px(32)
+                        icon: "delete"
+                        tone: "card"
+                        tip: Translation.tr("Delete reward")
                         onClicked: {
                             const id = rewardRow.modelData.id;
                             const name = rewardRow.modelData.name;
@@ -321,19 +251,11 @@ StyledFlickable {
                                     GritToast.show(Translation.tr("Deleted: %1").arg(name), "delete");
                                 });
                         }
-                        GritToolTip { text: Translation.tr("Delete reward") }
-                        contentItem: MaterialSymbol {
-                            anchors.centerIn: parent
-                            horizontalAlignment: Text.AlignHCenter
-                            text: "delete"
-                            iconSize: Appearance.font.pixelSize.larger
-                            color: Appearance.colors.colSubtext
-                        }
                     }
                 }
             }
         }
 
-        Item { implicitHeight: 4 }
+        Item { implicitHeight: UiScale.px(4) }
     }
 }

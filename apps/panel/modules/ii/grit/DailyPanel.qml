@@ -3,6 +3,7 @@ import qs.services
 import qs.services.grit
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.iris
 import QtQuick
 import QtQuick.Layouts
 import "../../../services/grit/GritCore.js" as Core
@@ -16,7 +17,7 @@ import "../../../services/grit/GritCore.js" as Core
  * The rescue row deliberately stays hidden until 20:00. Offering "use a rest
  * day" at 10:00 would just be an invitation to bail out of the day.
  */
-Rectangle {
+IrisCard {
     id: root
 
     property real nowTick: Date.now()
@@ -36,252 +37,228 @@ Rectangle {
     readonly property var week: GritStore.weekInfo
 
     Layout.fillWidth: true
-    implicitHeight: column.implicitHeight + 24
-    radius: Appearance.rounding.normal
-    color: Appearance.colors.colLayer1
-    border.width: 1
-    border.color: GritStore.quotaDone ? Appearance.colors.colPrimary : Appearance.colors.colLayer0Border
+    spacing: UiScale.px(12)
 
-    Behavior on border.color {
-        ColorAnimation { duration: Appearance.animation.elementMoveFast.duration }
-    }
+    // ---- Streak + multiplier and rest ----
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: UiScale.px(12)
 
-    ColumnLayout {
-        id: column
-        anchors {
-            left: parent.left
-            right: parent.right
-            verticalCenter: parent.verticalCenter
-            leftMargin: 14
-            rightMargin: 14
-        }
-        spacing: 8
-
-        // ---- Quota + streak ----
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 10
-
-            MaterialSymbol {
-                text: GritStore.restDayUsedToday ? "hotel" : "local_fire_department"
-                fill: GritStore.streak > 0 ? 1 : 0
-                iconSize: 22
-                color: GritStore.streak > 0 ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-                GritToolTip {
+        IrisDisc {
+            size: UiScale.px(52)
+            icon: GritStore.restDayUsedToday ? "hotel" : "local_fire_department"
+            on: GritStore.streak > 0
+            filled: GritStore.streak > 0
+            MouseArea {
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.NoButton
+                IrisToolTip {
                     text: GritStore.streak > 0
                         ? Translation.tr("%1 day streak").arg(GritStore.streak)
                         : Translation.tr("No streak yet. Hit today's quota to start one.")
                 }
             }
-            GritText {
+        }
+        ColumnLayout {
+            Layout.fillWidth: true
+            spacing: 0
+            IrisText {
                 text: `${GritStore.streak}`
-                font.pixelSize: 22
-                font.family: "Google Sans Flex"
+                font.pixelSize: Appearance.font.pixelSize.huge
                 font.features: { "tnum": 1 }
-                font.variableAxes: { "wght": 800, "ROND": 100 }
-                color: GritStore.streak > 0 ? Appearance.colors.colOnLayer1 : Appearance.colors.colSubtext
+                font.weight: Font.ExtraBold
+                color: GritStore.streak > 0 ? Iris.fg : Iris.fg3
             }
+            IrisText {
+                text: Translation.tr("day streak")
+                role: "hint"
+            }
+        }
+        // Multiplier: white, since it is a reward running right now
+        IrisChip {
+            visible: root.mult.mult > 1
+            on: true
+            text: root.mult.reason === "comeback"
+                ? Translation.tr("comeback ×2")
+                : Translation.tr("+%1%").arg(Math.round((root.mult.mult - 1) * 100))
+            tip: root.mult.reason === "comeback"
+                ? Translation.tr("First day back after a break: everything pays double")
+                : Translation.tr("Streak bonus on every task and focus block today")
+        }
+        IrisChip {
+            visible: GritStore.restDaysBanked > 0
+            icon: "hotel"
+            text: Translation.tr("%1 rest").arg(GritStore.restDaysBanked)
+            tip: Translation.tr("Banked rest days. One per 7 days of quota.")
+        }
+    }
 
-            ColumnLayout {
+    // ---- Quota ----
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: UiScale.px(8)
+
+        IrisText {
+            Layout.fillWidth: true
+            text: Translation.tr("%1 / %2 XP today")
+                .arg(Math.round(GritStore.quotaProgress)).arg(GritStore.dailyQuota)
+            role: "label"
+            font.features: { "tnum": 1 }
+            font.weight: Font.DemiBold
+            color: GritStore.quotaDone ? Iris.fg : Iris.fg2
+            Behavior on color {
+                ColorAnimation { duration: Iris.colorDuration }
+            }
+        }
+        IrisSlot {
+            Layout.fillWidth: true
+            valueBarHeight: UiScale.px(14)
+            value: root.quotaFraction
+        }
+    }
+
+    // ---- Quests: three dark tiles, a disc that turns white when done ----
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: UiScale.px(8)
+
+        Repeater {
+            model: GritStore.todayQuests
+            delegate: Rectangle {
+                id: questChip
+                required property var modelData
+                readonly property bool done: questChip.modelData.done
+
                 Layout.fillWidth: true
-                spacing: 2
+                Layout.preferredWidth: 1
+                implicitHeight: questCol.implicitHeight + UiScale.px(24)
+                radius: UiScale.px(18)
+                color: questHover.containsMouse ? GritColors.hoverRow : GritColors.well
 
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 6
-                    GritText {
+                Behavior on color {
+                    ColorAnimation { duration: 140 }
+                }
+
+                MouseArea {
+                    id: questHover
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    acceptedButtons: Qt.NoButton
+                    IrisToolTip { text: questChip.modelData.label }
+                }
+
+                ColumnLayout {
+                    id: questCol
+                    anchors {
+                        left: parent.left
+                        right: parent.right
+                        verticalCenter: parent.verticalCenter
+                        leftMargin: UiScale.px(8)
+                        rightMargin: UiScale.px(8)
+                    }
+                    spacing: UiScale.px(4)
+
+                    IrisDisc {
+                        Layout.alignment: Qt.AlignHCenter
+                        Layout.bottomMargin: UiScale.px(2)
+                        size: UiScale.px(30)
+                        icon: questChip.done ? "check" : "radio_button_unchecked"
+                        on: questChip.done
+                    }
+                    IrisText {
                         Layout.fillWidth: true
-                        text: Translation.tr("%1 / %2 XP today")
-                            .arg(Math.round(GritStore.quotaProgress)).arg(GritStore.dailyQuota)
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        font.family: "Google Sans Flex"
+                        horizontalAlignment: Text.AlignHCenter
+                        text: questChip.modelData.label
+                        role: "caption"
+                        color: questChip.done ? Iris.fg : Iris.fg2
+                    }
+                    IrisText {
+                        Layout.fillWidth: true
+                        horizontalAlignment: Text.AlignHCenter
+                        text: `+${questChip.modelData.xp} XP`
+                        role: "caption"
                         font.features: { "tnum": 1 }
-                        font.variableAxes: { "wght": 600, "ROND": 100 }
-                        color: GritStore.quotaDone ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-                        elide: Text.ElideRight
-                    }
-                    GritText {
-                        visible: root.mult.mult > 1
-                        text: root.mult.reason === "comeback"
-                            ? Translation.tr("comeback ×2")
-                            : Translation.tr("+%1%").arg(Math.round((root.mult.mult - 1) * 100))
-                        font.pixelSize: Appearance.font.pixelSize.smallest
-                        font.features: { "tnum": 1 }
-                        color: Appearance.colors.colPrimary
-                        GritToolTip {
-                            text: root.mult.reason === "comeback"
-                                ? Translation.tr("First day back after a break: everything pays double")
-                                : Translation.tr("Streak bonus on every task and focus block today")
-                        }
-                    }
-                    GritText {
-                        visible: GritStore.restDaysBanked > 0
-                        text: Translation.tr("%1 rest").arg(GritStore.restDaysBanked)
-                        font.pixelSize: Appearance.font.pixelSize.smallest
-                        font.features: { "tnum": 1 }
-                        color: Appearance.colors.colSubtext
-                        GritToolTip { text: Translation.tr("Banked rest days. One per 7 days of quota.") }
-                    }
-                }
-                StyledProgressBar {
-                    Layout.fillWidth: true
-                    value: root.quotaFraction
-                }
-            }
-        }
-
-        // ---- Quests ----
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 6
-
-            Repeater {
-                model: GritStore.todayQuests
-                delegate: Rectangle {
-                    id: questChip
-                    required property var modelData
-                    readonly property bool done: questChip.modelData.done
-
-                    Layout.fillWidth: true
-                    implicitHeight: questRow.implicitHeight + 14
-                    radius: Appearance.rounding.small
-                    color: questChip.done ? Appearance.colors.colSecondaryContainer : Appearance.colors.colLayer2
-                    border.width: 1
-                    border.color: questChip.done ? Appearance.colors.colPrimary : Appearance.colors.colLayer0Border
-
-                    Behavior on color {
-                        ColorAnimation { duration: Appearance.animation.elementMoveFast.duration }
-                    }
-
-                    RowLayout {
-                        id: questRow
-                        anchors {
-                            left: parent.left
-                            right: parent.right
-                            verticalCenter: parent.verticalCenter
-                            leftMargin: 8
-                            rightMargin: 8
-                        }
-                        spacing: 6
-
-                        MaterialSymbol {
-                            text: questChip.done ? "check_circle" : "radio_button_unchecked"
-                            fill: questChip.done ? 1 : 0
-                            iconSize: Appearance.font.pixelSize.normal
-                            color: questChip.done ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-                        }
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: -2
-                            GritText {
-                                Layout.fillWidth: true
-                                text: questChip.modelData.label
-                                font.pixelSize: Appearance.font.pixelSize.smallest
-                                color: questChip.done ? Appearance.colors.colOnSecondaryContainer
-                                    : Appearance.colors.colOnLayer1
-                                elide: Text.ElideRight
-                                GritToolTip { text: questChip.modelData.label }
-                            }
-                            GritText {
-                                text: `+${questChip.modelData.xp} XP`
-                                font.pixelSize: Appearance.font.pixelSize.smallest
-                                font.features: { "tnum": 1 }
-                                color: Appearance.colors.colSubtext
-                            }
-                        }
                     }
                 }
             }
         }
+    }
 
-        // ---- Weekly goal ----
+    // ---- Weekly goal ----
+    ColumnLayout {
+        Layout.fillWidth: true
+        spacing: UiScale.px(6)
+
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: UiScale.px(6)
 
             MaterialSymbol {
                 text: "calendar_month"
                 iconSize: Appearance.font.pixelSize.normal
-                color: Appearance.colors.colSubtext
+                color: GritColors.fg3
             }
-            GritText {
-                text: Translation.tr("This week")
-                font.pixelSize: Appearance.font.pixelSize.smallest
-                color: Appearance.colors.colSubtext
-            }
-            StyledProgressBar {
+            IrisText {
                 Layout.fillWidth: true
-                value: root.week.target > 0
-                    ? Math.max(0, Math.min(1, root.week.progress / root.week.target)) : 0
+                text: Translation.tr("This week")
+                role: "hint"
             }
-            GritText {
+            IrisText {
                 text: root.week.progress >= root.week.target
-                    ? Translation.tr("done · +%1 XP Monday").arg(root.week.reward)
+                    ? Translation.tr("done  ·  +%1 XP Monday").arg(root.week.reward)
                     : `${Math.round(root.week.progress)} / ${root.week.target}`
-                font.pixelSize: Appearance.font.pixelSize.smallest
+                role: "hint"
                 font.features: { "tnum": 1 }
-                color: root.week.progress >= root.week.target
-                    ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                color: root.week.progress >= root.week.target ? Iris.fg : Iris.fg3
             }
         }
-
-        // ---- Rescue row, only late in the day ----
-        RowLayout {
+        IrisSlot {
             Layout.fillWidth: true
-            visible: root.rescuable && GritStore.streak > 0
-            spacing: 6
+            valueBarHeight: UiScale.px(6)
+            value: root.week.target > 0
+                ? Math.max(0, Math.min(1, root.week.progress / root.week.target)) : 0
+        }
+    }
 
-            GritText {
-                Layout.fillWidth: true
-                text: Translation.tr("%1 XP short. A %2 minute focus block covers it.")
-                    .arg(Math.max(0, GritStore.dailyQuota - Math.round(GritStore.quotaProgress)))
-                    .arg(Math.max(5, Math.ceil((GritStore.dailyQuota - GritStore.quotaProgress)
-                        / (Core.XP_PER_FOCUS_MIN * root.mult.mult) / 5) * 5))
-                font.pixelSize: Appearance.font.pixelSize.smallest
-                color: Appearance.colors.colSubtext
-                elide: Text.ElideRight
+    // ---- Rescue row, only late in the day ----
+    RowLayout {
+        Layout.fillWidth: true
+        visible: root.rescuable && GritStore.streak > 0
+        spacing: UiScale.px(8)
+
+        IrisText {
+            Layout.fillWidth: true
+            text: Translation.tr("%1 XP short. A %2 minute focus block covers it.")
+                .arg(Math.max(0, GritStore.dailyQuota - Math.round(GritStore.quotaProgress)))
+                .arg(Math.max(5, Math.ceil((GritStore.dailyQuota - GritStore.quotaProgress)
+                    / (Core.XP_PER_FOCUS_MIN * root.mult.mult) / 5) * 5))
+            role: "caption"
+        }
+        IrisPill {
+            visible: GritStore.restDaysBanked > 0
+            compact: true
+            primary: true
+            icon: "hotel"
+            text: Translation.tr("Use rest day")
+            onClicked: {
+                if (GritStore.spendRestDay())
+                    GritToast.show(Translation.tr("Rest day used. Streak held."), "hotel");
             }
-            RippleButton {
-                visible: GritStore.restDaysBanked > 0
-                implicitHeight: 26
-                buttonRadius: Appearance.rounding.full
-                onClicked: {
-                    if (GritStore.spendRestDay())
-                        GritToast.show(Translation.tr("Rest day used. Streak held."), "hotel");
-                }
-                contentItem: GritText {
-                    anchors.centerIn: parent
-                    horizontalAlignment: Text.AlignHCenter
-                    leftPadding: 12
-                    rightPadding: 12
-                    text: Translation.tr("Use rest day")
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    color: Appearance.colors.colOnLayer1
-                }
-            }
-            RippleButton {
-                visible: GritStore.restDaysBanked === 0 && GritStore.xp >= Core.REST_BUY_COST
-                implicitHeight: 26
-                buttonRadius: Appearance.rounding.full
-                onClicked: {
-                    GritConfirm.ask(
-                        Translation.tr("Buy a rest day?"),
-                        Translation.tr("%1 XP from your wallet. Your level is not affected.")
-                            .arg(Core.REST_BUY_COST),
-                        () => {
-                            if (GritStore.buyRestDay())
-                                GritToast.show(Translation.tr("Rest day bought. Streak held."), "hotel");
-                        });
-                }
-                contentItem: GritText {
-                    anchors.centerIn: parent
-                    horizontalAlignment: Text.AlignHCenter
-                    leftPadding: 12
-                    rightPadding: 12
-                    text: Translation.tr("Buy one · %1").arg(Core.REST_BUY_COST)
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    color: Appearance.colors.colSubtext
-                }
+        }
+        IrisPill {
+            visible: GritStore.restDaysBanked === 0 && GritStore.xp >= Core.REST_BUY_COST
+            compact: true
+            text: Translation.tr("Buy one  ·  %1").arg(Core.REST_BUY_COST)
+            onClicked: {
+                GritConfirm.ask(
+                    Translation.tr("Buy a rest day?"),
+                    Translation.tr("%1 XP from your wallet. Your level is not affected.")
+                        .arg(Core.REST_BUY_COST),
+                    () => {
+                        if (GritStore.buyRestDay())
+                            GritToast.show(Translation.tr("Rest day bought. Streak held."), "hotel");
+                    }, Translation.tr("Buy"), false);
             }
         }
     }

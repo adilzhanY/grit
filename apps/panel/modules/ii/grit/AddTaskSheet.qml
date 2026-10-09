@@ -3,6 +3,7 @@ import qs.services
 import qs.services.grit
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.iris
 import QtQuick
 import QtQuick.Layouts
 import "../../../services/grit/GritCore.js" as Core
@@ -11,12 +12,11 @@ import "../../../services/grit/GritCore.js" as Core
  * Task composer dialog: title, points, planned date, recurrence editor
  * (Must / any repeating task), slip penalty & multiplier (Bad).
  */
-WindowDialog {
+IrisDialog {
     id: root
 
     required property string currentView
-    backgroundWidth: 390
-    autoResize: true
+    backgroundWidth: UiScale.px(410)
 
     // Which list the task lands in, derived from the current view
     readonly property string targetListType: {
@@ -27,20 +27,14 @@ WindowDialog {
         return "custom"; // My Day / Important / Planned quick-adds are loose customs
     }
 
-    property int weekdayMask: 0 // bitmask of selected weekdays for weekly recurrence
-    property string recurrenceType: "none"
-
-    onShowChanged: {
-        if (root.show) {
-            titleField.text = "";
-            pointsField.text = "";
-            plannedField.text = "";
-            penaltyField.text = "";
-            intervalField.text = "";
-            root.recurrenceType = root.targetListType === "must" ? "daily" : "none";
-            root.weekdayMask = 0;
-            titleField.forceActiveFocus();
-        }
+    // A clean form each time; focus goes to the title once the frame has it
+    onOpened: {
+        titleField.text = "";
+        pointsField.text = "";
+        plannedField.text = "";
+        penaltyField.text = "";
+        repeatEditor.loadFrom(null);
+        titleField.forceActiveFocus();
     }
 
     function submit() {
@@ -64,19 +58,9 @@ WindowDialog {
         if (plannedDay)
             input.plannedFor = plannedDay;
 
-        if (root.recurrenceType !== "none") {
-            const rec = { type: root.recurrenceType, weekdays: [] };
-            if (root.recurrenceType === "weekly") {
-                for (let d = 0; d < 7; d++) {
-                    if (root.weekdayMask & (1 << d))
-                        rec.weekdays.push(d);
-                }
-            }
-            const interval = parseInt(intervalField.text);
-            if (!isNaN(interval) && interval > 1)
-                rec.interval = interval;
-            input.recurrence = rec;
-        }
+        const recurrence = repeatEditor.buildRecurrence();
+        if (recurrence)
+            input.recurrence = recurrence;
         if (root.targetListType === "bad") {
             const penalty = parseInt(penaltyField.text);
             if (!isNaN(penalty) && penalty >= 0)
@@ -86,17 +70,17 @@ WindowDialog {
         const task = GritStore.addTask(input);
         if (root.currentView === "important")
             GritStore.updateTask(task.id, { important: true });
-        root.dismiss();
+        root.close();
     }
 
-    GritDialogTitle {
+    IrisText {
+        role: "title"
         text: Translation.tr("Add to %1").arg(root.currentView.startsWith("list:")
             ? (GritStore.customLists.find(l => `list:${l.id}` === root.currentView)?.name ?? "list")
             : root.currentView)
     }
 
-    GritTextField {
-        labelBackgroundColor: Appearance.m3colors.m3surfaceContainerHigh
+    IrisField {
         id: titleField
         Layout.fillWidth: true
         placeholderText: Translation.tr("What needs doing?")
@@ -105,24 +89,21 @@ WindowDialog {
 
     RowLayout {
         Layout.fillWidth: true
-        spacing: 8
+        spacing: UiScale.px(8)
 
-        GritTextField {
-        labelBackgroundColor: Appearance.m3colors.m3surfaceContainerHigh
+        IrisField {
             id: pointsField
-            Layout.preferredWidth: 100
+            Layout.preferredWidth: UiScale.px(100)
             placeholderText: Translation.tr("XP (%1)").arg(Core.DEFAULT_POINTS[root.targetListType])
             validator: IntValidator { bottom: 0; top: 100000 }
         }
-        GritTextField {
-        labelBackgroundColor: Appearance.m3colors.m3surfaceContainerHigh
+        IrisField {
             id: plannedField
             Layout.fillWidth: true
             visible: root.targetListType !== "bad"
             placeholderText: Translation.tr("Planned (DD/MM/YYYY)")
         }
-        GritTextField {
-        labelBackgroundColor: Appearance.m3colors.m3surfaceContainerHigh
+        IrisField {
             id: penaltyField
             Layout.fillWidth: true
             visible: root.targetListType === "bad"
@@ -132,9 +113,11 @@ WindowDialog {
     }
 
     // Quick planned-date presets (selection reflects the field's value)
-    GritSelectionArray {
+    IrisSegmented {
+        Layout.fillWidth: true
+        equal: true
         visible: root.targetListType !== "bad"
-        currentValue: {
+        value: {
             const day = Core.parseDayInput(plannedField.text);
             if (day === GritStore.today)
                 return "today";
@@ -153,84 +136,33 @@ WindowDialog {
                 plannedField.text = Core.fmtDay(Core.addDays(GritStore.today, 7));
         }
         options: [
-            { displayName: Translation.tr("Today"), icon: "today", value: "today" },
-            { displayName: Translation.tr("Tomorrow"), icon: "event", value: "tomorrow" },
-            { displayName: Translation.tr("Next week"), icon: "date_range", value: "nextweek" }
+            { label: Translation.tr("Today"), icon: "today", value: "today" },
+            { label: Translation.tr("Tomorrow"), icon: "event", value: "tomorrow" },
+            { label: Translation.tr("Next week"), icon: "date_range", value: "nextweek" }
         ]
     }
 
     // Recurrence editor
-    ColumnLayout {
+    GritRecurrenceEditor {
+        id: repeatEditor
         Layout.fillWidth: true
-        visible: root.targetListType !== "bad" && root.targetListType !== "cool" && root.targetListType !== "impossible"
-        spacing: 6
-
-        GritText {
-            text: Translation.tr("Repeat")
-            font.pixelSize: Appearance.font.pixelSize.smallest
-            color: Appearance.colors.colSubtext
-        }
-
-        GritSelectionArray {
-            currentValue: root.recurrenceType
-            onSelected: newValue => root.recurrenceType = newValue
-            options: root.targetListType === "must" ? [
-                { displayName: Translation.tr("Daily"), icon: "today", value: "daily" },
-                { displayName: Translation.tr("Weekly"), icon: "date_range", value: "weekly" },
-                { displayName: Translation.tr("Monthly"), icon: "calendar_month", value: "monthly" },
-                { displayName: Translation.tr("Yearly"), icon: "event_repeat", value: "yearly" }
-            ] : [
-                { displayName: Translation.tr("Never"), icon: "block", value: "none" },
-                { displayName: Translation.tr("Daily"), icon: "today", value: "daily" },
-                { displayName: Translation.tr("Weekly"), icon: "date_range", value: "weekly" },
-                { displayName: Translation.tr("Monthly"), icon: "calendar_month", value: "monthly" },
-                { displayName: Translation.tr("Yearly"), icon: "event_repeat", value: "yearly" }
-            ]
-        }
-
-        GritTextField {
-        labelBackgroundColor: Appearance.m3colors.m3surfaceContainerHigh
-            id: intervalField
-            Layout.preferredWidth: 110
-            visible: root.recurrenceType !== "none"
-            placeholderText: Translation.tr("Every N")
-            validator: IntValidator { bottom: 1; top: 365 }
-        }
-
-        // Weekday picker: M3 connected button group, multi-select
-        RowLayout {
-            Layout.fillWidth: true
-            visible: root.recurrenceType === "weekly"
-            spacing: 2
-
-            Repeater {
-                model: [Translation.tr("Sun"), Translation.tr("Mon"), Translation.tr("Tue"),
-                        Translation.tr("Wed"), Translation.tr("Thu"), Translation.tr("Fri"),
-                        Translation.tr("Sat")]
-                delegate: GritSelectionGroupButton {
-                    required property var modelData
-                    required property int index
-                    Layout.fillWidth: true
-                    leftmost: index === 0
-                    rightmost: index === 6
-                    buttonText: modelData
-                    toggled: (root.weekdayMask & (1 << index)) !== 0
-                    onClicked: root.weekdayMask ^= (1 << index)
-                }
-            }
-        }
+        visible: root.targetListType !== "bad" && root.targetListType !== "cool"
+            && root.targetListType !== "impossible"
+        allowNone: root.targetListType !== "must"
     }
 
-    WindowDialogButtonRow {
+    RowLayout {
+        Layout.fillWidth: true
+        spacing: UiScale.px(8)
         Item { Layout.fillWidth: true }
-        GritDialogButton {
-            buttonText: Translation.tr("Cancel")
-            onClicked: root.dismiss()
+        IrisPill {
+            text: Translation.tr("Cancel")
+            onClicked: root.close()
         }
-        GritDialogButton {
-            buttonText: Translation.tr("Add task")
+        IrisPill {
+            primary: true
+            text: Translation.tr("Add task")
             onClicked: root.submit()
         }
     }
-
 }

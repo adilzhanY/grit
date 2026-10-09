@@ -3,6 +3,7 @@ import qs.services
 import qs.services.grit
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.iris
 import QtQuick
 import QtQuick.Layouts
 import "../../../services/grit/GritCore.js" as Core
@@ -98,35 +99,22 @@ StyledFlickable {
     ColumnLayout {
         id: mainColumn
         width: parent.width
-        spacing: 8
+        spacing: UiScale.px(8)
 
         // ---- Recent XP ----
-        RowLayout {
+        IrisSectionLabel {
             Layout.fillWidth: true
-            spacing: 8
-
-            GritText {
-                text: Translation.tr("Recent XP")
-                font.pixelSize: Appearance.font.pixelSize.normal
-                font.weight: Font.DemiBold
-                color: Appearance.colors.colPrimary
-            }
-            Item { Layout.fillWidth: true }
-            GritText {
-                text: Translation.tr("%1 entries").arg(root.ledgerDesc.length)
-                font.pixelSize: Appearance.font.pixelSize.small
-                font.features: { "tnum": 1 }
-                font.variableAxes: { "wght": 500, "ROND": 100 }
-                color: Appearance.colors.colSubtext
-            }
+            text: Translation.tr("Recent XP")
+            side: Translation.tr("%1 entries").arg(root.ledgerDesc.length)
         }
 
-        GritText {
+        IrisText {
             Layout.fillWidth: true
+            Layout.leftMargin: UiScale.px(6)
             visible: root.ledgerDesc.length === 0
             text: Translation.tr("No XP earned yet")
             font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.colors.colSubtext
+            color: GritColors.fg3
         }
 
         Repeater {
@@ -137,11 +125,9 @@ StyledFlickable {
                 readonly property var typeInfo: root.metaOf(entryRow.modelData.type)
 
                 Layout.fillWidth: true
-                implicitHeight: entryRowLayout.implicitHeight + 12
-                radius: Appearance.rounding.small
-                color: Appearance.colors.colLayer1
-                border.width: 1
-                border.color: Appearance.colors.colLayer0Border
+                implicitHeight: Math.max(UiScale.px(52), entryRowLayout.implicitHeight + UiScale.px(14))
+                radius: height / 2
+                color: GritColors.raised
 
                 RowLayout {
                     id: entryRowLayout
@@ -149,47 +135,44 @@ StyledFlickable {
                         left: parent.left
                         right: parent.right
                         verticalCenter: parent.verticalCenter
-                        leftMargin: 10
-                        rightMargin: 10
+                        leftMargin: UiScale.px(8)
+                        rightMargin: UiScale.px(20)
                     }
-                    spacing: 8
+                    spacing: UiScale.px(10)
 
-                    MaterialSymbol {
-                        text: entryRow.typeInfo.icon
-                        iconSize: Appearance.font.pixelSize.larger
-                        color: entryRow.modelData.delta >= 0
-                            ? Appearance.colors.colSubtext : Appearance.colors.colError
+                    IrisDisc {
+                        size: UiScale.px(36)
+                        icon: entryRow.typeInfo.icon
+                        tone: "card"
                     }
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: -1
+                        spacing: 0
 
-                        GritText {
+                        IrisText {
                             Layout.fillWidth: true
                             text: root.entryTitle(entryRow.modelData)
-                            font.pixelSize: Appearance.font.pixelSize.normal
+                            font.pixelSize: Appearance.font.pixelSize.small
                             font.weight: Font.DemiBold
-                            color: Appearance.colors.colOnLayer1
+                            color: GritColors.fg
                             elide: Text.ElideRight
                         }
-                        GritText {
+                        IrisText {
                             Layout.fillWidth: true
                             text: `${entryRow.typeInfo.label} · ${root.entryWhen(entryRow.modelData.timestamp)}`
-                            font.pixelSize: Appearance.font.pixelSize.small
+                            font.pixelSize: Appearance.font.pixelSize.smallest
                             font.features: { "tnum": 1 }
-                            font.variableAxes: { "wght": 500, "ROND": 100 }
-                            color: Appearance.colors.colSubtext
+                            font.weight: Font.Medium
+                            color: GritColors.fg3
                             elide: Text.ElideRight
                         }
                     }
-                    GritText {
+                    IrisText {
                         text: Core.fmtXp(entryRow.modelData.delta)
                         font.pixelSize: Appearance.font.pixelSize.normal
-                        font.family: "Google Sans Flex"
                         font.features: { "tnum": 1 }
-                        font.variableAxes: { "wght": 700, "ROND": 100 }
-                        color: entryRow.modelData.delta >= 0
-                            ? Appearance.colors.colPrimary : Appearance.colors.colError
+                        font.weight: Font.Bold
+                        color: entryRow.modelData.delta >= 0 ? GritColors.fg : GritColors.danger
                     }
                 }
             }
@@ -197,56 +180,38 @@ StyledFlickable {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 6
+            spacing: UiScale.px(6)
             visible: root.ledgerDesc.length > root.pageSize
 
-            RippleButton {
+            IrisPill {
                 visible: root.shownCount < root.ledgerDesc.length
-                implicitHeight: 30
-                buttonRadius: Appearance.rounding.full
+                compact: true
+                icon: "expand_more"
+                text: Translation.tr("Show more")
                 onClicked: root.shownCount = Math.min(root.shownCount + 10, root.ledgerDesc.length)
-                contentItem: GritText {
-                    anchors.centerIn: parent
-                    horizontalAlignment: Text.AlignHCenter
-                    leftPadding: 14
-                    rightPadding: 14
-                    text: Translation.tr("Show more")
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.colors.colOnLayer1
-                }
             }
-            RippleButton {
+            IrisPill {
                 visible: root.shownCount > root.pageSize
-                implicitHeight: 30
-                buttonRadius: Appearance.rounding.full
+                compact: true
+                icon: "expand_less"
+                text: Translation.tr("Show less")
                 onClicked: root.shownCount = root.pageSize
-                contentItem: GritText {
-                    anchors.centerIn: parent
-                    horizontalAlignment: Text.AlignHCenter
-                    leftPadding: 14
-                    rightPadding: 14
-                    text: Translation.tr("Show less")
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.colors.colSubtext
-                }
             }
             Item { Layout.fillWidth: true }
         }
 
         // ---- Totals ----
-        GritText {
-            Layout.topMargin: 6
+        IrisSectionLabel {
+            Layout.fillWidth: true
+            Layout.topMargin: UiScale.px(8)
             text: Translation.tr("XP earned")
-            font.pixelSize: Appearance.font.pixelSize.normal
-            font.weight: Font.DemiBold
-            color: Appearance.colors.colPrimary
         }
 
         GridLayout {
             Layout.fillWidth: true
             columns: 3
-            rowSpacing: 6
-            columnSpacing: 6
+            rowSpacing: UiScale.px(8)
+            columnSpacing: UiScale.px(8)
 
             Repeater {
                 model: [
@@ -258,115 +223,99 @@ StyledFlickable {
                     { label: Translation.tr("Wallet"), value: Math.round(GritStore.xp) },
                     { label: Translation.tr("Lifetime"), value: Math.round(GritStore.lifetimeXp) }
                 ]
-                delegate: Rectangle {
+                delegate: IrisCard {
                     id: tile
                     required property var modelData
-                    Layout.fillWidth: true
-                    implicitHeight: tileColumn.implicitHeight + 20
-                    radius: Appearance.rounding.normal
-                    color: Appearance.colors.colLayer1
-                    border.width: 1
-                    border.color: Appearance.colors.colLayer0Border
+                    Layout.preferredWidth: 1 // equal columns
+                    pad: UiScale.px(14)
+                    spacing: 0
 
-                    ColumnLayout {
-                        id: tileColumn
-                        anchors {
-                            left: parent.left
-                            right: parent.right
-                            verticalCenter: parent.verticalCenter
-                            margins: 10
-                        }
-                        spacing: 0
-
-                        GritText {
-                            Layout.fillWidth: true
-                            text: `${tile.modelData.value}`
-                            font.pixelSize: 22
-                            font.family: "Google Sans Flex"
-                            font.features: { "tnum": 1 }
-                            font.variableAxes: { "wght": 800, "ROND": 100 }
-                            color: tile.modelData.value < 0
-                                ? Appearance.colors.colError : Appearance.colors.colOnLayer1
-                            elide: Text.ElideRight
-                        }
-                        GritText {
-                            Layout.fillWidth: true
-                            text: tile.modelData.label
-                            font.pixelSize: Appearance.font.pixelSize.smallest
-                            font.family: "Google Sans Flex"
-                            font.variableAxes: { "wght": 600, "ROND": 100 }
-                            color: Appearance.colors.colSubtext
-                            elide: Text.ElideRight
-                        }
+                    IrisText {
+                        Layout.fillWidth: true
+                        text: `${tile.modelData.value}`
+                        font.pixelSize: Appearance.font.pixelSize.larger
+                        font.features: { "tnum": 1 }
+                        font.weight: Font.ExtraBold
+                        color: tile.modelData.value < 0 ? GritColors.danger : GritColors.fg
+                        elide: Text.ElideRight
+                    }
+                    IrisText {
+                        Layout.fillWidth: true
+                        text: tile.modelData.label
+                        font.pixelSize: Appearance.font.pixelSize.smallest
+                        font.weight: Font.DemiBold
+                        color: GritColors.fg3
+                        elide: Text.ElideRight
                     }
                 }
             }
         }
 
         // ---- Last 7 days strip ----
-        Rectangle {
-            Layout.fillWidth: true
-            Layout.topMargin: 6
-            implicitHeight: 118
-            radius: Appearance.rounding.normal
-            color: Appearance.colors.colLayer1
-            border.width: 1
-            border.color: Appearance.colors.colLayer0Border
+        IrisCard {
+            Layout.topMargin: UiScale.px(4)
+            implicitHeight: UiScale.px(150)
+            fill: true
 
             RowLayout {
-                anchors.fill: parent
-                anchors.margins: 10
-                spacing: 4
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                spacing: UiScale.px(6)
 
                 Repeater {
                     model: root.last7
                     delegate: ColumnLayout {
                         id: bar
                         required property var modelData
+                        readonly property bool isToday: bar.modelData.day === GritStore.today
                         Layout.fillWidth: true
                         Layout.fillHeight: true
-                        spacing: 3
+                        spacing: UiScale.px(4)
 
-                        GritText {
+                        IrisText {
                             Layout.alignment: Qt.AlignHCenter
                             text: bar.modelData.xp === 0 ? "" : `${bar.modelData.xp}`
                             font.pixelSize: Appearance.font.pixelSize.smallest
                             font.features: { "tnum": 1 }
-                            font.variableAxes: { "wght": 600, "ROND": 100 }
-                            color: bar.modelData.xp < 0
-                                ? Appearance.colors.colError : Appearance.colors.colSubtext
+                            font.weight: Font.DemiBold
+                            color: bar.modelData.xp < 0 ? GritColors.danger : GritColors.fg3
                         }
-                        Item {
+                        // A well track with a rounded fill: white today, fg2 before
+                        Rectangle {
                             Layout.fillWidth: true
                             Layout.fillHeight: true
+                            radius: UiScale.px(8)
+                            color: GritColors.well
 
                             Rectangle {
                                 anchors.bottom: parent.bottom
                                 width: parent.width
-                                radius: Appearance.rounding.verysmall
-                                height: root.last7Peak <= 0 ? 2
-                                    : Math.max(2, parent.height * Math.abs(bar.modelData.xp) / root.last7Peak)
-                                color: bar.modelData.xp < 0 ? Appearance.colors.colError
-                                    : bar.modelData.xp === 0 ? Appearance.colors.colLayer2
-                                    : Appearance.colors.colPrimary
+                                radius: UiScale.px(8)
+                                visible: bar.modelData.xp !== 0
+                                height: root.last7Peak <= 0 ? 0
+                                    : Math.max(UiScale.px(6), parent.height * Math.abs(bar.modelData.xp) / root.last7Peak)
+                                color: bar.modelData.xp < 0 ? GritColors.danger
+                                    : bar.isToday ? GritColors.fg : GritColors.fg2
 
                                 Behavior on height {
-                                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                                    SpringAnimation { spring: 2.4; damping: 0.4; epsilon: 0.3 }
+                                }
+                                Behavior on color {
+                                    ColorAnimation { duration: Iris.colorDuration }
                                 }
                             }
                         }
-                        GritText {
+                        IrisText {
                             Layout.alignment: Qt.AlignHCenter
                             text: root.weekdayLetter(bar.modelData.day)
                             font.pixelSize: Appearance.font.pixelSize.smallest
-                            color: bar.modelData.day === GritStore.today
-                                ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                            color: bar.isToday ? GritColors.fg : GritColors.fg3
                         }
                     }
                 }
             }
         }
 
-        Item { implicitHeight: 4 }
+        Item { implicitHeight: UiScale.px(4) }
     }
 }

@@ -24,9 +24,29 @@ Singleton {
     readonly property var remoteNames: ({
         tasks: "tasks", completions: "completions", ledger: "ledger",
         settings: "settings", lists: "lists", foods: "foods",
-        dayLogs: "day_logs", focus: "focus"
+        dayLogs: "day_logs", focus: "focus", spendings: "spendings",
+        subscriptions: "subscriptions", measurements: "measurements"
     })
-    readonly property var tableList: ["tasks", "completions", "ledger", "settings", "lists", "foods", "dayLogs", "focus"]
+    readonly property var tableList: ["tasks", "completions", "ledger", "settings", "lists", "foods", "dayLogs", "focus", "spendings", "subscriptions", "measurements"]
+
+    /**
+     * Tables the server does not have yet. A table added to the app before its
+     * SQL is applied used to abort the whole cycle on the first 404, which took
+     * every other table's sync down with it. Now the missing one is skipped and
+     * named, and the push cursor is held back (see below) so nothing written
+     * during the gap is lost once the table finally appears.
+     */
+    property var missingTables: []
+
+    function noteMissing(name) {
+        if (root.missingTables.indexOf(name) < 0)
+            root.missingTables = root.missingTables.concat([name]);
+    }
+
+    /** PostgREST answers 404 (PGRST205) for a table that is not in its schema cache. */
+    function isMissingTable(status) {
+        return status === 404;
+    }
 
     // Largest epoch-ms a Date can represent; guards cursor corruption (see web sync.ts)
     readonly property real maxTs: 8.64e15
@@ -59,6 +79,7 @@ Singleton {
             return;
         root.syncing = true;
         root.errorMessage = "";
+        root.missingTables = [];
 
         const userId = GritApi.userId;
         const pushSince = root.cursorGet(`push.${userId}`);
@@ -94,6 +115,10 @@ Singleton {
                     deleted: false
                 }));
                 GritApi.upsert(root.remoteNames[name], payload, (status, resp) => {
+                    if (root.isMissingTable(status)) {
+                        root.noteMissing(name);
+                        return next(null);
+                    }
                     next(status >= 200 && status < 300 ? null : `push ${name}: HTTP ${status}`);
                 });
             });
@@ -113,6 +138,10 @@ Singleton {
                     deleted: true
                 }));
                 GritApi.upsert(root.remoteNames[name], payload, (status, resp) => {
+                    if (root.isMissingTable(status)) {
+                        root.noteMissing(name);
+                        return next(null);
+                    }
                     next(status >= 200 && status < 300 ? null : `push tombstones ${name}: HTTP ${status}`);
                 });
             });
@@ -122,7 +151,12 @@ Singleton {
         let pullSince = 0;
         let maxSeen = 0;
         steps.push(next => {
-            root.cursorSet(`push.${userId}`, startedAt);
+            // Holding the cursor back while a table is missing means every dirty
+            // row is offered again next cycle. Upserts are idempotent, so the
+            // only cost is bandwidth until the schema catches up, and the gain
+            // is that no local write is silently dropped from sync.
+            if (root.missingTables.length === 0)
+                root.cursorSet(`push.${userId}`, startedAt);
             pullSince = root.cursorGet(`pull.${userId}`);
             maxSeen = pullSince;
             next(null);
@@ -131,6 +165,10 @@ Singleton {
         for (const name of root.tableList) {
             steps.push(next => {
                 GritApi.pullSince(root.remoteNames[name], new Date(pullSince).toISOString(), (status, rows) => {
+                    if (root.isMissingTable(status)) {
+                        root.noteMissing(name);
+                        return next(null);
+                    }
                     if (status !== 200)
                         return next(`pull ${name}: HTTP ${status}`);
                     if (!rows || rows.length === 0)
@@ -174,6 +212,10 @@ Singleton {
                 root.cursorSet(`pull.${userId}`, Math.max(pullSince, maxSeen));
                 root.lastSyncAt = Date.now();
                 root.everSynced = true;
+                if (root.missingTables.length > 0) {
+                    root.errorMessage = `No cloud table yet: ${root.missingTables.join(", ")}. ` +
+                        `Run supabase/schema.sql.`;
+                }
             }
             root.syncing = false;
         });

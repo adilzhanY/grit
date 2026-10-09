@@ -3,6 +3,7 @@ import qs.services
 import qs.services.grit
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.iris
 import QtQuick
 import QtQuick.Layouts
 import "../../../services/grit/GritCore.js" as Core
@@ -24,6 +25,16 @@ StyledFlickable {
         repeat: true
         onTriggered: root.fastingTick = Date.now()
     }
+
+    // A macro's Lucide icon: drumstick for protein, wheat for carbs, droplet
+    // for fat. A plain Text on purpose: MaterialSymbol only switches to the
+    // Lucide font for Material names, and these are Lucide's own ligatures.
+    component MacroIcon: Text {
+        font.family: "Lucide Shell"
+        renderType: Appearance.font.renderType
+        color: GritColors.fg2
+    }
+    readonly property var macroIcons: ({ protein: "drumstick", carbs: "wheat", fat: "droplet" })
 
     readonly property var todayFood: {
         GritStore.revision;
@@ -80,6 +91,26 @@ StyledFlickable {
         return Core.sortFoodsByUsage(GritStore.foods, GritStore.db.dayLogs);
     }
 
+    // The saved foods as search results, most logged first
+    readonly property var foodResults: root.savedFoods.map(f => ({
+        section: Translation.tr("Saved"),
+        title: f.name,
+        subtitle: `P${Math.round(f.protein ?? 0)} C${Math.round(f.carbs ?? 0)} F${Math.round(f.fat ?? 0)}`,
+        icon: "restaurant",
+        trail: `${f.calories} kcal`,
+        food: f
+    }))
+
+    function logSaved(food) {
+        GritStore.addFoodLog({
+            name: food.name,
+            calories: food.calories,
+            protein: food.protein,
+            carbs: food.carbs,
+            fat: food.fat
+        });
+    }
+
     function dayHeading(date) {
         if (date === GritStore.today)
             return Translation.tr("Today");
@@ -96,276 +127,338 @@ StyledFlickable {
     ColumnLayout {
         id: mainColumn
         width: parent.width
-        spacing: 8
+        spacing: UiScale.px(12)
 
         // ---- Budget + fasting ----
-        Rectangle {
-            Layout.fillWidth: true
-            implicitHeight: budgetColumn.implicitHeight + 20
-            radius: Appearance.rounding.normal
-            color: Appearance.colors.colLayer1
-            border.width: 1
-            border.color: Appearance.colors.colLayer0Border
-
-            ColumnLayout {
-                id: budgetColumn
-                anchors {
-                    left: parent.left
-                    right: parent.right
-                    top: parent.top
-                    margins: 10
-                }
-                spacing: 4
+        IrisCard {
+            spacing: UiScale.px(10)
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 6
+                    spacing: UiScale.px(6)
 
-                    GritText {
+                    IrisText {
                         text: `${Math.round(root.netCalories)}`
-                        font.pixelSize: 24
-                        font.family: "Google Sans Flex"
+                        font.pixelSize: Appearance.font.pixelSize.hugeass
                         font.features: { "tnum": 1 }
-                        font.variableAxes: { "wght": 800, "ROND": 100 }
+                        font.weight: Font.ExtraBold
                         color: root.netCalories > GritStore.settings.calorieLimit
-                            ? Appearance.colors.colError : Appearance.colors.colOnLayer1
+                            ? GritColors.danger : GritColors.fg
+                        Behavior on color {
+                            ColorAnimation { duration: Iris.colorDuration }
+                        }
                     }
-                    GritText {
+                    IrisText {
                         Layout.alignment: Qt.AlignBottom
-                        Layout.bottomMargin: 3
+                        Layout.bottomMargin: UiScale.px(3)
                         text: `/ ${Math.round(GritStore.settings.calorieLimit)} kcal`
                         font.pixelSize: Appearance.font.pixelSize.small
-                        font.family: "Google Sans Flex"
                         font.features: { "tnum": 1 }
-                        font.variableAxes: { "wght": 600, "ROND": 100 }
-                        color: Appearance.colors.colSubtext
-                    }
-                    Item { Layout.fillWidth: true }
-                    ColumnLayout {
-                        spacing: -4
-                        GritText {
-                            Layout.alignment: Qt.AlignRight
-                            text: Translation.tr("FASTING")
-                            font.pixelSize: 9
-                            font.letterSpacing: 1.5
-                            font.weight: Font.Bold
-                            color: Appearance.colors.colSubtext
-                        }
-                        GritText {
-                            Layout.alignment: Qt.AlignRight
-                            text: root.lastFoodAt > 0 ? Core.fmtElapsed(root.fastingTick - root.lastFoodAt) : "—"
-                            font.pixelSize: Appearance.font.pixelSize.large
-                            font.family: "Google Sans Flex"
-                            font.features: { "tnum": 1 }
-                            font.variableAxes: { "wght": 700, "ROND": 100 }
-                            color: Appearance.colors.colPrimary
-                        }
+                        font.weight: Font.DemiBold
+                        color: GritColors.fg3
                     }
                 }
 
-                StyledProgressBar {
+                IrisSlot {
                     Layout.fillWidth: true
-                    value: Math.min(1, Math.max(0, root.netCalories) / Math.max(1, GritStore.settings.calorieLimit))
+                    valueBarHeight: UiScale.px(14)
+                    showOver: true
+                    value: Math.max(0, root.netCalories) / Math.max(1, GritStore.settings.calorieLimit)
                 }
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 16
+                    spacing: UiScale.px(6)
+
                     Repeater {
                         model: [
-                            [Translation.tr("P"), Core.foodTotal(root.todayFood, "protein")],
-                            [Translation.tr("C"), Core.foodTotal(root.todayFood, "carbs")],
-                            [Translation.tr("F"), Core.foodTotal(root.todayFood, "fat")]
+                            [root.macroIcons.protein, Core.foodTotal(root.todayFood, "protein")],
+                            [root.macroIcons.carbs, Core.foodTotal(root.todayFood, "carbs")],
+                            [root.macroIcons.fat, Core.foodTotal(root.todayFood, "fat")]
                         ]
-                        delegate: RowLayout {
+                        delegate: Rectangle {
+                            id: macroPill
                             required property var modelData
-                            spacing: 3
+                            implicitWidth: macroPillRow.implicitWidth + UiScale.px(24)
+                            implicitHeight: UiScale.px(32)
+                            radius: height / 2
+                            color: GritColors.well
 
-                            GritText {
-                                Layout.alignment: Qt.AlignBottom
-                                Layout.bottomMargin: 3
-                                text: modelData[0]
-                                font.pixelSize: Appearance.font.pixelSize.normal
-                                font.family: "Google Sans Flex"
-                                font.variableAxes: { "wght": 800, "ROND": 100 }
-                                color: Appearance.colors.colSubtext
-                            }
-                            GritText {
-                                text: `${Math.round(modelData[1])}`
-                                font.pixelSize: 24
-                                font.family: "Google Sans Flex"
-                                font.features: { "tnum": 1 }
-                                font.variableAxes: { "wght": 800, "ROND": 100 }
-                                color: Appearance.colors.colOnLayer1
-                            }
-                            GritText {
-                                Layout.alignment: Qt.AlignBottom
-                                Layout.bottomMargin: 3
-                                text: "g"
-                                font.pixelSize: Appearance.font.pixelSize.normal
-                                font.family: "Google Sans Flex"
-                                font.variableAxes: { "wght": 800, "ROND": 100 }
-                                color: Appearance.colors.colSubtext
+                            Row {
+                                id: macroPillRow
+                                anchors.centerIn: parent
+                                spacing: UiScale.px(5)
+                                MacroIcon {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: macroPill.modelData[0]
+                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                }
+                                IrisText {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: `${Math.round(macroPill.modelData[1])} g`
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    font.features: { "tnum": 1 }
+                                    font.weight: Font.Bold
+                                    color: GritColors.fg
+                                }
                             }
                         }
                     }
-                    Item { Layout.fillWidth: true }
+                }
+
+                // Fasting and what went in and out, on their own line
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: UiScale.px(10)
+                    Rectangle {
+                        implicitWidth: fastRow.implicitWidth + UiScale.px(28)
+                        implicitHeight: UiScale.px(36)
+                        radius: height / 2
+                        color: GritColors.well
+
+                        Row {
+                            id: fastRow
+                            anchors.centerIn: parent
+                            spacing: UiScale.px(8)
+                            IrisText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: Translation.tr("FASTING")
+                                font.pixelSize: Appearance.font.pixelSize.smallest
+                                font.letterSpacing: 1.5
+                                font.weight: Font.Bold
+                                color: GritColors.fg3
+                            }
+                            IrisText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: root.lastFoodAt > 0 ? Core.fmtElapsed(root.fastingTick - root.lastFoodAt) : "-"
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.features: { "tnum": 1 }
+                                font.weight: Font.Bold
+                                color: GritColors.fg
+                            }
+                        }
+                    }
+                    IrisText {
+                        Layout.fillWidth: true
+                        text: Translation.tr("%1 eaten · %2 burnt")
+                            .arg(Math.round(root.caloriesEaten)).arg(Math.round(root.caloriesBurnt))
+                        elide: Text.ElideRight
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.features: { "tnum": 1 }
+                        color: GritColors.fg3
+                    }
+                }
+        }
+
+        // ---- Search over saved foods ----
+        IrisCard {
+            pad: UiScale.px(12)
+
+            IrisSearch {
+                id: foodSearch
+                Layout.fillWidth: true
+                size: "compact"
+                placeholderText: Translation.tr("Log a food")
+                model: root.foodResults
+                filter: true
+                emptySection: Translation.tr("Most logged")
+                emptyText: Translation.tr("No saved foods yet, type a name to add one")
+                noMatchText: Translation.tr("No saved food matches \"%1\"")
+                addRowText: Translation.tr("Add \"%1\" as a new food")
+                addRowSubtitle: Translation.tr("Opens the form with the name filled in")
+                onPicked: item => {
+                    root.logSaved(item.food);
+                    foodSearch.clear();
+                }
+                onAddRequested: name => {
+                    foodSearch.clear();
+                    foodNameField.text = name;
+                    calField.forceActiveFocus();
+                    root.contentY = Math.max(0, Math.min(formCard.y, root.contentHeight - root.height));
                 }
             }
         }
 
-        // ---- Saved foods (cards) ----
-        GritText {
-            visible: GritStore.foods.length > 0
-            text: Translation.tr("Saved foods")
-            font.pixelSize: Appearance.font.pixelSize.smallest
-            color: Appearance.colors.colSubtext
-        }
-        GridLayout {
+        // ---- Saved foods (tiles) ----
+        IrisSectionLabel {
             Layout.fillWidth: true
             visible: GritStore.foods.length > 0
-            columns: 3
-            columnSpacing: 8
-            rowSpacing: 8
+            text: Translation.tr("Saved foods · click to log")
+        }
+        GridLayout {
+            id: foodGrid
+            Layout.fillWidth: true
+            visible: GritStore.foods.length > 0
+            columns: width > UiScale.px(460) ? 3 : 2
+            rowSpacing: UiScale.px(8)
+            columnSpacing: UiScale.px(8)
 
             Repeater {
                 model: root.savedFoods
-                delegate: RippleButton {
+                delegate: Rectangle {
                     id: foodCard
                     required property var modelData
                     Layout.fillWidth: true
-                    implicitHeight: cardColumn.implicitHeight + 18
-                    buttonRadius: Appearance.rounding.normal
-                    colBackground: Appearance.colors.colLayer2
-                    colBackgroundHover: Appearance.colors.colLayer2Hover
-                    colRipple: Appearance.colors.colLayer2Active
-                    onClicked: {
-                        GritStore.addFoodLog({
-                            name: foodCard.modelData.name,
-                            calories: foodCard.modelData.calories,
-                            protein: foodCard.modelData.protein,
-                            carbs: foodCard.modelData.carbs,
-                            fat: foodCard.modelData.fat
-                        });
-                    }
-                    altAction: () => {
-                        const foodId = foodCard.modelData.id;
-                        GritConfirm.ask(
-                            Translation.tr("Remove saved food?"),
-                            foodCard.modelData.name,
-                            () => GritStore.deleteFood(foodId),
-                            Translation.tr("Remove"));
-                    }
-                    GritToolTip { text: Translation.tr("Click to log · right-click to remove") }
+                    Layout.preferredWidth: 1 // equal columns
+                    implicitHeight: cardColumn.implicitHeight + UiScale.px(24)
+                    radius: UiScale.px(18)
+                    color: foodArea.pressed ? GritColors.raisedActive
+                        : foodArea.containsMouse ? GritColors.raisedHover : GritColors.raised
+                    scale: foodArea.pressed ? Iris.pressScalePill : 1
 
-                    contentItem: ColumnLayout {
+                    Behavior on color {
+                        ColorAnimation { duration: Iris.colorDuration }
+                    }
+                    Behavior on scale {
+                        NumberAnimation { duration: Iris.pressDuration; easing.type: Iris.pressEasing }
+                    }
+
+                    ColumnLayout {
                         id: cardColumn
-                        anchors.centerIn: parent
-                        width: foodCard.width - 16
-                        spacing: 1
+                        anchors {
+                            left: parent.left
+                            right: parent.right
+                            verticalCenter: parent.verticalCenter
+                            leftMargin: UiScale.px(14)
+                            rightMargin: UiScale.px(14)
+                        }
+                        spacing: UiScale.px(2)
 
-                        GritText {
+                        IrisText {
                             Layout.fillWidth: true
-                            horizontalAlignment: Text.AlignHCenter
                             text: foodCard.modelData.name
                             font.pixelSize: Appearance.font.pixelSize.small
                             font.weight: Font.DemiBold
-                            color: Appearance.colors.colOnLayer2
+                            color: GritColors.fg
                             elide: Text.ElideRight
                         }
-                        GritText {
-                            Layout.alignment: Qt.AlignHCenter
+                        IrisText {
                             text: `${foodCard.modelData.calories} kcal`
-                            font.pixelSize: Appearance.font.pixelSize.large
+                            font.pixelSize: Appearance.font.pixelSize.normal
                             font.features: { "tnum": 1 }
-                            font.variableAxes: { "wght": 800, "ROND": 100 }
-                            color: Appearance.colors.colPrimary
+                            font.weight: Font.ExtraBold
+                            color: GritColors.fg
                         }
-                        GritText {
-                            Layout.alignment: Qt.AlignHCenter
-                            text: `P${Math.round(foodCard.modelData.protein)} · C${Math.round(foodCard.modelData.carbs)} · F${Math.round(foodCard.modelData.fat)}`
-                            font.pixelSize: Appearance.font.pixelSize.small
-                            font.features: { "tnum": 1 }
-                            font.variableAxes: { "wght": 600, "ROND": 100 }
-                            color: Appearance.colors.colOnLayer2
+                        Row {
+                            spacing: UiScale.px(8)
+                            Repeater {
+                                model: ["protein", "carbs", "fat"]
+                                delegate: Row {
+                                    id: macro
+                                    required property string modelData
+                                    spacing: UiScale.px(3)
+                                    MacroIcon {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: root.macroIcons[macro.modelData]
+                                        font.pixelSize: Appearance.font.pixelSize.smallest
+                                        color: GritColors.fg3
+                                    }
+                                    IrisText {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: `${Math.round(foodCard.modelData[macro.modelData])}`
+                                        font.pixelSize: Appearance.font.pixelSize.smallest
+                                        font.features: { "tnum": 1 }
+                                        font.weight: Font.DemiBold
+                                        color: GritColors.fg2
+                                    }
+                                }
+                            }
                         }
+                    }
+
+                    MouseArea {
+                        id: foodArea
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        acceptedButtons: Qt.LeftButton | Qt.RightButton
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: mouse => {
+                            if (mouse.button === Qt.RightButton) {
+                                const foodId = foodCard.modelData.id;
+                                GritConfirm.ask(
+                                    Translation.tr("Remove saved food?"),
+                                    foodCard.modelData.name,
+                                    () => GritStore.deleteFood(foodId),
+                                    Translation.tr("Remove"));
+                                return;
+                            }
+                            root.logSaved(foodCard.modelData);
+                        }
+                        IrisToolTip { text: Translation.tr("Click to log · right-click to remove") }
                     }
                 }
             }
         }
 
         // ---- Add food form ----
-        RowLayout {
+        IrisSectionLabel {
             Layout.fillWidth: true
-            spacing: 6
-
-            GritTextField {
-                id: foodNameField
-                Layout.fillWidth: true
-                placeholderText: Translation.tr("Food name")
-                onAccepted: root.logNewFood()
-            }
-            GritTextField {
-                id: calField
-                Layout.preferredWidth: 70
-                placeholderText: "kcal"
-                validator: DoubleValidator { bottom: 0; top: 100000 }
-                onAccepted: root.logNewFood()
-            }
+            text: Translation.tr("Something new")
         }
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 6
+        IrisCard {
+            id: formCard
+            spacing: UiScale.px(8)
 
-            GritTextField {
-                id: protField
-                Layout.fillWidth: true
-                placeholderText: Translation.tr("protein g")
-                validator: DoubleValidator { bottom: 0; top: 100000 }
-            }
-            GritTextField {
-                id: carbField
-                Layout.fillWidth: true
-                placeholderText: Translation.tr("carbs g")
-                validator: DoubleValidator { bottom: 0; top: 100000 }
-            }
-            GritTextField {
-                id: fatField
-                Layout.fillWidth: true
-                placeholderText: Translation.tr("fat g")
-                validator: DoubleValidator { bottom: 0; top: 100000 }
-            }
-        }
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 8
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: UiScale.px(6)
 
-            StyledSwitch {
-                id: saveToLibrary
-            }
-            GritText {
-                Layout.fillWidth: true
-                text: Translation.tr("Save to library")
-                font.pixelSize: Appearance.font.pixelSize.normal
-                color: Appearance.colors.colOnLayer0
-            }
-            RippleButton {
-                implicitHeight: 30
-                buttonRadius: Appearance.rounding.full
-                colBackground: Appearance.colors.colPrimary
-                colBackgroundHover: Appearance.colors.colPrimaryHover
-                colRipple: Appearance.colors.colPrimaryActive
-                onClicked: root.logNewFood()
-                contentItem: GritText {
-                    anchors.centerIn: parent
-                    horizontalAlignment: Text.AlignHCenter
-                    leftPadding: 14
-                    rightPadding: 14
-                    text: Translation.tr("Log it")
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.colors.colOnPrimary
+                    IrisField {
+                        id: foodNameField
+                        Layout.fillWidth: true
+                        placeholderText: Translation.tr("Food name")
+                        onAccepted: root.logNewFood()
+                    }
+                    IrisField {
+                        id: calField
+                        Layout.preferredWidth: UiScale.px(96)
+                        placeholderText: "kcal"
+                        validator: DoubleValidator { bottom: 0; top: 100000 }
+                        onAccepted: root.logNewFood()
+                    }
                 }
-            }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: UiScale.px(6)
+
+                    IrisField {
+                        id: protField
+                        Layout.fillWidth: true
+                        placeholderText: Translation.tr("protein g")
+                        validator: DoubleValidator { bottom: 0; top: 100000 }
+                    }
+                    IrisField {
+                        id: carbField
+                        Layout.fillWidth: true
+                        placeholderText: Translation.tr("carbs g")
+                        validator: DoubleValidator { bottom: 0; top: 100000 }
+                    }
+                    IrisField {
+                        id: fatField
+                        Layout.fillWidth: true
+                        placeholderText: Translation.tr("fat g")
+                        validator: DoubleValidator { bottom: 0; top: 100000 }
+                    }
+                }
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: UiScale.px(8)
+
+                    // Save-to-library toggle: a well pill with a check when on
+                    IrisPill {
+                        id: saveToLibrary
+                        property bool checked: false
+                        icon: checked ? "check_circle" : "radio_button_unchecked"
+                        text: Translation.tr("Save to library")
+                        onClicked: checked = !checked
+                    }
+                    Item { Layout.fillWidth: true }
+                    IrisPill {
+                        primary: true
+                        text: Translation.tr("Log it")
+                        onClicked: root.logNewFood()
+                    }
+                }
         }
 
         // ---- History, grouped by day (like the web's FoodHistory) ----
@@ -375,22 +468,23 @@ StyledFlickable {
                 id: dayGroup
                 required property var modelData
                 Layout.fillWidth: true
-                Layout.topMargin: 6
-                spacing: 4
+                Layout.topMargin: UiScale.px(4)
+                spacing: UiScale.px(6)
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    Layout.leftMargin: UiScale.px(6)
+                    Layout.rightMargin: UiScale.px(6)
+                    spacing: UiScale.px(8)
 
-                    GritText {
+                    IrisText {
                         Layout.fillWidth: true
                         text: root.dayHeading(dayGroup.modelData.date)
-                        font.pixelSize: Appearance.font.pixelSize.normal
-                        font.weight: Font.DemiBold
-                        color: Appearance.colors.colPrimary
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        color: GritColors.fg3
                         elide: Text.ElideRight
                     }
-                    // Web's DayMacroTotals format: "eaten − burnt = net", net highlighted
+                    // Web's DayMacroTotals format: "eaten - burnt = net", net highlighted
                     RowLayout {
                         spacing: 0
 
@@ -398,31 +492,31 @@ StyledFlickable {
                             .reduce((s, l) => s + (l.calories ?? 0), 0)
                         readonly property real dayBurnt: dayGroup.modelData.burnt
 
-                        GritText {
+                        IrisText {
                             text: parent.dayBurnt > 0
                                 ? `${Math.round(parent.dayEaten)} − ${Math.round(parent.dayBurnt)} = `
                                 : `${Math.round(parent.dayEaten)}`
-                            font.pixelSize: Appearance.font.pixelSize.small
+                            font.pixelSize: Appearance.font.pixelSize.smaller
                             font.features: { "tnum": 1 }
-                            font.variableAxes: { "wght": 600, "ROND": 100 }
-                            color: Appearance.colors.colSubtext
+                            font.weight: Font.DemiBold
+                            color: GritColors.fg3
                         }
-                        GritText {
+                        IrisText {
                             visible: parent.dayBurnt > 0
                             text: `${Math.round(parent.dayEaten - parent.dayBurnt)}`
-                            font.pixelSize: Appearance.font.pixelSize.small
+                            font.pixelSize: Appearance.font.pixelSize.smaller
                             font.features: { "tnum": 1 }
-                            font.variableAxes: { "wght": 700, "ROND": 100 }
-                            color: Appearance.colors.colPrimary
+                            font.weight: Font.Bold
+                            color: GritColors.fg
                         }
-                        GritText {
+                        IrisText {
                             text: ` kcal`
-                            font.pixelSize: Appearance.font.pixelSize.small
-                            font.variableAxes: { "wght": 600, "ROND": 100 }
-                            color: Appearance.colors.colSubtext
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            font.weight: Font.DemiBold
+                            color: GritColors.fg3
                         }
                     }
-                    GritText {
+                    IrisText {
                         text: {
                             const rows = dayGroup.modelData.rows;
                             const p = rows.reduce((s, l) => s + (l.protein ?? 0), 0);
@@ -430,10 +524,10 @@ StyledFlickable {
                             const f = rows.reduce((s, l) => s + (l.fat ?? 0), 0);
                             return `· P${Math.round(p)} C${Math.round(c)} F${Math.round(f)}`;
                         }
-                        font.pixelSize: Appearance.font.pixelSize.small
+                        font.pixelSize: Appearance.font.pixelSize.smaller
                         font.features: { "tnum": 1 }
-                        font.variableAxes: { "wght": 600, "ROND": 100 }
-                        color: Appearance.colors.colSubtext
+                        font.weight: Font.DemiBold
+                        color: GritColors.fg3
                     }
                 }
 
@@ -443,11 +537,9 @@ StyledFlickable {
                         id: logRow
                         required property var modelData
                         Layout.fillWidth: true
-                        implicitHeight: logRowLayout.implicitHeight + 12
-                        radius: Appearance.rounding.small
-                        color: Appearance.colors.colLayer1
-                        border.width: 1
-                        border.color: Appearance.colors.colLayer0Border
+                        implicitHeight: Math.max(UiScale.px(52), logRowLayout.implicitHeight + UiScale.px(14))
+                        radius: height / 2
+                        color: GritColors.raised
 
                         RowLayout {
                             id: logRowLayout
@@ -455,50 +547,55 @@ StyledFlickable {
                                 left: parent.left
                                 right: parent.right
                                 verticalCenter: parent.verticalCenter
-                                leftMargin: 10
-                                rightMargin: 6
+                                leftMargin: UiScale.px(20)
+                                rightMargin: UiScale.px(10)
                             }
-                            spacing: 8
+                            spacing: UiScale.px(8)
 
-                            MaterialSymbol {
-                                text: "restaurant"
-                                iconSize: Appearance.font.pixelSize.larger
-                                color: Appearance.colors.colSubtext
-                            }
                             ColumnLayout {
                                 Layout.fillWidth: true
-                                spacing: -1
+                                spacing: 0
 
-                                GritText {
+                                IrisText {
                                     Layout.fillWidth: true
                                     text: logRow.modelData.name ?? Translation.tr("Food")
-                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                    font.pixelSize: Appearance.font.pixelSize.small
                                     font.weight: Font.DemiBold
-                                    color: Appearance.colors.colOnLayer1
+                                    color: GritColors.fg
                                     elide: Text.ElideRight
                                 }
-                                GritText {
+                                IrisText {
                                     Layout.fillWidth: true
-                                    text: `${root.fmtClock(logRow.modelData.loggedAt)} · ${logRow.modelData.calories ?? 0} kcal · P${logRow.modelData.protein ?? 0} C${logRow.modelData.carbs ?? 0} F${logRow.modelData.fat ?? 0}`
-                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    text: `${root.fmtClock(logRow.modelData.loggedAt)} · P${logRow.modelData.protein ?? 0} C${logRow.modelData.carbs ?? 0} F${logRow.modelData.fat ?? 0}`
+                                    font.pixelSize: Appearance.font.pixelSize.smallest
                                     font.features: { "tnum": 1 }
-                                    font.variableAxes: { "wght": 500, "ROND": 100 }
-                                    color: Appearance.colors.colSubtext
+                                    font.weight: Font.Medium
+                                    color: GritColors.fg3
                                     elide: Text.ElideRight
                                 }
                             }
-                            GritText {
+                            IrisText {
                                 visible: (logRow.modelData.awardedXp ?? 0) !== 0
                                 text: Core.fmtXp(logRow.modelData.awardedXp)
                                 font.pixelSize: Appearance.font.pixelSize.smallest
-                                color: Appearance.colors.colError
+                                font.features: { "tnum": 1 }
+                                color: GritColors.danger
+                            }
+                            IrisText {
+                                text: `${logRow.modelData.calories ?? 0} kcal`
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.features: { "tnum": 1 }
+                                font.weight: Font.Bold
+                                color: GritColors.fg2
                             }
                             // Save to library (if not saved yet)
-                            RippleButton {
+                            IrisDisc {
                                 visible: !root.savedNames.includes((logRow.modelData.name ?? "").trim().toLowerCase())
-                                implicitWidth: 26
-                                implicitHeight: 26
-                                buttonRadius: Appearance.rounding.full
+                                clickable: true
+                                size: UiScale.px(32)
+                                icon: "bookmark_add"
+                                tone: "card"
+                                tip: Translation.tr("Save to library")
                                 onClicked: {
                                     GritStore.saveFood({
                                         name: logRow.modelData.name ?? Translation.tr("Food"),
@@ -508,32 +605,19 @@ StyledFlickable {
                                         fat: logRow.modelData.fat ?? 0
                                     });
                                 }
-                                GritToolTip { text: Translation.tr("Save to library") }
-                                contentItem: MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    horizontalAlignment: Text.AlignHCenter
-                                    text: "bookmark_add"
-                                    iconSize: Appearance.font.pixelSize.normal
-                                    color: Appearance.colors.colSubtext
-                                }
                             }
-                            RippleButton {
-                                implicitWidth: 26
-                                implicitHeight: 26
-                                buttonRadius: Appearance.rounding.full
+                            IrisDisc {
+                                clickable: true
+                                size: UiScale.px(32)
+                                icon: "close"
+                                tone: "card"
+                                tip: Translation.tr("Delete")
                                 onClicked: {
                                     const logId = logRow.modelData.id;
                                     GritConfirm.ask(
                                         Translation.tr("Delete log?"),
                                         `${logRow.modelData.name ?? Translation.tr("Food")} · ${logRow.modelData.calories ?? 0} kcal`,
                                         () => GritStore.deleteDayLog(logId));
-                                }
-                                contentItem: MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    horizontalAlignment: Text.AlignHCenter
-                                    text: "close"
-                                    iconSize: Appearance.font.pixelSize.normal
-                                    color: Appearance.colors.colSubtext
                                 }
                             }
                         }
@@ -542,7 +626,7 @@ StyledFlickable {
             }
         }
 
-        Item { implicitHeight: 4 }
+        Item { implicitHeight: UiScale.px(4) }
     }
 
     function logNewFood() {

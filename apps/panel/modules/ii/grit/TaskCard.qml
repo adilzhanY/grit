@@ -3,10 +3,12 @@ import qs.services
 import qs.services.grit
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.iris
 import Quickshell
 import QtQuick
 import QtQuick.Layouts
 import "../../../services/grit/GritCore.js" as Core
+import "../../../services/grit/GritReadings.js" as Readings
 
 /**
  * One full-width task row: To-Do-style outlined circle toggle, title, XP
@@ -38,22 +40,29 @@ Rectangle {
     readonly property string jumpLetter: GritKeys.mode === "hint"
         ? (GritKeys.jumpLetters[cardId] ?? "") : ""
     // Repeats on specific weekdays → shown prominently inside the card
+    // Tasks that carry a text to read out loud get a persistent eye button
+    readonly property var reading: Readings.readingFor(task?.title ?? "")
     readonly property bool hasSpecificDays: !!(task?.recurrence
         && task.recurrence.type === "weekly"
         && (task.recurrence.weekdays?.length ?? 0) > 0)
 
-    implicitHeight: cardColumn.implicitHeight + 16
-    radius: Appearance.rounding.normal
-    color: root.hovered || root.kbFocused ? Appearance.colors.colLayer1Hover : Appearance.colors.colLayer1
-    border.width: 1
-    border.color: root.kbFocused ? Appearance.colors.colPrimary : Appearance.colors.colLayer0Border
-    opacity: dimmed ? 0.55 : 1
+    implicitHeight: cardColumn.implicitHeight + UiScale.px(20)
+    radius: Iris.radiusCard
+    color: root.hovered || root.kbFocused ? Iris.raisedHover : Iris.raised
+    // The one Iris focus ring while the keyboard is on this card
+    border.width: root.kbFocused ? Iris.focusRingWidth : 0
+    border.color: Iris.focusRingColor
+    opacity: root.dimmed || root.done ? 0.5 : 1
 
     Behavior on color {
-        ColorAnimation { duration: Appearance.animation.elementMoveFast.duration }
+        ColorAnimation { duration: Iris.colorDuration }
     }
+    Behavior on opacity {
+        NumberAnimation { duration: 240; easing.type: Easing.OutCubic }
+    }
+    // Subtasks opening and closing settle with a little give
     Behavior on implicitHeight {
-        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+        SpringAnimation { spring: 3.2; damping: 0.42; epsilon: 0.25 }
     }
 
     HoverHandler {
@@ -61,13 +70,15 @@ Rectangle {
     }
 
     // f-mode jump letter, drawn over the toggle circle
-    GritHintKey {
+    IrisKeycap {
         z: 10
         visible: root.jumpLetter !== ""
-        letter: root.jumpLetter
+        variant: "on"
+        mono: true
+        text: root.jumpLetter
         anchors.top: parent.top
         anchors.left: parent.left
-        anchors.margins: 11
+        anchors.margins: UiScale.px(14)
     }
 
     // Keyboard commands, same code paths as the mouse handlers
@@ -78,14 +89,9 @@ Rectangle {
             if (cardId !== root.cardId)
                 return;
             switch (cmd) {
-            case "toggle": {
-                const wasDone = root.done;
-                GritStore.toggleDone(root.task, root.day);
-                if (!wasDone)
-                    GritSounds.play(root.task.listType === "impossible" ? "epic"
-                        : root.task.listType === "cool" ? "cool" : "good");
+            case "toggle":
+                doneCheck.toggle();
                 break;
-            }
             case "edit":
                 GritEdit.open(root.task);
                 break;
@@ -121,87 +127,51 @@ Rectangle {
             left: parent.left
             right: parent.right
             top: parent.top
-            margins: 8
+            topMargin: UiScale.px(10)
+            leftMargin: UiScale.px(12)
+            rightMargin: UiScale.px(12)
         }
-        spacing: 4
+        spacing: UiScale.px(6)
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 10
+            spacing: UiScale.px(12)
 
-            // Complete toggle: plain outlined circle, like the To Do mockup
-            MouseArea {
-                id: toggleArea
-                implicitWidth: 24
-                implicitHeight: 24
-                cursorShape: Qt.PointingHandCursor
-                hoverEnabled: true
-                onClicked: {
+            // Complete toggle: a ring that fills white with a black check
+            IrisCheck {
+                id: doneCheck
+                checked: root.done
+                // Focused-card mnemonic: x toggles
+                hint: root.kbFocused ? "x" : ""
+                onToggled: {
                     const wasDone = root.done;
                     GritStore.toggleDone(root.task, root.day);
                     if (!wasDone)
                         GritSounds.play(root.task.listType === "impossible" ? "epic"
                             : root.task.listType === "cool" ? "cool" : "good");
                 }
-
-                Rectangle {
-                    anchors.centerIn: parent
-                    width: 20
-                    height: 20
-                    radius: 10
-                    color: root.done ? Appearance.colors.colPrimary : "transparent"
-                    border.width: 2
-                    border.color: root.done ? Appearance.colors.colPrimary
-                        : toggleArea.containsMouse ? Appearance.colors.colOnLayer1 : Appearance.colors.colOutline
-
-                    Behavior on color {
-                        ColorAnimation { duration: Appearance.animation.elementMoveFast.duration }
-                    }
-                    Behavior on border.color {
-                        ColorAnimation { duration: Appearance.animation.elementMoveFast.duration }
-                    }
-
-                    // Check preview on hover, solid when done
-                    MaterialSymbol {
-                        anchors.centerIn: parent
-                        visible: root.done || toggleArea.containsMouse
-                        text: "check"
-                        iconSize: 14
-                        color: root.done ? Appearance.colors.colOnPrimary : Appearance.colors.colOutline
-                    }
-                    // Focused-card mnemonic: x toggles
-                    Text {
-                        anchors.centerIn: parent
-                        visible: root.kbFocused && !root.done && !toggleArea.containsMouse
-                        text: "x"
-                        font.family: Appearance.font.family.monospace
-                        font.pixelSize: 12
-                        font.weight: Font.Bold
-                        color: Appearance.colors.colPrimary
-                    }
-                }
             }
 
             // Title + meta
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 0
+                spacing: UiScale.px(2)
 
                 Item {
                     Layout.fillWidth: true
                     implicitHeight: titleEditing ? titleEditor.implicitHeight : titleText.implicitHeight
                     property bool titleEditing: false
 
-                    GritText {
+                    IrisText {
                         id: titleText
                         anchors.left: parent.left
                         anchors.right: parent.right
                         visible: !parent.titleEditing
                         text: root.task?.title ?? ""
-                        font.pixelSize: Appearance.font.pixelSize.small
+                        role: "label"
                         font.strikeout: root.done
-                        color: Appearance.colors.colOnLayer1
                         wrapMode: Text.Wrap
+                        elide: Text.ElideNone
 
                         MouseArea {
                             anchors.fill: parent
@@ -212,13 +182,18 @@ Rectangle {
                             }
                         }
                     }
-                    GritTextInput {
+                    TextInput {
                         id: titleEditor
                         anchors.left: parent.left
                         anchors.right: parent.right
                         visible: parent.titleEditing
+                        clip: true
+                        font.family: Iris.fontFamily
                         font.pixelSize: Appearance.font.pixelSize.small
-                        color: Appearance.colors.colOnLayer1
+                        renderType: Appearance.font.renderType
+                        color: Iris.fg
+                        selectionColor: Iris.selection
+                        selectedTextColor: Iris.fg
                         onEditingFinished: {
                             if (text.trim().length > 0)
                                 GritStore.updateTask(root.task.id, { title: text.trim() });
@@ -230,16 +205,17 @@ Rectangle {
 
                 // Weekly-on-specific-days schedule, prominent (shows even in
                 // compact/Planned cards)
-                GritText {
+                IrisText {
                     Layout.fillWidth: true
                     visible: root.hasSpecificDays
                     text: Core.recurrenceLabel(root.task)
-                    font.pixelSize: Appearance.font.pixelSize.normal
-                    color: Appearance.colors.colPrimary
+                    role: "secondary"
+                    font.weight: Font.DemiBold
                     wrapMode: Text.Wrap
+                    elide: Text.ElideNone
                 }
 
-                GritText {
+                IrisText {
                     Layout.fillWidth: true
                     visible: text.length > 0 && !root.compact
                     text: {
@@ -263,17 +239,23 @@ Rectangle {
                             const mins = Core.focusMinutesOn(GritStore.db.dayLogs, root.day, link.focusTask);
                             parts.push(Translation.tr("%1 %2/%3m").arg(link.focusTask).arg(mins).arg(link.minutes));
                         }
-                        return parts.join(" · ");
+                        return parts.join("  ·  ");
                     }
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    color: Appearance.colors.colSubtext
-                    elide: Text.ElideRight
+                    role: "caption"
+                    font.features: { "tnum": 1 }
                 }
+            }
+
+            // Reading: always out, since it is the point of the task
+            CardIconButton {
+                visible: !!root.reading
+                iconName: "visibility"
+                onClicked: GritRead.open(root.reading)
             }
 
             // Hover actions, also out while keyboard-focused (with mnemonics)
             RowLayout {
-                spacing: 0
+                spacing: UiScale.px(4)
                 visible: root.hovered || root.kbFocused
 
                 CardIconButton {
@@ -311,7 +293,7 @@ Rectangle {
                             () => {
                                 if (GritStore.buyMustCompletion(task))
                                     GritToast.show(Translation.tr("Bought off: %1").arg(task.title), "paid");
-                            });
+                            }, Translation.tr("Buy off"), false);
                     }
                 }
                 CardIconButton {
@@ -343,31 +325,20 @@ Rectangle {
                 }
             }
 
-            // XP chip
-            Rectangle {
-                radius: Appearance.rounding.full
-                color: Appearance.colors.colSecondaryContainer
-                implicitWidth: xpText.implicitWidth + 16
-                implicitHeight: xpText.implicitHeight + 6
-
-                GritText {
-                    id: xpText
-                    anchors.centerIn: parent
-                    text: `${root.task?.points ?? 0}`
-                    font.pixelSize: Appearance.font.pixelSize.normal
-                    font.features: { "tnum": 1 }
-                    font.variableAxes: { "wght": 700, "ROND": 100 }
-                    color: Appearance.colors.colOnSecondaryContainer
-                }
+            // XP: a white chip, the reward; a dark well once it is earned
+            IrisChip {
+                on: !root.done
+                text: `${root.task?.points ?? 0}`
             }
         }
 
         // Subtasks (expanded)
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: 34
+            Layout.leftMargin: doneCheck.implicitWidth + UiScale.px(12)
+            Layout.bottomMargin: UiScale.px(2)
             visible: root.subtasksExpanded
-            spacing: 2
+            spacing: UiScale.px(4)
 
             Repeater {
                 model: root.subtasksExpanded ? root.subtasks : []
@@ -375,42 +346,20 @@ Rectangle {
                     id: subRow
                     required property var modelData
                     Layout.fillWidth: true
-                    Layout.topMargin: 2
-                    spacing: 10
+                    spacing: UiScale.px(10)
 
                     readonly property bool subDone: {
                         GritStore.revision;
                         return Core.subtaskDone(root.task, modelData, GritStore.today);
                     }
 
-                    MouseArea {
-                        id: subToggleArea
-                        implicitWidth: 24
-                        implicitHeight: 24
-                        cursorShape: Qt.PointingHandCursor
-                        hoverEnabled: true
-                        onClicked: {
+                    IrisCheck {
+                        size: UiScale.px(20)
+                        checked: subRow.subDone
+                        onToggled: {
                             const result = GritStore.toggleSubtask(root.task, subRow.modelData.id);
                             if (result.checked)
                                 GritSounds.play(result.parentCompleted ? "cool" : "good");
-                        }
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: 20
-                            height: 20
-                            radius: 10
-                            color: subRow.subDone ? Appearance.colors.colPrimary : "transparent"
-                            border.width: 2
-                            border.color: subRow.subDone ? Appearance.colors.colPrimary
-                                : subToggleArea.containsMouse ? Appearance.colors.colOnLayer1 : Appearance.colors.colOutline
-
-                            MaterialSymbol {
-                                anchors.centerIn: parent
-                                visible: subRow.subDone || subToggleArea.containsMouse
-                                text: "check"
-                                iconSize: 14
-                                color: subRow.subDone ? Appearance.colors.colOnPrimary : Appearance.colors.colOutline
-                            }
                         }
                     }
                     Item {
@@ -418,16 +367,21 @@ Rectangle {
                         implicitHeight: subEditing ? subTitleEditor.implicitHeight : subTitleText.implicitHeight
                         property bool subEditing: false
 
-                        GritText {
+                        IrisText {
                             id: subTitleText
                             anchors.left: parent.left
                             anchors.right: parent.right
                             visible: !parent.subEditing
                             text: subRow.modelData.title
-                            font.pixelSize: Appearance.font.pixelSize.small
+                            role: "secondary"
                             font.strikeout: subRow.subDone
-                            color: Appearance.colors.colOnLayer1
+                            color: subRow.subDone ? Iris.fg3 : Iris.fg2
                             wrapMode: Text.Wrap
+                            elide: Text.ElideNone
+
+                            Behavior on color {
+                                ColorAnimation { duration: Iris.colorDuration }
+                            }
 
                             MouseArea {
                                 anchors.fill: parent
@@ -438,13 +392,18 @@ Rectangle {
                                 }
                             }
                         }
-                        GritTextInput {
+                        TextInput {
                             id: subTitleEditor
                             anchors.left: parent.left
                             anchors.right: parent.right
                             visible: parent.subEditing
-                            font.pixelSize: Appearance.font.pixelSize.small
-                            color: Appearance.colors.colOnLayer1
+                            clip: true
+                            font.family: Iris.fontFamily
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            renderType: Appearance.font.renderType
+                            color: Iris.fg
+                            selectionColor: Iris.selection
+                            selectedTextColor: Iris.fg
                             onEditingFinished: {
                                 if (text.trim().length > 0)
                                     GritStore.editSubtask(root.task, subRow.modelData.id, { title: text.trim() });
@@ -453,30 +412,22 @@ Rectangle {
                             Keys.onEscapePressed: parent.subEditing = false
                         }
                     }
-                    Rectangle {
-                        radius: Appearance.rounding.full
-                        color: Appearance.colors.colSecondaryContainer
-                        implicitWidth: subXpText.implicitWidth + 12
-                        implicitHeight: subXpText.implicitHeight + 4
-
-                        GritText {
-                            id: subXpText
-                            anchors.centerIn: parent
-                            text: {
-                                GritStore.revision;
-                                const shares = Core.subtaskShares(root.task, GritStore.today);
-                                return `${shares[subRow.modelData.id] ?? 0}`;
-                            }
-                            font.pixelSize: Appearance.font.pixelSize.smallest
-                            color: Appearance.colors.colOnSecondaryContainer
+                    IrisChip {
+                        implicitHeight: UiScale.px(22)
+                        text: {
+                            GritStore.revision;
+                            const shares = Core.subtaskShares(root.task, GritStore.today);
+                            return `${shares[subRow.modelData.id] ?? 0}`;
                         }
                     }
                     CardIconButton {
                         iconName: "edit"
+                        small: true
                         onClicked: GritEdit.openSubtask(root.task, subRow.modelData)
                     }
                     CardIconButton {
                         iconName: "close"
+                        small: true
                         onClicked: {
                             const parentTask = root.task;
                             const subId = subRow.modelData.id;
@@ -489,71 +440,40 @@ Rectangle {
                 }
             }
 
-            // Add subtask
-            RowLayout {
+            // Add subtask: a dark pill field
+            IrisField {
+                id: newSubtaskField
                 Layout.fillWidth: true
-                Layout.topMargin: 2
-                spacing: 10
-
-                MaterialSymbol {
-                    Layout.leftMargin: 2
-                    text: "add"
-                    iconSize: Appearance.font.pixelSize.larger
-                    color: Appearance.colors.colSubtext
-                }
-                GritTextInput {
-                    id: newSubtaskField
-                    Layout.fillWidth: true
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.colors.colOnLayer1
-                    onAccepted: {
-                        if (text.trim().length > 0) {
-                            GritStore.addSubtask(root.task, text);
-                            text = "";
-                        }
-                    }
-                    GritText {
-                        anchors.fill: parent
-                        visible: newSubtaskField.text.length === 0
-                        text: Translation.tr("Add step…")
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        color: Appearance.colors.colSubtext
+                Layout.topMargin: UiScale.px(2)
+                implicitHeight: UiScale.px(34)
+                icon: "add"
+                placeholderText: Translation.tr("Add step…")
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                onAccepted: {
+                    if (text.trim().length > 0) {
+                        GritStore.addSubtask(root.task, text);
+                        text = "";
                     }
                 }
             }
         }
     }
 
-    component CardIconButton: RippleButton {
-        id: iconBtn
+    // A small round action: the card-tone disc, white when its state is on.
+    // While the card holds keyboard focus the glyph gives way to its key.
+    component CardIconButton: IrisDisc {
         property string iconName: ""
         property bool active: false
-        property int size: 16
+        property bool small: false
         property string hintKey: ""
-        // While the card holds keyboard focus, the glyph gives way to its key
-        readonly property bool showHint: root.kbFocused && iconBtn.hintKey !== ""
-        implicitWidth: size + 10
-        implicitHeight: size + 10
-        buttonRadius: Appearance.rounding.full
-        contentItem: Item {
-            MaterialSymbol {
-                anchors.centerIn: parent
-                visible: !iconBtn.showHint
-                horizontalAlignment: Text.AlignHCenter
-                text: iconBtn.iconName
-                iconSize: iconBtn.size
-                fill: iconBtn.active ? 1 : 0
-                color: iconBtn.active ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
-            }
-            Text {
-                anchors.centerIn: parent
-                visible: iconBtn.showHint
-                text: iconBtn.hintKey
-                font.family: Appearance.font.family.monospace
-                font.pixelSize: iconBtn.size - 3
-                font.weight: Font.Bold
-                color: Appearance.colors.colPrimary
-            }
-        }
+
+        size: UiScale.px(small ? 24 : 28)
+        tone: "card"
+        clickable: true
+        icon: iconName
+        on: active
+        iconFill: active
+        iconSize: small ? Appearance.font.pixelSize.smaller : Appearance.font.pixelSize.normal
+        text: root.kbFocused ? hintKey : ""
     }
 }

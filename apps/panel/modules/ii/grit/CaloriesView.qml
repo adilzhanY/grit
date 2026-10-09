@@ -3,6 +3,7 @@ import qs.services
 import qs.services.grit
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.iris
 import QtQuick
 import QtQuick.Layouts
 import "../../../services/grit/GritCore.js" as Core
@@ -77,94 +78,69 @@ StyledFlickable {
     ColumnLayout {
         id: mainColumn
         width: parent.width
-        spacing: 8
+        spacing: UiScale.px(12)
 
         // ---- Today's burn ----
-        Rectangle {
-            Layout.fillWidth: true
-            implicitHeight: burnColumn.implicitHeight + 20
-            radius: Appearance.rounding.normal
-            color: Appearance.colors.colLayer1
-            border.width: 1
-            border.color: Appearance.colors.colLayer0Border
+        IrisCard {
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: UiScale.px(14)
 
-            ColumnLayout {
-                id: burnColumn
-                anchors {
-                    left: parent.left
-                    right: parent.right
-                    top: parent.top
-                    margins: 10
+                IrisDisc {
+                    size: UiScale.px(56)
+                    icon: "local_fire_department"
+                    on: true
+                    filled: true
                 }
-                spacing: 4
-
-                RowLayout {
+                ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 6
+                    spacing: 0
 
-                    MaterialSymbol {
-                        Layout.alignment: Qt.AlignBottom
-                        Layout.bottomMargin: 3
-                        text: "local_fire_department"
-                        fill: 1
-                        iconSize: Appearance.font.pixelSize.larger
-                        color: Appearance.colors.colPrimary
-                    }
-                    GritText {
-                        text: `${Math.round(root.burntToday)}`
-                        font.pixelSize: 24
-                        font.family: "Google Sans Flex"
+                    IrisText {
+                        text: `${Math.round(root.burntToday)} kcal`
+                        font.pixelSize: Appearance.font.pixelSize.hugeass
                         font.features: { "tnum": 1 }
-                        font.variableAxes: { "wght": 800, "ROND": 100 }
-                        color: Appearance.colors.colOnLayer1
+                        font.weight: Font.ExtraBold
+                        color: GritColors.fg
                     }
-                    GritText {
-                        Layout.alignment: Qt.AlignBottom
-                        Layout.bottomMargin: 3
-                        text: Translation.tr("kcal burnt today")
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        font.family: "Google Sans Flex"
-                        font.variableAxes: { "wght": 600, "ROND": 100 }
-                        color: Appearance.colors.colSubtext
+                    IrisText {
+                        text: Translation.tr("burnt today")
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        color: GritColors.fg3
                     }
-                    Item { Layout.fillWidth: true }
                 }
             }
         }
 
         // ---- Log burnt calories form ----
-        RowLayout {
-            Layout.fillWidth: true
-            spacing: 6
+        IrisCard {
+            spacing: UiScale.px(8)
 
-            GritTextField {
-                id: activityField
+            RowLayout {
                 Layout.fillWidth: true
-                placeholderText: Translation.tr("Activity (optional)")
-                onAccepted: root.logBurn()
+                spacing: UiScale.px(6)
+
+                IrisField {
+                    id: kcalField
+                    Layout.preferredWidth: UiScale.px(110)
+                    placeholderText: "kcal"
+                    validator: DoubleValidator { bottom: 0; top: 100000 }
+                    onAccepted: root.logBurn()
+                }
+                IrisField {
+                    id: activityField
+                    Layout.fillWidth: true
+                    placeholderText: Translation.tr("Activity (optional)")
+                    onAccepted: root.logBurn()
+                }
             }
-            GritTextField {
-                id: kcalField
-                Layout.preferredWidth: 70
-                placeholderText: "kcal"
-                validator: DoubleValidator { bottom: 0; top: 100000 }
-                onAccepted: root.logBurn()
-            }
-            RippleButton {
-                implicitHeight: 30
-                buttonRadius: Appearance.rounding.full
-                colBackground: Appearance.colors.colPrimary
-                colBackgroundHover: Appearance.colors.colPrimaryHover
-                colRipple: Appearance.colors.colPrimaryActive
-                onClicked: root.logBurn()
-                contentItem: GritText {
-                    anchors.centerIn: parent
-                    horizontalAlignment: Text.AlignHCenter
-                    leftPadding: 14
-                    rightPadding: 14
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                IrisPill {
+                    primary: true
                     text: Translation.tr("Log it")
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.colors.colOnPrimary
+                    onClicked: root.logBurn()
                 }
             }
         }
@@ -176,31 +152,14 @@ StyledFlickable {
                 id: dayGroup
                 required property var modelData
                 Layout.fillWidth: true
-                Layout.topMargin: 6
-                spacing: 4
+                Layout.topMargin: UiScale.px(4)
+                spacing: UiScale.px(6)
 
-                RowLayout {
+                IrisSectionLabel {
                     Layout.fillWidth: true
-                    spacing: 8
-
-                    GritText {
-                        text: root.dayHeading(dayGroup.modelData.date)
-                        font.pixelSize: Appearance.font.pixelSize.normal
-                        font.weight: Font.DemiBold
-                        color: Appearance.colors.colPrimary
-                    }
-                    Item { Layout.fillWidth: true }
-                    GritText {
-                        text: {
-                            const kcal = dayGroup.modelData.rows
-                                .reduce((s, l) => s + (l.caloriesBurnt ?? 0), 0);
-                            return Translation.tr("%1 kcal burnt").arg(Math.round(kcal));
-                        }
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        font.features: { "tnum": 1 }
-                        font.variableAxes: { "wght": 600, "ROND": 100 }
-                        color: Appearance.colors.colSubtext
-                    }
+                    text: root.dayHeading(dayGroup.modelData.date)
+                    side: Translation.tr("%1 kcal burnt").arg(Math.round(dayGroup.modelData.rows
+                        .reduce((s, l) => s + (l.caloriesBurnt ?? 0), 0)))
                 }
 
                 Repeater {
@@ -209,11 +168,9 @@ StyledFlickable {
                         id: logRow
                         required property var modelData
                         Layout.fillWidth: true
-                        implicitHeight: logRowLayout.implicitHeight + 12
-                        radius: Appearance.rounding.small
-                        color: Appearance.colors.colLayer1
-                        border.width: 1
-                        border.color: Appearance.colors.colLayer0Border
+                        implicitHeight: Math.max(UiScale.px(52), logRowLayout.implicitHeight + UiScale.px(14))
+                        radius: height / 2
+                        color: GritColors.raised
 
                         RowLayout {
                             id: logRowLayout
@@ -221,62 +178,60 @@ StyledFlickable {
                                 left: parent.left
                                 right: parent.right
                                 verticalCenter: parent.verticalCenter
-                                leftMargin: 10
-                                rightMargin: 6
+                                leftMargin: UiScale.px(20)
+                                rightMargin: UiScale.px(10)
                             }
-                            spacing: 8
+                            spacing: UiScale.px(8)
 
-                            MaterialSymbol {
-                                text: "local_fire_department"
-                                iconSize: Appearance.font.pixelSize.larger
-                                color: Appearance.colors.colSubtext
-                            }
                             ColumnLayout {
                                 Layout.fillWidth: true
-                                spacing: -1
+                                spacing: 0
 
-                                GritText {
+                                IrisText {
                                     Layout.fillWidth: true
                                     text: root.rowTitle(logRow.modelData)
-                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                    font.pixelSize: Appearance.font.pixelSize.small
                                     font.weight: Font.DemiBold
-                                    color: Appearance.colors.colOnLayer1
+                                    color: GritColors.fg
                                     elide: Text.ElideRight
                                 }
-                                GritText {
+                                IrisText {
                                     Layout.fillWidth: true
                                     text: root.rowDetail(logRow.modelData)
-                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    font.pixelSize: Appearance.font.pixelSize.smallest
                                     font.features: { "tnum": 1 }
-                                    font.variableAxes: { "wght": 500, "ROND": 100 }
-                                    color: Appearance.colors.colSubtext
+                                    font.weight: Font.Medium
+                                    color: GritColors.fg3
                                     elide: Text.ElideRight
                                 }
                             }
-                            GritText {
+                            IrisText {
                                 visible: (logRow.modelData.awardedXp ?? 0) !== 0
                                 text: Core.fmtXp(logRow.modelData.awardedXp)
                                 font.pixelSize: Appearance.font.pixelSize.smallest
+                                font.features: { "tnum": 1 }
                                 color: (logRow.modelData.awardedXp ?? 0) > 0
-                                    ? Appearance.colors.colPrimary : Appearance.colors.colError
+                                    ? GritColors.fg2 : GritColors.danger
                             }
-                            RippleButton {
-                                implicitWidth: 26
-                                implicitHeight: 26
-                                buttonRadius: Appearance.rounding.full
+                            IrisText {
+                                text: `${Math.round(logRow.modelData.caloriesBurnt ?? 0)} kcal`
+                                font.pixelSize: Appearance.font.pixelSize.small
+                                font.features: { "tnum": 1 }
+                                font.weight: Font.Bold
+                                color: GritColors.fg2
+                            }
+                            IrisDisc {
+                                clickable: true
+                                size: UiScale.px(32)
+                                icon: "close"
+                                tone: "card"
+                                tip: Translation.tr("Delete")
                                 onClicked: {
                                     const logId = logRow.modelData.id;
                                     GritConfirm.ask(
                                         Translation.tr("Delete log?"),
                                         `${root.rowTitle(logRow.modelData)} · ${Math.round(logRow.modelData.caloriesBurnt ?? 0)} kcal`,
                                         () => GritStore.deleteDayLog(logId));
-                                }
-                                contentItem: MaterialSymbol {
-                                    anchors.centerIn: parent
-                                    horizontalAlignment: Text.AlignHCenter
-                                    text: "close"
-                                    iconSize: Appearance.font.pixelSize.normal
-                                    color: Appearance.colors.colSubtext
                                 }
                             }
                         }
@@ -285,7 +240,7 @@ StyledFlickable {
             }
         }
 
-        Item { implicitHeight: 4 }
+        Item { implicitHeight: UiScale.px(4) }
     }
 
     function logBurn() {

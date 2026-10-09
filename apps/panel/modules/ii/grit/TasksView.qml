@@ -3,6 +3,8 @@ import qs.services
 import qs.services.grit
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.glass
+import qs.modules.iris
 import QtQuick
 import QtQuick.Layouts
 import "../../../services/grit/GritCore.js" as Core
@@ -140,86 +142,113 @@ Item {
         anchors.centerIn: parent
         visible: root.isPlanned ? root.plannedGroups.length === 0
             : (root.activeTasks.length === 0 && root.doneTasks.length === 0)
-        spacing: 4
+        spacing: UiScale.px(12)
 
-        MaterialSymbol {
+        IrisDisc {
             Layout.alignment: Qt.AlignHCenter
-            text: root.isBad ? "sentiment_very_satisfied" : "check_circle"
-            iconSize: 40
-            color: Appearance.colors.colSubtext
+            size: UiScale.px(56)
+            icon: root.isBad ? "sentiment_very_satisfied" : "check"
         }
-        GritText {
+        IrisText {
             Layout.alignment: Qt.AlignHCenter
             text: root.isPlanned ? Translation.tr("Nothing planned ahead")
                 : root.isBad ? Translation.tr("No bad habits tracked. Nice.")
                 : Translation.tr("Nothing here!")
             font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.colors.colSubtext
+            color: GritColors.fg3
         }
     }
 
     ColumnLayout {
         anchors.fill: parent
-        spacing: 8
+        spacing: UiScale.px(12)
 
-        // ---- Always-available composer (like the web's AddTask on top) ----
-        Rectangle {
+        // ---- Always-available composer, the Super+Enter search field's glass ----
+        GlassSurface {
             Layout.fillWidth: true
             visible: !root.isPlanned
-            implicitHeight: 44
-            radius: Appearance.rounding.normal
-            color: Appearance.colors.colLayer1
-            border.width: 1
-            border.color: composerField.activeFocus ? Appearance.colors.colPrimary : Appearance.colors.colLayer0Border
+            implicitHeight: UiScale.px(56)
+            radius: height / 2
+            showShadow: false
+            colorTop: Qt.rgba(0.02, 0.02, 0.03, 0.90)
+            colorBottom: Qt.rgba(0.12, 0.12, 0.14, 0.58)
 
-            Behavior on border.color {
-                ColorAnimation { duration: Appearance.animation.elementMoveFast.duration }
+            MouseArea {
+                anchors.fill: parent
+                cursorShape: Qt.IBeamCursor
+                onClicked: composerField.forceActiveFocus()
             }
 
-            RowLayout {
-                anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 6
-                spacing: 10
-
-                MaterialSymbol {
-                    text: "add"
-                    iconSize: Appearance.font.pixelSize.larger
-                    color: composerField.activeFocus ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+            MaterialSymbol {
+                id: composerPlus
+                anchors.left: parent.left
+                anchors.leftMargin: UiScale.px(20)
+                anchors.verticalCenter: parent.verticalCenter
+                text: "add"
+                iconSize: Appearance.font.pixelSize.larger
+                color: composerField.activeFocus ? Qt.rgba(1, 1, 1, 0.94) : Qt.rgba(1, 1, 1, 0.34)
+                Behavior on color {
+                    ColorAnimation { duration: 160 }
                 }
-                GritTextInput {
+            }
+
+            Item {
+                anchors.fill: parent
+                anchors.leftMargin: UiScale.px(52)
+                anchors.rightMargin: UiScale.px(60)
+                clip: true
+
+                TextInput {
                     id: composerField
-                    Layout.fillWidth: true
-                    font.pixelSize: Appearance.font.pixelSize.small
-                    color: Appearance.colors.colOnLayer1
+                    font.family: Iris.fontFamily
+                    renderType: Appearance.font.renderType
+                    clip: true
+                    anchors.left: parent.left
+                    anchors.right: parent.right
+                    anchors.verticalCenter: parent.verticalCenter
+                    font.pixelSize: Appearance.font.pixelSize.larger
+                    color: Qt.rgba(1, 1, 1, 0.94)
+                    selectionColor: Qt.rgba(1, 1, 1, 0.11)
+                    selectedTextColor: Qt.rgba(1, 1, 1, 0.94)
+                    selectByMouse: true
+                    cursorDelegate: Item {} // GlassCaret draws the caret
                     onAccepted: {
                         root.quickAdd(text);
                         text = "";
                     }
-                    GritText {
-                        anchors.fill: parent
-                        verticalAlignment: Text.AlignVCenter
-                        visible: composerField.text.length === 0
-                        text: root.viewId === "myday" ? Translation.tr("Add a task for today…")
-                            : Translation.tr("Add a task…")
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        color: Appearance.colors.colSubtext
-                    }
                 }
-                RippleButton {
-                    implicitWidth: 32
-                    implicitHeight: 32
-                    buttonRadius: Appearance.rounding.full
-                    onClicked: root.requestAdvanced()
-                    GritToolTip { text: Translation.tr("More options (XP, repeat, date…)") }
-                    contentItem: MaterialSymbol {
-                        anchors.centerIn: parent
-                        horizontalAlignment: Text.AlignHCenter
-                        text: "tune"
-                        iconSize: Appearance.font.pixelSize.larger
-                        color: Appearance.colors.colSubtext
-                    }
+                Text {
+                    anchors.left: composerField.left
+                    anchors.right: composerField.right
+                    anchors.verticalCenter: composerField.verticalCenter
+                    visible: composerField.text.length === 0
+                    text: root.viewId === "myday" ? Translation.tr("Add a task for today…")
+                        : Translation.tr("Add a task…")
+                    renderType: Appearance.font.renderType
+                    font: composerField.font
+                    color: Qt.rgba(1, 1, 1, 0.34)
+                    elide: Text.ElideRight
                 }
+            }
+
+            GlassCaret {
+                input: composerField
+                visible: composerField.activeFocus
+                colCaret: "#ffffff"
+                colGlow: Qt.rgba(0.86, 0.93, 1, 0.95)
+                colBloom: Qt.rgba(0.80, 0.90, 1, 0.45)
+            }
+
+            // Opens the full "add a task" sheet
+            IrisDisc {
+                anchors.right: parent.right
+                anchors.rightMargin: UiScale.px(12)
+                anchors.verticalCenter: parent.verticalCenter
+                size: UiScale.px(34)
+                icon: "tune"
+                clickable: true
+                tip: Translation.tr("More options (XP, repeat, date…)")
+                onClicked: root.requestAdvanced()
             }
         }
 
@@ -230,21 +259,32 @@ Item {
             Layout.fillHeight: true
 
             ColumnLayout {
+                id: trophy
                 anchors.centerIn: parent
-                spacing: 12
+                spacing: UiScale.px(16)
 
-                MaterialSymbol {
-                    Layout.alignment: Qt.AlignHCenter
-                    text: "emoji_events"
-                    iconSize: 80
-                    color: Appearance.colors.colPrimary
+                // Springs in each time the last task of the day is ticked
+                onVisibleChanged: if (visible) trophyPop.restart()
+                SequentialAnimation {
+                    id: trophyPop
+                    PropertyAction { target: trophy; property: "scale"; value: 0.7 }
+                    SpringAnimation { target: trophy; property: "scale"; to: 1; spring: 2.6; damping: 0.28; epsilon: 0.005 }
                 }
-                GritText {
+
+                IrisDisc {
+                    Layout.alignment: Qt.AlignHCenter
+                    size: UiScale.px(112)
+                    icon: "emoji_events"
+                    on: true
+                    filled: true
+                    iconSize: Appearance.font.pixelSize.hugeass * 2
+                }
+                IrisText {
                     Layout.alignment: Qt.AlignHCenter
                     text: "FUCKING LEGEND"
-                    font.pixelSize: 36
-                    font.weight: Font.Bold
-                    color: Appearance.colors.colPrimary
+                    font.pixelSize: Appearance.font.pixelSize.hugeass * 1.3
+                    font.weight: Font.ExtraBold
+                    color: GritColors.fg
                 }
             }
         }
@@ -260,12 +300,12 @@ Item {
         ColumnLayout {
             id: contentColumn
             width: parent.width
-            spacing: 6
+            spacing: UiScale.px(8)
 
             // ---- My Day: the daily loop sits above the tasks ----
             Loader {
                 Layout.fillWidth: true
-                Layout.bottomMargin: 2
+                Layout.bottomMargin: UiScale.px(4)
                 active: root.viewId === "myday"
                 visible: active
                 sourceComponent: DailyPanel {}
@@ -278,20 +318,18 @@ Item {
                     id: plannedGroup
                     required property var modelData
                     Layout.fillWidth: true
-                    spacing: 6
+                    spacing: UiScale.px(8)
 
-                    GritText {
-                        Layout.topMargin: 4
+                    IrisSectionLabel {
+                        Layout.fillWidth: true
+                        Layout.topMargin: UiScale.px(6)
                         text: {
-                            const day = modelData.day;
+                            const day = plannedGroup.modelData.day;
                             const weekday = Core.WEEKDAY_NAMES[Core.weekdayOf(day)];
                             const prefix = day === Core.addDays(GritStore.today, 1)
-                                ? Translation.tr("Tomorrow") + " · " : "";
-                            return `${prefix}${weekday} · ${Core.fmtDay(day)}`;
+                                ? Translation.tr("Tomorrow") + "  ·  " : "";
+                            return `${prefix}${weekday}  ·  ${Core.fmtDay(day)}`;
                         }
-                        font.pixelSize: Appearance.font.pixelSize.small
-                        font.weight: Font.DemiBold
-                        color: Appearance.colors.colPrimary
                     }
                     Repeater {
                         model: plannedGroup.modelData.tasks
@@ -325,28 +363,14 @@ Item {
                 }
             }
 
-            RowLayout {
+            // Done divider: a quiet caption, the dimmed rows below say the rest
+            IrisSectionLabel {
                 Layout.fillWidth: true
-                Layout.topMargin: 6
+                Layout.topMargin: UiScale.px(8)
                 visible: !root.isPlanned && root.doneTasks.length > 0
-                spacing: 8
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: 1
-                    color: Appearance.colors.colOutlineVariant
-                }
-                GritText {
-                    text: (root.viewId === "cool" || root.viewId === "impossible")
-                        ? Translation.tr("Achieved") : Translation.tr("Done")
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    color: Appearance.colors.colSubtext
-                }
-                Rectangle {
-                    Layout.fillWidth: true
-                    implicitHeight: 1
-                    color: Appearance.colors.colOutlineVariant
-                }
+                text: ((root.viewId === "cool" || root.viewId === "impossible")
+                    ? Translation.tr("Achieved") : Translation.tr("Done"))
+                    + "  ·  " + root.doneTasks.length
             }
 
             Repeater {
@@ -359,7 +383,7 @@ Item {
                 }
             }
 
-            Item { implicitHeight: 4 }
+            Item { implicitHeight: UiScale.px(4) }
         }
         }
     }

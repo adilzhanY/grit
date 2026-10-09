@@ -4,6 +4,7 @@ import qs.services
 import qs.services.grit
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.iris
 import QtQuick
 import QtQuick.Layouts
 import "../../../services/grit/GritCore.js" as Core
@@ -18,6 +19,18 @@ Item {
 
     readonly property string currentView: GlobalStates.gritView
 
+    // The window's reveal (0..1). Sections come in after the body, one by one,
+    // each sliding 36px out of the left edge and fading up, like the Wall
+    // (the shared Iris stagger).
+    property real t: 1
+    function appear(i) {
+        return Iris.appear(root.t, i);
+    }
+
+    // Pin keeps the space free (Grit.qml owns the state)
+    property bool pinned: false
+    signal pinToggled
+
     /** The canonical rail, in the order it was written. Sorted for display below. */
     readonly property var navEntries: {
         const entries = [
@@ -26,11 +39,13 @@ Item {
             { id: "planned", name: Translation.tr("Planned"), icon: "event_upcoming" },
             { id: "must", name: Translation.tr("Must"), icon: "local_fire_department" },
             { id: "calories", name: Translation.tr("Calories"), icon: "directions_run" },
+            { id: "body", name: Translation.tr("Body"), icon: "straighten" },
             { id: "food", name: Translation.tr("Daily Log"), icon: "restaurant" },
             { id: "bad", name: Translation.tr("Bad"), icon: "skull" },
             { id: "cool", name: Translation.tr("Cool"), icon: "auto_awesome" },
             { id: "impossible", name: Translation.tr("Impossible"), icon: "landscape" },
-            { id: "focus", name: Translation.tr("Focus"), icon: "timer" }
+            { id: "focus", name: Translation.tr("Focus"), icon: "timer" },
+            { id: "activity", name: Translation.tr("Activity"), icon: "monitoring" }
         ];
         for (const list of GritStore.customLists)
             entries.push({ id: `list:${list.id}`, name: list.name, icon: "checklist" });
@@ -42,7 +57,7 @@ Item {
      * numbers fall. These are the views worth reaching for by muscle memory, so
      * a busy week must not be able to push one of them down a row.
      */
-    readonly property var pinnedOrder: ["myday", "focus", "food", "calories", "bad"]
+    readonly property var pinnedOrder: ["myday", "focus", "activity", "food", "calories", "bad"]
 
     /**
      * Everything below the fixed head is ranked by how often it gets edited.
@@ -170,6 +185,15 @@ Item {
             case "stats":
                 GlobalStates.gritView = "stats";
                 break;
+            case "spendings":
+                GlobalStates.gritView = "spendings";
+                break;
+            case "subscriptions":
+                GlobalStates.gritView = "subscriptions";
+                break;
+            case "body":
+                GlobalStates.gritView = "body";
+                break;
             case "restday":
                 if (GritStore.restDayUsedToday)
                     GritToast.show(Translation.tr("Already resting today"), "hotel");
@@ -192,6 +216,8 @@ Item {
 
     // Pinned to the bottom of the rail, just above the account row.
     readonly property var pinnedEntries: [
+        { id: "spendings", name: Translation.tr("Spendings"), icon: "payments" },
+        { id: "subscriptions", name: Translation.tr("Subscriptions"), icon: "subscriptions" },
         { id: "shop", name: Translation.tr("Shop"), icon: "redeem" },
         { id: "stats", name: Translation.tr("Stats"), icon: "insights" }
     ]
@@ -220,16 +246,29 @@ Item {
 
     RowLayout {
         anchors.fill: parent
-        anchors.margins: 12
-        spacing: 10
+        anchors.margins: UiScale.px(12)
+        spacing: UiScale.px(12)
         visible: GritApi.loggedIn
 
         // ---- Left nav rail ----
         ColumnLayout {
             Layout.fillHeight: true
-            Layout.preferredWidth: 158
-            Layout.maximumWidth: 158
-            spacing: 4
+            Layout.preferredWidth: UiScale.px(168)
+            Layout.maximumWidth: UiScale.px(168)
+            spacing: UiScale.px(2)
+            opacity: Math.min(1, root.appear(0) * 1.4)
+            transform: Translate { x: -(1 - root.appear(0)) * Iris.appearDistance }
+
+            // The brand heads the rail: the one place in the panel that is
+            // about the app rather than about a view. Left-aligned to the same
+            // edge as the nav discs below it, not centred, so the rail reads
+            // as one column.
+            GritWordmark {
+                Layout.leftMargin: UiScale.px(8)
+                Layout.topMargin: UiScale.px(6)
+                Layout.bottomMargin: UiScale.px(12)
+                size: UiScale.px(30)
+            }
 
             StyledFlickable {
                 Layout.fillWidth: true
@@ -240,7 +279,7 @@ Item {
                 ColumnLayout {
                     id: navColumn
                     width: parent.width
-                    spacing: 2
+                    spacing: UiScale.px(2)
 
                     Repeater {
                         model: root.orderedNavEntries
@@ -249,7 +288,7 @@ Item {
                             navId: modelData.id
                             navName: modelData.name
                             navIcon: modelData.icon
-                            current: root.currentView
+                            currentView: root.currentView
                             hintLetter: root.tabHintMap[modelData.id] ?? ""
                             hintActive: GritKeys.mode === "tabhint"
                             onActivated: id => GlobalStates.gritView = id
@@ -260,8 +299,6 @@ Item {
                         navId: "__newlist"
                         navName: Translation.tr("New list")
                         navIcon: "add"
-                        current: ""
-                        dim: true
                         onActivated: root.showNewListDialog = true
                     }
                 }
@@ -274,7 +311,7 @@ Item {
                     navId: modelData.id
                     navName: modelData.name
                     navIcon: modelData.icon
-                    current: root.currentView
+                    currentView: root.currentView
                     hintLetter: root.tabHintMap[modelData.id] ?? ""
                     hintActive: GritKeys.mode === "tabhint"
                     onActivated: id => GlobalStates.gritView = id
@@ -284,44 +321,39 @@ Item {
             // Sync + account
             RowLayout {
                 Layout.fillWidth: true
-                Layout.leftMargin: 6
-                spacing: 6
+                Layout.topMargin: UiScale.px(6)
+                Layout.leftMargin: UiScale.px(10)
+                spacing: UiScale.px(8)
 
                 MouseArea {
-                    implicitWidth: 8
-                    implicitHeight: 8
+                    implicitWidth: UiScale.px(8)
+                    implicitHeight: UiScale.px(8)
                     hoverEnabled: true
                     Rectangle {
                         anchors.fill: parent
-                        radius: 4
-                        color: GritSync.errorMessage !== "" ? Appearance.colors.colError : Appearance.colors.colPrimary
-                        opacity: GritSync.syncing ? 1 : 0.5
+                        radius: width / 2
+                        color: GritSync.errorMessage !== "" ? GritColors.danger : GritColors.fg
+                        opacity: GritSync.syncing ? 1 : 0.45
+                        Behavior on opacity {
+                            NumberAnimation { duration: 180 }
+                        }
                     }
-                    GritToolTip {
+                    IrisToolTip {
                         text: GritSync.errorMessage !== "" ? GritSync.errorMessage
                             : GritSync.syncing ? Translation.tr("Syncing…") : GritApi.userEmail
                     }
                 }
-                GritText {
+                IrisText {
                     Layout.fillWidth: true
                     text: GritSync.syncing ? Translation.tr("Syncing…") : GritApi.userEmail.split("@")[0]
-                    font.pixelSize: Appearance.font.pixelSize.smallest
-                    color: Appearance.colors.colSubtext
-                    elide: Text.ElideRight
+                    role: "caption"
                 }
-                RippleButton {
-                    implicitWidth: 24
-                    implicitHeight: 24
-                    buttonRadius: Appearance.rounding.full
+                IrisDisc {
+                    size: UiScale.px(28)
+                    icon: "logout"
+                    clickable: true
+                    tip: Translation.tr("Sign out")
                     onClicked: GritApi.signOut()
-                    GritToolTip { text: Translation.tr("Sign out") }
-                    contentItem: MaterialSymbol {
-                        anchors.centerIn: parent
-                        horizontalAlignment: Text.AlignHCenter
-                        text: "logout"
-                        iconSize: Appearance.font.pixelSize.normal
-                        color: Appearance.colors.colSubtext
-                    }
                 }
             }
         }
@@ -329,137 +361,148 @@ Item {
         Rectangle {
             Layout.fillHeight: true
             implicitWidth: 1
-            color: Appearance.colors.colOutlineVariant
+            color: GritColors.divider
         }
 
         // ---- Content column ----
         ColumnLayout {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 8
+            spacing: UiScale.px(10)
 
-            // XP hero
-            RowLayout {
+            // Header: the level in a white disc, the view's title, XP on the
+            // right, and the level's progress as a thin slot underneath
+            ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 10
+                Layout.topMargin: UiScale.px(2)
+                spacing: UiScale.px(10)
+                opacity: Math.min(1, root.appear(1) * 1.4)
+                transform: Translate { x: -(1 - root.appear(1)) * Iris.appearDistance }
 
-                Rectangle {
-                    implicitWidth: 40
-                    implicitHeight: 40
-                    radius: Appearance.rounding.full
-                    color: Appearance.colors.colPrimaryContainer
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: UiScale.px(12)
 
-                    GritText {
-                        anchors.centerIn: parent
+                    // The level: a white disc with the number
+                    IrisDisc {
+                        size: UiScale.px(42)
+                        on: true
                         text: `${GritStore.levelInfo.level}`
-                        font.pixelSize: Appearance.font.pixelSize.large
-                        font.family: Appearance.font.family.numbers
-                        font.weight: Font.DemiBold
-                        color: Appearance.colors.colOnPrimaryContainer
+                    }
+
+                    IrisText {
+                        Layout.fillWidth: true
+                        Layout.maximumWidth: implicitWidth
+                        role: "heading"
+                        text: root.viewTitle
+                    }
+                    IrisDisc {
+                        visible: root.currentView.startsWith("list:")
+                        size: UiScale.px(28)
+                        icon: "edit"
+                        clickable: true
+                        tip: Translation.tr("Rename list")
+                        onClicked: root.showRenameListDialog = true
+                    }
+                    IrisDisc {
+                        visible: root.currentView.startsWith("list:")
+                        size: UiScale.px(28)
+                        icon: "delete"
+                        clickable: true
+                        tip: Translation.tr("Delete list")
+                        onClicked: {
+                            const listId = root.currentView.slice(5);
+                            const listName = root.viewTitle;
+                            GritConfirm.ask(
+                                Translation.tr("Delete list?"),
+                                Translation.tr("\"%1\" and all of its tasks will be deleted").arg(listName),
+                                () => {
+                                    GlobalStates.gritView = "myday";
+                                    GritStore.deleteCustomList(listId);
+                                    // Otherwise the dead list's rank lingers
+                                    // and a later list reusing the id inherits it.
+                                    GritNavUsage.forget(`list:${listId}`);
+                                });
+                        }
+                    }
+                    Item { Layout.fillWidth: true }
+                    IrisDisc {
+                        size: UiScale.px(28)
+                        icon: "push_pin"
+                        on: root.pinned
+                        clickable: true
+                        tip: root.pinned ? Translation.tr("Unpin (Ctrl+P)") : Translation.tr("Pin, keep the space free (Ctrl+P)")
+                        onClicked: root.pinToggled()
                     }
                 }
-
-                ColumnLayout {
+                IrisSlot {
                     Layout.fillWidth: true
-                    spacing: 2
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        GritText {
-                            text: root.viewTitle
-                            font.pixelSize: Appearance.font.pixelSize.large
-                            font.family: Appearance.font.family.title
-                            color: Appearance.colors.colOnLayer0
-                        }
-                        RippleButton {
-                            visible: root.currentView.startsWith("list:")
-                            implicitWidth: 24
-                            implicitHeight: 24
-                            buttonRadius: Appearance.rounding.full
-                            onClicked: root.showRenameListDialog = true
-                            GritToolTip { text: Translation.tr("Rename list") }
-                            contentItem: MaterialSymbol {
-                                anchors.centerIn: parent
-                                horizontalAlignment: Text.AlignHCenter
-                                text: "edit"
-                                iconSize: Appearance.font.pixelSize.normal
-                                color: Appearance.colors.colSubtext
-                            }
-                        }
-                        RippleButton {
-                            visible: root.currentView.startsWith("list:")
-                            implicitWidth: 24
-                            implicitHeight: 24
-                            buttonRadius: Appearance.rounding.full
-                            onClicked: {
-                                const listId = root.currentView.slice(5);
-                                const listName = root.viewTitle;
-                                GritConfirm.ask(
-                                    Translation.tr("Delete list?"),
-                                    Translation.tr("\"%1\" and all of its tasks will be deleted").arg(listName),
-                                    () => {
-                                        GlobalStates.gritView = "myday";
-                                        GritStore.deleteCustomList(listId);
-                                        // Otherwise the dead list's rank lingers
-                                        // and a later list reusing the id inherits it.
-                                        GritNavUsage.forget(`list:${listId}`);
-                                    });
-                            }
-                            GritToolTip { text: Translation.tr("Delete list") }
-                            contentItem: MaterialSymbol {
-                                anchors.centerIn: parent
-                                horizontalAlignment: Text.AlignHCenter
-                                text: "delete"
-                                iconSize: Appearance.font.pixelSize.normal
-                                color: Appearance.colors.colSubtext
-                            }
-                        }
-                        Item { Layout.fillWidth: true }
-                        GritText {
-                            text: `${GritStore.levelInfo.xpIntoLevel}/${GritStore.levelInfo.xpForThisLevel}`
-                            font.pixelSize: Appearance.font.pixelSize.large
-                            font.family: "Google Sans Flex"
-                            font.features: { "tnum": 1 }
-                            font.variableAxes: { "wght": 700, "ROND": 100 }
-                            color: Appearance.colors.colOnLayer0
-                        }
-                        GritText {
-                            text: Core.fmtXp(GritStore.xpToday)
-                            font.pixelSize: Appearance.font.pixelSize.large
-                            font.family: "Google Sans Flex"
-                            font.features: { "tnum": 1 }
-                            font.variableAxes: { "wght": 700, "ROND": 100 }
-                            color: GritStore.xpToday >= 0 ? Appearance.colors.colPrimary : Appearance.colors.colError
+                    valueBarHeight: UiScale.px(6)
+                    value: GritStore.levelInfo.progress
+                }
+                // Today's XP and the level's progress, under the bar, so the
+                // title keeps the whole width above
+                RowLayout {
+                    Layout.fillWidth: true
+                    Layout.topMargin: -UiScale.px(4)
+                    IrisText {
+                        text: `${Core.fmtXp(GritStore.xpToday)} ${Translation.tr("today")}`
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        font.features: { "tnum": 1 }
+                        font.weight: Font.DemiBold
+                        color: GritStore.xpToday >= 0 ? Iris.fg : Iris.danger
+                        Behavior on color {
+                            ColorAnimation { duration: Iris.colorDuration }
                         }
                     }
-                    StyledProgressBar {
-                        Layout.fillWidth: true
-                        value: GritStore.levelInfo.progress
+                    Item { Layout.fillWidth: true }
+                    IrisText {
+                        text: `${GritStore.levelInfo.xpIntoLevel} / ${GritStore.levelInfo.xpForThisLevel}`
+                        role: "caption"
+                        font.features: { "tnum": 1 }
+                        font.weight: Font.Medium
                     }
                 }
             }
 
-            // View content
-            Loader {
-                id: viewLoader
+            // View content. The wrapper carries the entrance, the loader
+            // keeps its own opacity and shift for view switches.
+            Item {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                sourceComponent: {
-                    if (root.currentView === "food")
-                        return foodViewComponent;
-                    if (root.currentView === "calories")
-                        return caloriesViewComponent;
-                    if (root.currentView === "focus")
-                        return focusViewComponent;
-                    if (root.currentView === "stats")
-                        return statsViewComponent;
-                    if (root.currentView === "shop")
-                        return shopViewComponent;
-                    return tasksViewComponent;
-                }
+                opacity: Math.min(1, root.appear(2) * 1.4)
+                transform: Translate { x: -(1 - root.appear(2)) * Iris.appearDistance }
+                Loader {
+                    id: viewLoader
+                    anchors.fill: parent
+                    // Slides in from the right on every view change, like the
+                    // right panel's lists
+                    transform: Translate { id: viewShift }
+                    sourceComponent: {
+                        if (root.currentView === "food")
+                            return foodViewComponent;
+                        if (root.currentView === "calories")
+                            return caloriesViewComponent;
+                        if (root.currentView === "body")
+                            return bodyViewComponent;
+                        if (root.currentView === "focus")
+                            return focusViewComponent;
+                        if (root.currentView === "activity")
+                            return activityViewComponent;
+                        if (root.currentView === "stats")
+                            return statsViewComponent;
+                        if (root.currentView === "shop")
+                            return shopViewComponent;
+                        if (root.currentView === "spendings")
+                            return spendingsViewComponent;
+                        if (root.currentView === "subscriptions")
+                            return subscriptionsViewComponent;
+                        return tasksViewComponent;
+                    }
 
-                Behavior on opacity {
-                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                    Behavior on opacity {
+                        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                    }
                 }
             }
 
@@ -479,8 +522,16 @@ Item {
                 CaloriesView {}
             }
             Component {
+                id: bodyViewComponent
+                BodyView {}
+            }
+            Component {
                 id: focusViewComponent
                 FocusView {}
+            }
+            Component {
+                id: activityViewComponent
+                ActivityView {}
             }
             Component {
                 id: statsViewComponent
@@ -490,51 +541,46 @@ Item {
                 id: shopViewComponent
                 ShopView {}
             }
+            Component {
+                id: spendingsViewComponent
+                SpendingsView {}
+            }
+            Component {
+                id: subscriptionsViewComponent
+                SubscriptionsView {}
+            }
 
             // ---- Vim statusline: mode, context, which-key, pending input ----
             Rectangle {
                 Layout.fillWidth: true
                 visible: GritKeys.active
-                implicitHeight: 26
-                radius: Appearance.rounding.small
-                color: Appearance.colors.colLayer1
-                border.width: 1
-                border.color: Appearance.colors.colLayer0Border
+                opacity: Math.min(1, root.appear(3) * 1.4)
+                transform: Translate { x: -(1 - root.appear(3)) * Iris.appearDistance }
+                implicitHeight: UiScale.px(32)
+                radius: height / 2
+                color: GritColors.raised
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.leftMargin: 4
-                    anchors.rightMargin: 10
-                    spacing: 10
+                    anchors.leftMargin: UiScale.px(4)
+                    anchors.rightMargin: UiScale.px(14)
+                    spacing: UiScale.px(10)
 
-                    Rectangle {
-                        implicitWidth: modeText.implicitWidth + 16
-                        implicitHeight: 18
-                        radius: Appearance.rounding.full
-                        color: root.keyModeName === "INSERT" ? Appearance.colors.colPrimaryContainer
-                            : root.keyModeName === "NORMAL" ? Appearance.colors.colSecondaryContainer
-                            : Appearance.colors.colTertiaryContainer
-
-                        GritText {
-                            id: modeText
-                            anchors.centerIn: parent
-                            text: root.keyModeName
-                            font.family: Appearance.font.family.monospace
-                            font.pixelSize: Appearance.font.pixelSize.smallest
-                            font.weight: Font.Bold
-                            color: root.keyModeName === "INSERT" ? Appearance.colors.colOnPrimaryContainer
-                                : root.keyModeName === "NORMAL" ? Appearance.colors.colOnSecondaryContainer
-                                : Appearance.colors.colOnTertiaryContainer
+                    // White when a mode other than NORMAL owns the keys
+                    IrisKeycap {
+                        text: root.keyModeName
+                        mono: true
+                        lit: root.keyModeName !== "NORMAL"
+                        Behavior on implicitWidth {
+                            SpringAnimation { spring: Iris.sizeSpring; damping: 0.38; epsilon: 0.3 }
                         }
                     }
 
-                    GritText {
+                    IrisText {
                         text: GritKeys.focusedIndex >= 0
                             ? `${root.viewTitle} · ${GritKeys.focusedIndex + 1}/${GritKeys.cardIds.length}`
                             : root.viewTitle
-                        font.pixelSize: Appearance.font.pixelSize.smallest
-                        color: Appearance.colors.colSubtext
-                        elide: Text.ElideRight
+                        role: "caption"
                     }
 
                     Item { Layout.fillWidth: true }
@@ -542,7 +588,7 @@ Item {
                     // Which-key bar, leader mode only
                     RowLayout {
                         visible: GritKeys.mode === "leader"
-                        spacing: 10
+                        spacing: UiScale.px(10)
 
                         Repeater {
                             model: [
@@ -550,37 +596,39 @@ Item {
                                 { k: "r", label: Translation.tr("rest day") },
                                 { k: "s", label: Translation.tr("shop") },
                                 { k: "i", label: Translation.tr("stats") },
+                                { k: "m", label: Translation.tr("money") },
+                                { k: "u", label: Translation.tr("subs") },
+                                { k: "b", label: Translation.tr("body") },
                                 { k: "?", label: Translation.tr("keys") }
                             ]
                             delegate: RowLayout {
                                 required property var modelData
-                                spacing: 3
+                                spacing: UiScale.px(3)
 
-                                GritText {
+                                IrisText {
                                     text: parent.modelData.k
+                                    role: "caption"
                                     font.family: Appearance.font.family.monospace
-                                    font.pixelSize: Appearance.font.pixelSize.smallest
                                     font.weight: Font.Bold
-                                    color: Appearance.colors.colPrimary
+                                    color: Iris.fg
                                 }
-                                GritText {
+                                IrisText {
                                     text: parent.modelData.label
-                                    font.pixelSize: Appearance.font.pixelSize.smallest
-                                    color: Appearance.colors.colSubtext
+                                    role: "caption"
                                 }
                             }
                         }
                     }
 
-                    GritText {
+                    IrisText {
                         visible: text !== ""
-                        text: GritKeys.pending !== "" ? GritKeys.pending + "\u00b7"
+                        text: GritKeys.pending !== "" ? GritKeys.pending + "·"
                             : GritKeys.mode === "hint" ? Translation.tr("pick a card")
                             : GritKeys.mode === "tabhint" ? Translation.tr("pick a tab") : ""
+                        role: "caption"
                         font.family: Appearance.font.family.monospace
-                        font.pixelSize: Appearance.font.pixelSize.smallest
                         font.weight: Font.Bold
-                        color: Appearance.colors.colPrimary
+                        color: Iris.fg
                     }
                 }
             }
@@ -590,211 +638,126 @@ Item {
 
     // ---------------- Transient toast (GritToast.show) ----------------
 
-    Rectangle {
-        id: toastPill
-        z: 50
-        anchors {
-            horizontalCenter: parent.horizontalCenter
-            bottom: parent.bottom
-            bottomMargin: 20
-        }
-        // Hugs its text, but never grows past the panel, so long titles elide
-        implicitWidth: Math.min(toastRow.implicitWidth + 28, root.width - 40)
-        implicitHeight: toastRow.implicitHeight + 18
-        radius: Appearance.rounding.full
-        color: Appearance.colors.colTooltip
-        opacity: GritToast.shown ? 1 : 0
-        visible: opacity > 0
-
-        // Rises into place instead of just appearing
-        transform: Translate {
-            y: GritToast.shown ? 0 : 10
-            Behavior on y {
-                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-            }
-        }
-        Behavior on opacity {
-            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-        }
-
-        RowLayout {
-            id: toastRow
-            anchors.centerIn: parent
-            width: toastPill.width - 28
-            spacing: 8
-
-            MaterialSymbol {
-                text: GritToast.iconName
-                iconSize: Appearance.font.pixelSize.normal
-                color: Appearance.colors.colOnTooltip
-            }
-            GritText {
-                Layout.fillWidth: true
-                text: GritToast.message
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.colors.colOnTooltip
-                elide: Text.ElideRight
-            }
-        }
+    // The Iris toast: a dark raised pill rising in at the bottom. GritToast's
+    // timer takes it down, so repeated calls extend the same pill.
+    IrisToast {
+        text: GritToast.shown ? GritToast.message : ""
+        icon: GritToast.iconName
     }
 
-    // Fade view switches
+    // Fade and slide view switches
     onCurrentViewChanged: {
         viewSwitchAnim.restart();
     }
     SequentialAnimation {
         id: viewSwitchAnim
         PropertyAction { target: viewLoader; property: "opacity"; value: 0 }
+        PropertyAction { target: viewShift; property: "x"; value: UiScale.px(28) }
         PauseAnimation { duration: 20 }
         PropertyAction { target: viewLoader; property: "opacity"; value: 1 }
+        NumberAnimation { target: viewShift; property: "x"; to: 0; duration: 320; easing.type: Easing.OutCubic }
     }
 
-    // ---------------- Dialogs (Loader-wrapped, ToggleDialog pattern) ----------------
+    // ---------------- Dialogs ----------------
+    // Each opens from its flag and hands the flag back when it closes. The
+    // forms are made fresh for every opening (sourceComponent).
 
-    onShowAddSheetChanged: if (showAddSheet) addSheetLoader.active = true
-    onShowNewListDialogChanged: if (showNewListDialog) newListLoader.active = true
-    onShowRenameListDialogChanged: if (showRenameListDialog) renameListLoader.active = true
+    onShowAddSheetChanged: if (showAddSheet) addSheet.open()
+    onShowNewListDialogChanged: if (showNewListDialog) newListDialog.open()
+    onShowRenameListDialogChanged: if (showRenameListDialog) renameListDialog.open()
 
-    Loader {
-        id: addSheetLoader
-        anchors.fill: parent
-        active: false
-        onActiveChanged: {
-            if (active) {
-                item.show = true;
-                item.forceActiveFocus();
-            }
-        }
-        sourceComponent: AddTaskSheet {
-            currentView: root.currentView
-        }
-        Connections {
-            target: addSheetLoader.item
-            function onDismiss() {
-                addSheetLoader.item.show = false;
-                root.showAddSheet = false;
-            }
-            function onVisibleChanged() {
-                if (!addSheetLoader.item.visible && !root.showAddSheet)
-                    addSheetLoader.active = false;
-            }
-        }
+    AddTaskSheet {
+        id: addSheet
+        currentView: root.currentView
+        onClosed: root.showAddSheet = false
     }
 
-    Loader {
-        id: newListLoader
-        anchors.fill: parent
-        active: false
-        onActiveChanged: {
-            if (active) {
-                item.show = true;
-                item.forceActiveFocus();
-            }
-        }
-        sourceComponent: WindowDialog {
-            id: newListDialog
-            backgroundWidth: 340
+    IrisDialog {
+        id: newListDialog
+        backgroundWidth: UiScale.px(340)
+        onClosed: root.showNewListDialog = false
+        sourceComponent: ColumnLayout {
+            id: newListForm
+            spacing: UiScale.px(16)
 
             function confirm() {
                 if (newListNameField.text.trim().length > 0) {
                     const list = GritStore.addCustomList(newListNameField.text);
                     GlobalStates.gritView = `list:${list.id}`;
                 }
-                newListDialog.dismiss();
+                newListDialog.close();
             }
 
-            GritDialogTitle {
+            IrisText {
+                role: "title"
                 text: Translation.tr("New list")
             }
-            GritTextField {
-        labelBackgroundColor: Appearance.m3colors.m3surfaceContainerHigh
+            IrisField {
                 id: newListNameField
                 Layout.fillWidth: true
                 placeholderText: Translation.tr("List name")
-                onAccepted: newListDialog.confirm()
+                onAccepted: newListForm.confirm()
                 Component.onCompleted: forceActiveFocus()
             }
-            WindowDialogButtonRow {
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: UiScale.px(8)
                 Item { Layout.fillWidth: true }
-                GritDialogButton {
-                    buttonText: Translation.tr("Cancel")
-                    onClicked: newListDialog.dismiss()
+                IrisPill {
+                    text: Translation.tr("Cancel")
+                    onClicked: newListDialog.close()
                 }
-                GritDialogButton {
-                    buttonText: Translation.tr("Create")
-                    onClicked: newListDialog.confirm()
+                IrisPill {
+                    primary: true
+                    text: Translation.tr("Create")
+                    onClicked: newListForm.confirm()
                 }
-            }
-        }
-        Connections {
-            target: newListLoader.item
-            function onDismiss() {
-                newListLoader.item.show = false;
-                root.showNewListDialog = false;
-            }
-            function onVisibleChanged() {
-                if (!newListLoader.item.visible && !root.showNewListDialog)
-                    newListLoader.active = false;
             }
         }
     }
 
-    Loader {
-        id: renameListLoader
-        anchors.fill: parent
-        active: false
-        onActiveChanged: {
-            if (active) {
-                item.show = true;
-                item.forceActiveFocus();
-            }
-        }
-        sourceComponent: WindowDialog {
-            id: renameListDialog
-            backgroundWidth: 340
+    IrisDialog {
+        id: renameListDialog
+        backgroundWidth: UiScale.px(340)
+        onClosed: root.showRenameListDialog = false
+        sourceComponent: ColumnLayout {
+            id: renameListForm
+            spacing: UiScale.px(16)
 
             function confirm() {
                 if (root.currentView.startsWith("list:"))
                     GritStore.renameCustomList(root.currentView.slice(5), renameListNameField.text);
-                renameListDialog.dismiss();
+                renameListDialog.close();
             }
 
-            GritDialogTitle {
+            IrisText {
+                role: "title"
                 text: Translation.tr("Rename list")
             }
-            GritTextField {
+            IrisField {
                 id: renameListNameField
-                labelBackgroundColor: Appearance.m3colors.m3surfaceContainerHigh
                 Layout.fillWidth: true
                 placeholderText: Translation.tr("List name")
                 text: root.viewTitle
-                onAccepted: renameListDialog.confirm()
+                onAccepted: renameListForm.confirm()
                 Component.onCompleted: {
                     forceActiveFocus();
                     selectAll();
                 }
             }
-            WindowDialogButtonRow {
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: UiScale.px(8)
                 Item { Layout.fillWidth: true }
-                GritDialogButton {
-                    buttonText: Translation.tr("Cancel")
-                    onClicked: renameListDialog.dismiss()
+                IrisPill {
+                    text: Translation.tr("Cancel")
+                    onClicked: renameListDialog.close()
                 }
-                GritDialogButton {
-                    buttonText: Translation.tr("Rename")
-                    onClicked: renameListDialog.confirm()
+                IrisPill {
+                    primary: true
+                    text: Translation.tr("Rename")
+                    onClicked: renameListForm.confirm()
                 }
-            }
-        }
-        Connections {
-            target: renameListLoader.item
-            function onDismiss() {
-                renameListLoader.item.show = false;
-                root.showRenameListDialog = false;
-            }
-            function onVisibleChanged() {
-                if (!renameListLoader.item.visible && !root.showRenameListDialog)
-                    renameListLoader.active = false;
             }
         }
     }
@@ -804,31 +767,29 @@ Item {
         target: GritEdit
         function onShowChanged() {
             if (GritEdit.show)
-                editLoader.active = true;
+                editDialog.open();
         }
     }
 
-    Loader {
-        id: editLoader
-        anchors.fill: parent
-        active: false
-        onActiveChanged: {
-            if (active) {
-                item.show = true;
-                item.forceActiveFocus();
-            }
-        }
-        sourceComponent: WindowDialog {
-            id: editDialog
-            backgroundWidth: 360
+    IrisDialog {
+        id: editDialog
 
-            readonly property bool isBad: GritEdit.task?.listType === "bad"
-            readonly property bool isSub: !!GritEdit.subtask
+        readonly property bool isBad: GritEdit.task?.listType === "bad"
+        readonly property bool isSub: !!GritEdit.subtask
+        // Same rule as the add sheet: one-off lists have nothing to repeat
+        readonly property bool showRepeat: !editDialog.isSub && !editDialog.isBad
+            && GritEdit.task?.listType !== "cool" && GritEdit.task?.listType !== "impossible"
+
+        backgroundWidth: editDialog.showRepeat ? UiScale.px(410) : UiScale.px(360)
+        onClosed: GritEdit.close()
+        sourceComponent: ColumnLayout {
+            id: editForm
+            spacing: UiScale.px(16)
 
             function save() {
                 const task = GritEdit.task;
                 if (!task)
-                    return editDialog.dismiss();
+                    return editDialog.close();
                 const name = editNameField.text.trim();
                 if (editDialog.isSub) {
                     const patch = {};
@@ -843,7 +804,7 @@ Item {
                             patch.xp = v;
                     }
                     GritStore.editSubtask(task, GritEdit.subtask.id, patch);
-                    editDialog.dismiss();
+                    editDialog.close();
                     return;
                 }
                 const patch = {};
@@ -856,120 +817,92 @@ Item {
                     else
                         patch.points = value;
                 }
+                if (editDialog.showRepeat) {
+                    // undefined is how patchRow drops a key, which is exactly
+                    // what "Never" means for a task that used to repeat
+                    patch.recurrence = editRepeat.buildRecurrence();
+                }
                 GritStore.updateTask(task.id, patch);
-                editDialog.dismiss();
+                editDialog.close();
             }
 
-            GritDialogTitle {
+            IrisText {
+                role: "title"
                 text: editDialog.isSub ? Translation.tr("Edit step") : Translation.tr("Edit task")
             }
-            GritTextField {
+            IrisField {
                 id: editNameField
-                labelBackgroundColor: Appearance.m3colors.m3surfaceContainerHigh
                 Layout.fillWidth: true
                 placeholderText: Translation.tr("Name")
                 text: (editDialog.isSub ? GritEdit.subtask?.title : GritEdit.task?.title) ?? ""
                 Component.onCompleted: forceActiveFocus()
-                onAccepted: editDialog.save()
+                onAccepted: editForm.save()
             }
-            GritTextField {
-                id: editXpField
-                labelBackgroundColor: Appearance.m3colors.m3surfaceContainerHigh
-                Layout.preferredWidth: 160
-                placeholderText: editDialog.isSub ? Translation.tr("XP (empty = auto)")
-                    : editDialog.isBad ? Translation.tr("Slip penalty") : Translation.tr("XP reward")
-                text: editDialog.isSub
-                    ? (GritEdit.subtask?.xp != null ? `${GritEdit.subtask.xp}` : "")
-                    : `${(editDialog.isBad ? GritEdit.task?.slipPenalty : GritEdit.task?.points) ?? 0}`
-                validator: IntValidator { bottom: 0; top: 100000 }
-                onAccepted: editDialog.save()
+            // The field comes filled in, so its name sits above it
+            ColumnLayout {
+                Layout.fillWidth: true
+                spacing: UiScale.px(4)
+                IrisText {
+                    Layout.leftMargin: UiScale.px(6)
+                    role: "caption"
+                    text: editXpField.placeholderText
+                }
+                IrisField {
+                    id: editXpField
+                    Layout.preferredWidth: UiScale.px(180)
+                    placeholderText: editDialog.isSub ? Translation.tr("XP (empty = auto)")
+                        : editDialog.isBad ? Translation.tr("Slip penalty") : Translation.tr("XP reward")
+                    text: editDialog.isSub
+                        ? (GritEdit.subtask?.xp != null ? `${GritEdit.subtask.xp}` : "")
+                        : `${(editDialog.isBad ? GritEdit.task?.slipPenalty : GritEdit.task?.points) ?? 0}`
+                    validator: IntValidator { bottom: 0; top: 100000 }
+                    onAccepted: editForm.save()
+                }
             }
-            WindowDialogButtonRow {
+            GritRecurrenceEditor {
+                id: editRepeat
+                Layout.fillWidth: true
+                visible: editDialog.showRepeat
+                allowNone: GritEdit.task?.listType !== "must"
+                Component.onCompleted: loadFrom(GritEdit.task)
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: UiScale.px(8)
                 Item { Layout.fillWidth: true }
-                GritDialogButton {
-                    buttonText: Translation.tr("Cancel")
-                    onClicked: editDialog.dismiss()
+                IrisPill {
+                    text: Translation.tr("Cancel")
+                    onClicked: editDialog.close()
                 }
-                GritDialogButton {
-                    buttonText: Translation.tr("Save")
-                    onClicked: editDialog.save()
+                IrisPill {
+                    primary: true
+                    text: Translation.tr("Save")
+                    onClicked: editForm.save()
                 }
-            }
-        }
-        Connections {
-            target: editLoader.item
-            function onDismiss() {
-                editLoader.item.show = false;
-                GritEdit.close();
-            }
-            function onVisibleChanged() {
-                if (!editLoader.item.visible && !GritEdit.show)
-                    editLoader.active = false;
             }
         }
     }
 
-    // Shared confirmation dialog for destructive actions (GritConfirm.ask)
+    // Shared confirmation sheet (GritConfirm.ask): red for destructive
+    // actions, white for purchases
     Connections {
         target: GritConfirm
         function onShowChanged() {
             if (GritConfirm.show)
-                confirmLoader.active = true;
+                confirmSheet.open();
         }
     }
 
-    Loader {
-        id: confirmLoader
-        anchors.fill: parent
-        active: false
-        onActiveChanged: {
-            if (active) {
-                item.show = true;
-                item.forceActiveFocus();
-            }
-        }
-        sourceComponent: WindowDialog {
-            id: confirmDialog
-            backgroundWidth: 340
-
-            GritDialogTitle {
-                text: GritConfirm.title
-            }
-            GritText {
-                Layout.fillWidth: true
-                visible: GritConfirm.message.length > 0
-                text: GritConfirm.message
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.colors.colSubtext
-                wrapMode: Text.Wrap
-            }
-            WindowDialogButtonRow {
-                Item { Layout.fillWidth: true }
-                GritDialogButton {
-                    buttonText: Translation.tr("Cancel")
-                    onClicked: confirmDialog.dismiss()
-                }
-                GritDialogButton {
-                    buttonText: GritConfirm.confirmLabel.length > 0
-                        ? GritConfirm.confirmLabel : Translation.tr("Delete")
-                    onClicked: {
-                        GritConfirm.accept();
-                        confirmDialog.dismiss();
-                    }
-                }
-            }
-        }
-        Connections {
-            target: confirmLoader.item
-            function onDismiss() {
-                confirmLoader.item.show = false;
-                GritConfirm.dismiss();
-            }
-            function onVisibleChanged() {
-                if (!confirmLoader.item.visible && !GritConfirm.show)
-                    confirmLoader.active = false;
-            }
-        }
+    IrisConfirmSheet {
+        id: confirmSheet
+        icon: GritConfirm.danger ? "delete" : "paid"
+        title: GritConfirm.title
+        text: GritConfirm.message
+        actionText: GritConfirm.confirmLabel.length > 0
+            ? GritConfirm.confirmLabel : Translation.tr("Delete")
+        danger: GritConfirm.danger
+        onAccepted: GritConfirm.accept()
+        onRejected: GritConfirm.dismiss()
     }
 
     // ---------------- Cheatsheet overlay (?) ----------------
@@ -979,8 +912,7 @@ Item {
         z: 60
         active: GritKeys.cheatsheetOpen
         sourceComponent: Rectangle {
-            color: Qt.rgba(Appearance.colors.colLayer0.r, Appearance.colors.colLayer0.g,
-                Appearance.colors.colLayer0.b, 0.92)
+            color: Qt.rgba(0, 0, 0, 0.8) // over the always black panel
 
             // Any click puts it away, same as any key
             MouseArea {
@@ -990,30 +922,28 @@ Item {
 
             Rectangle {
                 anchors.centerIn: parent
-                width: Math.min(parent.width - 48, sheetColumn.implicitWidth + 48)
-                implicitHeight: sheetColumn.implicitHeight + 40
-                radius: Appearance.rounding.normal
-                color: Appearance.colors.colLayer1
+                width: Math.min(parent.width - UiScale.px(48), sheetColumn.implicitWidth + UiScale.px(56))
+                implicitHeight: sheetColumn.implicitHeight + UiScale.px(48)
+                radius: UiScale.px(24)
+                color: GritColors.raised
                 border.width: 1
-                border.color: Appearance.colors.colLayer0Border
+                border.color: GritColors.divider
 
                 ColumnLayout {
                     id: sheetColumn
                     anchors.centerIn: parent
-                    spacing: 12
+                    spacing: UiScale.px(14)
 
-                    GritText {
+                    IrisText {
                         Layout.alignment: Qt.AlignHCenter
+                        role: "title"
                         text: Translation.tr("Keyboard")
-                        font.pixelSize: Appearance.font.pixelSize.large
-                        font.family: Appearance.font.family.title
-                        color: Appearance.colors.colOnLayer1
                     }
 
                     GridLayout {
                         columns: 2
-                        columnSpacing: 28
-                        rowSpacing: 6
+                        columnSpacing: UiScale.px(28)
+                        rowSpacing: UiScale.px(8)
 
                         Repeater {
                             model: [
@@ -1029,43 +959,31 @@ Item {
                                 { k: "dd", d: Translation.tr("Delete") },
                                 { k: "s", d: Translation.tr("Slip (Bad tab)") },
                                 { k: "a", d: Translation.tr("Add task") },
-                                { k: "Space", d: Translation.tr("Leader: t r s i ?") },
+                                { k: "Space", d: Translation.tr("Leader: t r s i m u ?") },
                                 { k: "Esc", d: Translation.tr("Back, then close") }
                             ]
                             delegate: RowLayout {
                                 required property var modelData
-                                spacing: 10
+                                spacing: UiScale.px(10)
 
-                                Rectangle {
-                                    implicitWidth: Math.max(30, sheetKeyText.implicitWidth + 12)
-                                    implicitHeight: 20
-                                    radius: Appearance.rounding.small
-                                    color: Appearance.colors.colLayer2
-
-                                    GritText {
-                                        id: sheetKeyText
-                                        anchors.centerIn: parent
-                                        text: parent.parent.modelData.k
-                                        font.family: Appearance.font.family.monospace
-                                        font.pixelSize: Appearance.font.pixelSize.smallest
-                                        font.weight: Font.Bold
-                                        color: Appearance.colors.colPrimary
-                                    }
+                                IrisKeycap {
+                                    Layout.minimumWidth: UiScale.px(34)
+                                    text: parent.modelData.k
+                                    mono: true
                                 }
-                                GritText {
+                                IrisText {
+                                    role: "label"
                                     text: parent.modelData.d
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    color: Appearance.colors.colOnLayer1
+                                    color: Iris.fg2
                                 }
                             }
                         }
                     }
 
-                    GritText {
+                    IrisText {
                         Layout.alignment: Qt.AlignHCenter
+                        role: "caption"
                         text: Translation.tr("Card keys act on the focused card. Any key closes this.")
-                        font.pixelSize: Appearance.font.pixelSize.smallest
-                        color: Appearance.colors.colSubtext
                     }
                 }
             }

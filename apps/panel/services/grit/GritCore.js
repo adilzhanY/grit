@@ -60,7 +60,9 @@ const DEFAULT_SETTINGS = {
     heightCm: 177,
     sex: "male",
     birthday: "2005-01-28",
-    focusTasks: []
+    focusTasks: [],
+    currency: "EUR",
+    monthlyBudget: 0
 };
 
 const DEFAULT_POINTS = { must: 10, bad: 0, cool: 100, impossible: 1000, custom: 15 };
@@ -381,6 +383,9 @@ function pendingFocusRanks(hours, awardedHours) {
 }
 
 const WEEKDAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+// Weekdays are stored as JS getDay() numbers, so Sunday is 0, but the week
+// starts on Monday everywhere it is shown. WEEK_ORDER is that display order.
+const WEEK_ORDER = [1, 2, 3, 4, 5, 6, 0];
 
 function recurrenceLabel(task) {
     const rec = task.recurrence;
@@ -388,7 +393,7 @@ function recurrenceLabel(task) {
     const every = Math.max(1, rec.interval || 1);
     if (rec.type === "daily") return every === 1 ? "Every day" : `Every ${every} days`;
     if (rec.type === "weekly") {
-        const days = rec.weekdays.slice().sort((a, b) => a - b);
+        const days = rec.weekdays.slice().sort((a, b) => WEEK_ORDER.indexOf(a) - WEEK_ORDER.indexOf(b));
         if (days.length === 7 && every === 1) return "Every day";
         const dayPart = days.length === 5 && days.join() === "1,2,3,4,5"
             ? "Weekdays" : days.map(d => WEEKDAY_NAMES[d]).join(" · ");
@@ -1016,4 +1021,515 @@ function weeklyTarget(ledger, monday) {
 
 function weeklyReward(ledger, monday) {
     return dailyQuota(ledger, addDays(monday, 7)) * WEEKLY_REWARD_DAYS;
+}
+
+// ---------- spendings ----------
+
+/**
+ * The category rail. Ids are stable strings written into every spending row,
+ * so a rename here only changes the label, never the stored data. "other" is
+ * the fallback whenever a row carries an id this list has since dropped.
+ */
+const SPEND_CATEGORIES = [
+    { id: "food", name: "Food", icon: "restaurant" },
+    { id: "groceries", name: "Groceries", icon: "shopping_cart" },
+    { id: "transport", name: "Transport", icon: "directions_bus" },
+    { id: "rent", name: "Rent", icon: "home" },
+    { id: "bills", name: "Bills", icon: "receipt_long" },
+    { id: "health", name: "Health", icon: "medical_services" },
+    { id: "fun", name: "Fun", icon: "sports_esports" },
+    { id: "clothes", name: "Clothes", icon: "checkroom" },
+    { id: "tech", name: "Tech", icon: "devices" },
+    { id: "education", name: "Education", icon: "school" },
+    { id: "gifts", name: "Gifts", icon: "featured_seasonal_and_gifts" },
+    { id: "other", name: "Other", icon: "more_horiz" }
+];
+
+function spendCategory(id) {
+    return SPEND_CATEGORIES.find(c => c.id === id)
+        ?? { id: id || "other", name: id || "Other", icon: "more_horiz" };
+}
+
+const CURRENCY_SYMBOLS = {
+    EUR: "€", USD: "$", GBP: "£", KZT: "₸", RUB: "₽",
+    PLN: "zł", TRY: "₺", CHF: "CHF", SEK: "kr", JPY: "¥"
+};
+
+function currencySymbol(code) {
+    return CURRENCY_SYMBOLS[code] ?? (code || "");
+}
+
+/**
+ * Group digits for readability. The separator is a narrow no-break space
+ * (U+202F) written as an escape: it must never be the place a long total
+ * wraps, and an escape keeps the intent visible in the source.
+ */
+function groupDigits(intPart) {
+    return intPart.replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
+}
+
+/**
+ * "40" -> "€40", "40.5" -> "€40.50". Cents only appear when there are cents:
+ * a page of round numbers should not be a page of ".00".
+ */
+function fmtMoney(amount, currency) {
+    const v = Number(amount) || 0;
+    const neg = v < 0;
+    const abs = Math.abs(v);
+    const cents = Math.round(abs * 100) % 100;
+    const whole = groupDigits(String(Math.floor(abs)));
+    const body = cents === 0 ? whole : `${whole}.${String(cents).padStart(2, "0")}`;
+    return `${neg ? "−" : ""}${currencySymbol(currency)}${body}`;
+}
+
+/** Compact form for axis ticks and bar captions: €1.2k, €14k, €1.1M. */
+function fmtMoneyShort(amount, currency) {
+    const v = Number(amount) || 0;
+    const abs = Math.abs(v);
+    const sym = currencySymbol(currency);
+    const sign = v < 0 ? "−" : "";
+    if (abs >= 1000000) {
+        const m = abs / 1000000;
+        return `${sign}${sym}${m >= 10 ? Math.round(m) : Math.round(m * 10) / 10}M`;
+    }
+    if (abs >= 1000) {
+        const k = abs / 1000;
+        return `${sign}${sym}${k >= 10 ? Math.round(k) : Math.round(k * 10) / 10}k`;
+    }
+    return fmtMoney(v, currency);
+}
+
+/**
+ * Parse a typed amount. Accepts "40", "40.5", "40,50" and a leading symbol,
+ * so pasting "€12,90" from a receipt works. Returns null when there is no
+ * number to read, which is what keeps the empty form from logging a zero.
+ */
+function parseAmount(text) {
+    if (text === undefined || text === null)
+        return null;
+    const cleaned = String(text).replace(/[^0-9.,-]/g, "").replace(",", ".");
+    if (cleaned === "" || cleaned === "-" || cleaned === ".")
+        return null;
+    const v = Number(cleaned);
+    if (!isFinite(v) || v < 0)
+        return null;
+    return Math.round(v * 100) / 100;
+}
+
+/** Places already used, most-used first, for the quick-pick chips. */
+function spendPlacesByUsage(spendings) {
+    const counts = new Map();
+    for (const s of spendings) {
+        const name = (s.place ?? "").trim();
+        if (name === "")
+            continue;
+        const key = name.toLowerCase();
+        const hit = counts.get(key);
+        if (hit)
+            hit.count++;
+        else
+            counts.set(key, { name: name, category: s.category, count: 1, at: s.spentAt ?? 0 });
+        if (hit && (s.spentAt ?? 0) > hit.at) {
+            hit.at = s.spentAt ?? 0;
+            hit.category = s.category; // the newest visit decides the suggested category
+        }
+    }
+    return Array.from(counts.values()).sort((a, b) => (b.count - a.count) || (b.at - a.at));
+}
+
+// ---------- subscriptions ----------
+
+/**
+ * Billing cycles. `months` and `days` are the step used to walk renewal dates;
+ * exactly one of them is set. A trial has no step of its own: it runs for
+ * `trialDays` and then either converts to the cycle in `trialThen` or ends.
+ */
+const SUB_CYCLES = [
+    { id: "monthly", name: "Monthly", months: 1, icon: "calendar_month" },
+    { id: "annual", name: "Yearly", months: 12, icon: "event_repeat" },
+    { id: "quarterly", name: "Quarterly", months: 3, icon: "calendar_view_month" },
+    { id: "weekly", name: "Weekly", days: 7, icon: "date_range" },
+    { id: "trial", name: "Trial", icon: "hourglass_top" }
+];
+
+/** Preset trial lengths; "custom" lets the user type any number of days. */
+const TRIAL_PRESETS = [7, 14, 30];
+
+const DEFAULT_REMINDER_DAYS = [7, 3, 1];
+
+function subCycle(id) {
+    return SUB_CYCLES.find(c => c.id === id) ?? SUB_CYCLES[0];
+}
+
+/** 1 -> "1st", 22 -> "22nd", 13 -> "13th". */
+function ordinal(n) {
+    const rem100 = n % 100;
+    if (rem100 >= 11 && rem100 <= 13)
+        return `${n}th`;
+    return `${n}${["th", "st", "nd", "rd"][n % 10] ?? "th"}`;
+}
+
+/**
+ * Human label for a subscription's cadence, e.g. "Monthly on the 22nd" or
+ * "14 day trial, then Monthly". Naming the day back is what lets you spot a
+ * typo in the renewal date from the list, without opening the row.
+ */
+function subCycleLabel(sub) {
+    if (sub.cycle !== "trial") {
+        const name = subCycle(sub.cycle).name;
+        const anchor = subAnchorDay(sub);
+        if (sub.cycle === "weekly")
+            return `${name} on ${WEEKDAY_NAMES[weekdayOf(anchor)]}`;
+        if (sub.cycle === "annual")
+            return `${name} on ${Number(anchor.slice(8, 10))} ${MONTHS_SHORT[Number(anchor.slice(5, 7)) - 1]}`;
+        return `${name} on the ${ordinal(Number(anchor.slice(8, 10)))}`;
+    }
+    const days = Number(sub.trialDays) || 0;
+    const then = sub.trialThen && sub.trialThen !== "none"
+        ? `, then ${subCycle(sub.trialThen).name.toLowerCase()}` : "";
+    return `${days} day trial${then}`;
+}
+
+/**
+ * Add whole months to an ISO day, clamping instead of rolling over: a
+ * subscription started on the 31st bills on the 30th in a 30-day month, it does
+ * not jump to the 1st of the month after and drift a day further every time.
+ */
+function addMonthsClamped(day, n) {
+    const p = day.split("-").map(Number);
+    const target = new Date(p[0], p[1] - 1 + n, 1);
+    const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    target.setDate(Math.min(p[2], lastDay));
+    return _formatLocalDay(target);
+}
+
+/** The day a trial converts (or ends), or null when this is not a trial. */
+function subTrialEnd(sub) {
+    if (sub.cycle !== "trial")
+        return null;
+    return addDays(subStartDay(sub), Math.max(0, Number(sub.trialDays) || 0));
+}
+
+/**
+ * When this subscription started COSTING you. Charges before this day are not
+ * counted, so filling in a service you have had for years without knowing when
+ * it began does not invent a history of spending you cannot verify.
+ */
+function subStartDay(sub) {
+    return sub.startDate || localDay(sub.createdAt ?? Date.now());
+}
+
+/**
+ * The day the billing cycle is phased from, which is a different question from
+ * when you started paying. Entering a subscription you already have, you know
+ * "it renews on the 22nd" but usually not the day you first subscribed, so the
+ * renewal day is the anchor and the start day is optional.
+ *
+ * Falls back to the start day, which is exactly the old behaviour for every row
+ * written before this existed.
+ */
+function subAnchorDay(sub) {
+    return sub.renewalAnchor || subStartDay(sub);
+}
+
+/** Days in the month containing `day`. */
+function daysInMonth(year, month1) {
+    return new Date(year, month1, 0).getDate();
+}
+
+/**
+ * The most recent day-of-month `dom` on or before `today`, as the anchor for a
+ * monthly or quarterly cycle. Looking backwards rather than forwards keeps the
+ * phase correct whichever side of the renewal date you happen to be on.
+ */
+function anchorFromDayOfMonth(dom, today) {
+    const t = today.split("-").map(Number);
+    const thisMonthLast = daysInMonth(t[0], t[1]);
+    if (Math.min(dom, thisMonthLast) <= t[2]) {
+        const d = String(Math.min(dom, thisMonthLast)).padStart(2, "0");
+        return `${today.slice(0, 7)}-${d}`;
+    }
+    const prev = addMonthsClamped(`${today.slice(0, 7)}-01`, -1);
+    const prevLast = daysInMonth(Number(prev.slice(0, 4)), Number(prev.slice(5, 7)));
+    const d = String(Math.min(dom, prevLast)).padStart(2, "0");
+    return `${prev.slice(0, 7)}-${d}`;
+}
+
+/** The most recent `month1`/`dom` on or before `today`, for a yearly cycle. */
+function anchorFromMonthDay(month1, dom, today) {
+    const year = Number(today.slice(0, 4));
+    const build = y => {
+        const d = String(Math.min(dom, daysInMonth(y, month1))).padStart(2, "0");
+        return `${y}-${String(month1).padStart(2, "0")}-${d}`;
+    };
+    const thisYear = build(year);
+    return thisYear <= today ? thisYear : build(year - 1);
+}
+
+/** The most recent `weekday` (0 = Sunday) on or before `today`. */
+function anchorFromWeekday(weekday, today) {
+    const back = (weekdayOf(today) - weekday + 7) % 7;
+    return addDays(today, -back);
+}
+
+/** Which day of the month a subscription renews on, for showing it back. */
+function subRenewalDom(sub) {
+    return Number(subAnchorDay(sub).slice(8, 10));
+}
+
+/**
+ * The next day money leaves the account, or null when the subscription is
+ * cancelled or has already ended for good.
+ *
+ * Strictly AFTER today, because subChargeDays() already counts a charge dated
+ * today as spent. Letting the same charge be both "spent so far" and "renews
+ * today" double-counted it: adding a subscription that starts today showed the
+ * money as already gone and simultaneously raised a red renewal alert for it.
+ *
+ * A trial's first charge is the day it converts; after that it bills on the
+ * cadence it converted into.
+ */
+function subNextCharge(sub, today) {
+    if (sub.status === "cancelled")
+        return null;
+    const tomorrow = addDays(today, 1);
+
+    if (sub.cycle === "trial") {
+        const end = subTrialEnd(sub);
+        // A trial that just expires costs nothing, so it is never counted as
+        // spent and cannot double-count. Its last day still matters today,
+        // which is the alert worth having, so this one keeps "on or after".
+        if (!sub.trialThen || sub.trialThen === "none")
+            return end >= today ? end : null;
+        if (end >= tomorrow)
+            return end;
+        return _walkCycle(end, sub.trialThen, tomorrow);
+    }
+    return _walkCycle(subAnchorDay(sub), sub.cycle, tomorrow);
+}
+
+/** First occurrence of `cycle` starting at `from` that is on or after `notBefore`. */
+function _walkCycle(from, cycleId, notBefore) {
+    const cycle = subCycle(cycleId);
+    // Every step is measured from `from`, never from the previous result. Adding
+    // one month at a time compounds the end-of-month clamp: the 31st becomes the
+    // 30th in a short month and then stays there, walking the renewal date
+    // backwards a day at a time for the life of the subscription.
+    const at = k => cycle.months
+        ? addMonthsClamped(from, k * cycle.months)
+        : addDays(from, k * cycle.days);
+
+    // Jump most of the distance at once, so a decade-old weekly subscription
+    // does not cost five hundred iterations every time a binding re-evaluates.
+    let k = 0;
+    if (from < notBefore) {
+        if (cycle.months) {
+            const months = (Number(notBefore.slice(0, 4)) - Number(from.slice(0, 4))) * 12
+                + (Number(notBefore.slice(5, 7)) - Number(from.slice(5, 7)));
+            k = Math.max(0, Math.floor(months / cycle.months));
+        } else {
+            k = Math.max(0, Math.floor(diffDays(from, notBefore) / cycle.days));
+        }
+    }
+    let guard = 0;
+    while (at(k) < notBefore && guard++ < 400)
+        k++;
+    return at(k);
+}
+
+/**
+ * Every day this subscription was actually charged, up to and including
+ * `until`. Used for the history figure and for the charge timeline, so both
+ * read from one definition of "was billed".
+ *
+ * A cancelled subscription stops at its cancellation day. A trial contributes
+ * nothing while it runs: that is the whole point of a trial, and counting it
+ * would tell the user they had spent money they had not.
+ */
+function subChargeDays(sub, until) {
+    const out = [];
+    const stop = sub.status === "cancelled" && sub.cancelledOn && sub.cancelledOn < until
+        ? sub.cancelledOn : until;
+    let from, cycleId;
+
+    if (sub.cycle === "trial") {
+        if (!sub.trialThen || sub.trialThen === "none")
+            return out;
+        from = subTrialEnd(sub);
+        cycleId = sub.trialThen;
+    } else {
+        from = subAnchorDay(sub);
+        cycleId = sub.cycle;
+    }
+    // The anchor can sit before tracking began, because it only fixes which day
+    // of the month the cycle lands on. Charges earlier than the start day are
+    // skipped rather than invented.
+    const trackFrom = subStartDay(sub);
+    const cycle = subCycle(cycleId);
+    const at = k => cycle.months
+        ? addMonthsClamped(from, k * cycle.months)
+        : addDays(from, k * cycle.days);
+
+    let k = 0;
+    let guard = 0;
+    while (at(k) <= stop && guard++ < 2000) {
+        const day = at(k);
+        if (day >= trackFrom)
+            out.push(day);
+        k++;
+    }
+    return out;
+}
+
+/** Euro actually spent on this subscription up to `until`. */
+function subSpentEur(sub, until) {
+    return subChargeDays(sub, until).length * (Number(sub.amountEur) || 0);
+}
+
+/**
+ * What this subscription costs per month in euro, for the "you are committed to
+ * X a month" headline. A trial that has not converted yet costs nothing today,
+ * so it is reported separately rather than folded into the running total.
+ */
+function subMonthlyEur(sub) {
+    const eur = Number(sub.amountEur) || 0;
+    const cycleId = sub.cycle === "trial" ? sub.trialThen : sub.cycle;
+    if (!cycleId || cycleId === "none")
+        return 0;
+    const cycle = subCycle(cycleId);
+    if (cycle.months)
+        return eur / cycle.months;
+    return eur * (365.25 / 12) / cycle.days;
+}
+
+/** Whole days between two ISO days, `to` minus `from`. */
+function daysBetween(from, to) {
+    return diffDays(from, to);
+}
+
+/**
+ * "2 years 3 months", "5 months", "12 days". Coarse on purpose: a subscription
+ * held for years does not need its odd days spelled out.
+ */
+function fmtSpan(fromDay, toDay) {
+    const days = Math.max(0, diffDays(fromDay, toDay));
+    if (days < 31)
+        return days === 1 ? "1 day" : `${days} days`;
+    const f = fromDay.split("-").map(Number);
+    const t = toDay.split("-").map(Number);
+    let months = (t[0] - f[0]) * 12 + (t[1] - f[1]);
+    if (t[2] < f[2])
+        months -= 1;
+    if (months < 12)
+        return months === 1 ? "1 month" : `${months} months`;
+    const years = Math.floor(months / 12);
+    const rest = months % 12;
+    const y = years === 1 ? "1 year" : `${years} years`;
+    if (rest === 0)
+        return y;
+    return `${y} ${rest === 1 ? "1 month" : `${rest} months`}`;
+}
+
+/**
+ * Should a reminder go out for this subscription today, and which one?
+ * Returns { day, away, key, isTrialEnd } or null.
+ *
+ * Pure on purpose: the watcher that fires the notification is awkward to test
+ * live (Quickshell keeps singletons across reloads), so the decision it makes
+ * lives here where it can be checked directly.
+ */
+function subDueReminder(sub, today) {
+    if (sub.status === "cancelled")
+        return null;
+    const day = subNextCharge(sub, today);
+    if (!day)
+        return null;
+    const away = diffDays(today, day);
+    const windows = (sub.reminderDays && sub.reminderDays.length > 0)
+        ? sub.reminderDays : DEFAULT_REMINDER_DAYS;
+    if (windows.indexOf(away) < 0)
+        return null;
+    const key = `${day}:${away}`;
+    if ((sub.notified || {})[key])
+        return null;
+    return {
+        day: day,
+        away: away,
+        key: key,
+        isTrialEnd: sub.cycle === "trial" && subTrialEnd(sub) === day
+    };
+}
+
+// ---------- body measurements ----------
+
+/**
+ * The tape sites on the Body page, with the measuring routine shown beside
+ * every entry. `spotHint` asks for the user's own landmark distance: without
+ * a fixed spot the tape lands a few cm higher or lower each time and the
+ * "progress" is just a different spot. Stable ids, like SPEND_CATEGORIES.
+ */
+const BODY_SITES = [
+    {
+        id: "waist", name: "Waist", icon: "straighten",
+        how: "Stand relaxed with your feet together. Put the tape around your belly at the height of your navel, level all the way round (check in the mirror). Breathe out normally and read the tape at the end of the breath. Do not suck in or push the belly out.",
+        spotHint: "e.g. at the navel",
+        firstTime: "Your spot is simply the navel. Write it down anyway, so you never drift to the narrowest point instead."
+    },
+    {
+        id: "biceps", name: "Biceps", icon: "straighten",
+        how: "Right arm hanging loose by your side, muscle relaxed, not flexed. Find the bony tip of your shoulder and measure your spot distance straight down the outside of the arm. Wrap the tape there, level, snug on the skin but not pressing in.",
+        spotHint: "e.g. 17 cm below the shoulder tip",
+        firstTime: "Bend the arm to 90 degrees. Measure from the bony tip of the shoulder to the tip of the elbow and halve it. That distance below the shoulder tip is your spot. Save it below and use it forever."
+    },
+    {
+        id: "thigh", name: "Thigh", icon: "straighten",
+        how: "Stand straight, feet hip width apart, weight on both legs, thigh relaxed. Measure your spot distance up from the top of the right kneecap. Wrap the tape there, level all the way round, snug but not pressing in.",
+        spotHint: "e.g. 15 cm above the kneecap",
+        firstTime: "Measure from the top of the kneecap up to the crease where the leg meets the hip and halve it. That distance above the kneecap is your spot. Save it below and use it forever."
+    }
+];
+
+/** The rules that hold for every site; shown once at the top of the page. */
+const BODY_RULES = [
+    "Every 2 weeks, on the same weekday.",
+    "Morning, after the toilet, before eating, drinking or training.",
+    "Same tape every time. Snug on the skin, never pressing in.",
+    "Measure twice and log the average. If the two reads differ by more than 0.5 cm, measure a third time.",
+    "Weigh yourself daily if you like, but only trust the 7 day average."
+];
+
+const BODY_INTERVAL_DAYS = 14;
+
+/**
+ * One site's history from measurement rows (one row per day, the site's cm
+ * stored under its id). Oldest first. `change` is last minus first, in cm.
+ */
+function bodySeries(rows, site) {
+    const points = rows
+        .filter(r => typeof r[site] === "number" && r[site] > 0)
+        .sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0)
+        .map(r => ({ date: r.date, value: r[site] }));
+    if (points.length === 0)
+        return { points: [], first: null, last: null, change: 0 };
+    const first = points[0].value, last = points[points.length - 1].value;
+    return { points: points, first: first, last: last, change: Math.round((last - first) * 10) / 10 };
+}
+
+/** Mean weight over the 7 days ending on `today` (inclusive), or null. */
+function weightAvg7(weightLogs, today) {
+    const from = addDays(today, -6);
+    const vals = weightLogs
+        .filter(l => l.date >= from && l.date <= today && l.weightKg > 0)
+        .map(l => l.weightKg);
+    if (vals.length === 0)
+        return null;
+    return Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10;
+}
+
+/** Days until the next tape session is due; 0 or less means due now. */
+function bodyDueIn(rows, today) {
+    if (rows.length === 0)
+        return 0;
+    const last = rows.reduce((m, r) => r.date > m ? r.date : m, "");
+    return BODY_INTERVAL_DAYS - diffDays(last, today);
 }

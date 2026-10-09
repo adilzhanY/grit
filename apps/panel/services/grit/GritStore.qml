@@ -18,7 +18,7 @@ Singleton {
     property bool loaded: false
     property var db: ({
         tasks: [], completions: [], ledger: [], settings: [],
-        lists: [], foods: [], dayLogs: [], focus: [],
+        lists: [], foods: [], dayLogs: [], focus: [], spendings: [], subscriptions: [], measurements: [],
         // Local-only: the Shop catalogue has no Supabase table, so it never
         // syncs. Purchases still ride the ledger, so XP agrees everywhere.
         rewards: [],
@@ -102,6 +102,18 @@ Singleton {
         const row = root.db.focus.find(f => f.id === "active");
         return row ? Object.assign({}, row) : null;
     }
+    /** Subscriptions, newest first. Status filtering is the page's job. */
+    readonly property var subscriptions: {
+        root.revision;
+        return root.db.subscriptions.slice().sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
+    }
+
+    /** Spendings newest first: every list on the page reads them this way. */
+    readonly property var spendings: {
+        root.revision;
+        return root.db.spendings.slice().sort((a, b) => (b.spentAt ?? 0) - (a.spentAt ?? 0));
+    }
+
     readonly property var foods: {
         revision;
         return root.db.foods.slice().sort((a, b) => b.createdAt - a.createdAt);
@@ -156,6 +168,13 @@ Singleton {
             arr[i] = row;
         else
             arr.push(row);
+        // A row written again after a delete is alive: drop its tombstone, or
+        // sync pushes the delete after the row and the pull removes it again
+        // ("Go without rest" deletes the "active" focus row, then recreates it).
+        const tombs = root.db.tombstones;
+        const ti = tombs.findIndex(t => t.table === table && t.id === row.id);
+        if (ti >= 0)
+            tombs.splice(ti, 1);
         root.afterMutation();
     }
 
@@ -857,6 +876,189 @@ Singleton {
             }
             root.deleteRow("dayLogs", id);
         });
+    }
+
+    // ---------- Spendings ----------
+
+    /**
+     * One purchase: an amount, where it happened, and what it was for.
+     * `date` is the local day the money left, kept denormalised alongside
+     * `spentAt` so every range query is a string compare and never has to
+     * re-derive a local day from a timestamp for thousands of rows.
+     *
+     * Deliberately outside the ledger: money is not XP, and routing spending
+     * through the XP economy would make a grocery run change your level.
+     */
+    function addSpending(input) {
+        const at = input.spentAt ?? Date.now();
+        const row = Object.assign({
+            id: Core.uid(),
+            createdAt: Date.now(),
+            currency: root.settings.currency ?? "EUR"
+        }, input, {
+            amount: Number(input.amount) || 0,
+            place: (input.place ?? "").trim(),
+            category: input.category ?? "other",
+            note: (input.note ?? "").trim(),
+            spentAt: at,
+            date: input.date ?? Core.localDay(at)
+        });
+        root.putRow("spendings", row);
+        return row;
+    }
+
+    function updateSpending(id, patch) {
+        const clean = Object.assign({}, patch);
+        if (clean.amount !== undefined)
+            clean.amount = Number(clean.amount) || 0;
+        if (clean.place !== undefined)
+            clean.place = String(clean.place).trim();
+        if (clean.note !== undefined)
+            clean.note = String(clean.note).trim();
+        // Moving a spending to another day has to move both stamps together,
+        // or the list would show it on the old day and the charts on the new.
+        if (clean.date !== undefined && patch.spentAt === undefined) {
+            const row = root.getRow("spendings", id);
+            const old = new Date(row ? (row.spentAt ?? Date.now()) : Date.now());
+            const p = String(clean.date).split("-").map(Number);
+            clean.spentAt = new Date(p[0], p[1] - 1, p[2],
+                old.getHours(), old.getMinutes(), old.getSeconds()).getTime();
+        }
+        root.patchRow("spendings", id, clean);
+    }
+
+    function deleteSpending(id) {
+        root.deleteRow("spendings", id);
+    }
+
+    /** Places already visited, most-used first, for the form's quick picks. */
+    readonly property var spendPlaces: {
+        root.revision;
+        return Core.spendPlacesByUsage(root.db.spendings);
+    }
+
+    // ---------- Body measurements ----------
+
+    /** Tape sessions, oldest first. One row per day, each site's cm under its id. */
+    readonly property var measurements: {
+        root.revision;
+        return root.db.measurements.slice().sort((a, b) => a.date < b.date ? -1 : a.date > b.date ? 1 : 0);
+    }
+
+    readonly property var weightLogs: {
+        root.revision;
+        return root.db.dayLogs.filter(l => l.kind === "weight");
+    }
+
+    /**
+     * Save some sites for one day. The id is the date, so a second session
+     * the same day (or the same day logged on another device) merges into one
+     * row instead of making a duplicate point on the chart.
+     */
+    function saveMeasurements(date, values) {
+        const id = `body:${date}`;
+        const row = Object.assign({ id: id, date: date, createdAt: Date.now() },
+            root.getRow("measurements", id) ?? {}, values);
+        root.putRow("measurements", row);
+    }
+
+    function deleteMeasurementDay(date) {
+        root.deleteRow("measurements", `body:${date}`);
+    }
+
+    // ---------- Subscriptions ----------
+
+    /**
+     * A recurring charge. The amount is kept in BOTH the currency it is billed
+     * in and in euro, together with the rate used and when that rate was read.
+     * Converting once at write time is deliberate: charts and history must not
+     * silently rewrite what past months cost every time the euro moves, and a
+     * row that carries its own rate can still be audited later.
+     */
+    function addSubscription(input) {
+        const currency = input.currency ?? "EUR";
+        const amount = Number(input.amount) || 0;
+        const row = Object.assign({
+            id: Core.uid(),
+            createdAt: Date.now(),
+            status: "active",
+            reminderDays: Core.DEFAULT_REMINDER_DAYS.slice(),
+            notified: {},
+            note: ""
+        }, input, {
+            name: (input.name ?? "").trim(),
+            amount: amount,
+            currency: currency,
+            amountEur: GritFx.toEur(amount, currency),
+            fxRate: GritFx.rateOf(currency),
+            fxAt: Date.now(),
+            startDate: input.startDate || root.today
+        });
+        root.putRow("subscriptions", row);
+        return row;
+    }
+
+    function updateSubscription(id, patch) {
+        const row = root.getRow("subscriptions", id);
+        if (!row)
+            return;
+        const clean = Object.assign({}, patch);
+        if (clean.name !== undefined)
+            clean.name = String(clean.name).trim();
+        // Re-price whenever either half of the price changes, so amountEur can
+        // never be left describing a different number than `amount` does.
+        if (clean.amount !== undefined || clean.currency !== undefined) {
+            const currency = clean.currency ?? row.currency ?? "EUR";
+            const amount = Number(clean.amount ?? row.amount) || 0;
+            clean.amount = amount;
+            clean.currency = currency;
+            clean.amountEur = GritFx.toEur(amount, currency);
+            clean.fxRate = GritFx.rateOf(currency);
+            clean.fxAt = Date.now();
+        }
+        // Any change to the schedule invalidates which reminders were sent:
+        // the dates they referred to no longer exist.
+        if (clean.startDate !== undefined || clean.cycle !== undefined
+            || clean.trialDays !== undefined || clean.trialThen !== undefined
+            || clean.renewalAnchor !== undefined)
+            clean.notified = {};
+        root.patchRow("subscriptions", id, clean);
+    }
+
+    /**
+     * Cancelling keeps the row: the history list, the time held and the money
+     * spent are all derived from it. `cancelledOn` is a local day because every
+     * charge calculation works in days.
+     */
+    function cancelSubscription(id, onDay) {
+        root.patchRow("subscriptions", id, {
+            status: "cancelled",
+            cancelledOn: onDay || root.today,
+            cancelledAt: Date.now()
+        });
+    }
+
+    function resumeSubscription(id) {
+        root.patchRow("subscriptions", id, {
+            status: "active",
+            cancelledOn: undefined,
+            cancelledAt: undefined,
+            notified: {}
+        });
+    }
+
+    function deleteSubscription(id) {
+        root.deleteRow("subscriptions", id);
+    }
+
+    /** Record that a reminder for `key` went out, so it is never sent twice. */
+    function markSubNotified(id, key) {
+        const row = root.getRow("subscriptions", id);
+        if (!row)
+            return;
+        const notified = Object.assign({}, row.notified ?? {});
+        notified[key] = true;
+        root.patchRow("subscriptions", id, { notified: notified });
     }
 
     // ---------- Focus (Pomodoro) ----------
